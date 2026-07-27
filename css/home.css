@@ -1,0 +1,411 @@
+/* =========================================================================
+   首页 / — 目的地选择 + 品牌入口
+   ========================================================================= */
+
+/* 粒子画布 */
+#particles-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ---- Hero 区 ---- */
+.hero {
+  position: relative;
+  min-height: 70vh;
+  padding: calc(var(--nav-h) + var(--sp-8)) var(--sp-7) var(--sp-7);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  overflow: hidden;
+}
+.hero__inner {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 720px;
+}
+.hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--c-teal);
+  animation: fade-up 0.6s var(--ease-out) both;
+}
+.hero__eyebrow::before {
+  content: '';
+  width: 32px; height: 1px;
+  background: var(--c-teal);
+  opacity: 0.6;
+}
+.hero__title {
+  font-family: var(--font-display);
+  font-weight: var(--w-bold);
+  font-size: var(--text-hero);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.025em;
+  color: var(--c-text);
+  margin-bottom: var(--sp-4);
+  animation: fade-up 0.7s var(--ease-out) 0.1s both;
+}
+.hero__title em {
+  font-style: italic;
+  color: var(--c-gold);
+  position: relative;
+}
+.hero__title em::after {
+  content: '';
+  position: absolute;
+  left: 0; bottom: 0.08em;
+  width: 100%; height: 3px;
+  background: var(--grad-gold);
+  opacity: 0.4;
+  border-radius: 2px;
+}
+.hero__subtitle {
+  font-family: var(--font-ui);
+  font-weight: var(--w-light);
+  font-size: var(--text-sub);
+  color: var(--c-text-2);
+  margin-bottom: var(--sp-7);
+  letter-spacing: 0.02em;
+  animation: fade-up 0.7s var(--ease-out) 0.2s both;
+}
+.hero__subtitle b { color: var(--c-teal); font-weight: var(--w-regular); }
+
+/* ---- 搜索框 ---- */
+.search {
+  position: relative;
+  width: 100%;
+  max-width: 600px;
+  margin-bottom: var(--sp-7);
+  animation: fade-up 0.7s var(--ease-out) 0.3s both;
+}
+.search__field {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  height: 56px;
+  padding: 0 var(--sp-5);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-elevated), var(--shadow-inset);
+  transition: border-color var(--t-base) var(--ease-out), box-shadow var(--t-base) var(--ease-out);
+}
+.search__field:focus-within {
+  border-color: rgba(240, 165, 0, 0.5);
+  box-shadow: var(--shadow-elevated), var(--shadow-gold), var(--shadow-inset);
+}
+.search__icon {
+  width: 20px; height: 20px;
+  color: var(--c-gold);
+  flex-shrink: 0;
+}
+.search__input {
+  flex: 1;
+  font-size: 1.05rem;
+  font-weight: var(--w-light);
+  color: var(--c-text);
+  background: transparent;
+  outline: none;
+}
+.search__input::placeholder { color: var(--c-text-3); }
+.search__submit {
+  width: 40px; height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: var(--grad-gold);
+  color: var(--c-base);
+  transition: transform var(--t-fast) var(--ease-spring);
+}
+.search__submit:hover { transform: scale(1.08); }
+.search__hint {
+  position: absolute;
+  bottom: -28px;
+  left: var(--sp-5);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--c-text-3);
+  letter-spacing: 0.05em;
+}
+.search__hint kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  margin: 0 2px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--c-text-2);
+  background: rgba(136, 146, 164, 0.1);
+  border: 1px solid rgba(136, 146, 164, 0.2);
+  border-radius: 4px;
+}
+
+/* ---- 目的地推荐卡片 ---- */
+.destinations {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-3);
+  width: 100%;
+  max-width: 680px;
+  animation: fade-up 0.7s var(--ease-out) 0.45s both;
+}
+.dest-card {
+  position: relative;
+  padding: var(--sp-4);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(240, 165, 0, 0.1);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform var(--t-base) var(--ease-spring), border-color var(--t-base) var(--ease-out), box-shadow var(--t-base) var(--ease-out);
+  will-change: transform;
+}
+.dest-card:hover {
+  border-color: rgba(240, 165, 0, 0.4);
+  box-shadow: var(--shadow-gold);
+}
+.dest-card__num {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--c-text-3);
+  letter-spacing: 0.1em;
+}
+.dest-card__name {
+  font-family: var(--font-serif);
+  font-weight: var(--w-bold);
+  font-size: 1.15rem;
+  color: var(--c-text);
+  margin: var(--sp-1) 0;
+}
+.dest-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-micro);
+  color: var(--c-text-2);
+}
+.dest-card__dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dest-card__glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 80% 0%, rgba(240, 165, 0, 0.12) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity var(--t-base) var(--ease-out);
+  pointer-events: none;
+}
+.dest-card:hover .dest-card__glow { opacity: 1; }
+
+/* ---- 过渡区：热门社区路线 ---- */
+.routes-section {
+  position: relative;
+  z-index: 2;
+  padding: var(--sp-8) var(--sp-7) var(--sp-9);
+}
+.routes-section__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: var(--sp-6);
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+}
+.routes-section__title {
+  font-family: var(--font-display);
+  font-weight: var(--w-bold);
+  font-size: var(--text-heading);
+  color: var(--c-text);
+  letter-spacing: -0.02em;
+}
+.routes-section__title span { color: var(--c-gold); font-style: italic; }
+.routes-section__sub {
+  font-size: var(--text-body);
+  color: var(--c-text-2);
+  margin-top: var(--sp-2);
+}
+.routes-section__more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  color: var(--c-teal);
+  transition: gap var(--t-base) var(--ease-out);
+}
+.routes-section__more:hover { gap: var(--sp-3); }
+
+.routes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-5);
+}
+.route-card {
+  position: relative;
+  padding: var(--sp-5);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(240, 165, 0, 0.08);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  transition: transform var(--t-base) var(--ease-out), border-color var(--t-base) var(--ease-out);
+}
+.route-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(240, 165, 0, 0.25);
+}
+.route-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--sp-4);
+}
+.route-card__city {
+  font-family: var(--font-serif);
+  font-weight: var(--w-bold);
+  font-size: 1.5rem;
+  color: var(--c-text);
+}
+.route-card__city small {
+  display: block;
+  font-family: var(--font-ui);
+  font-weight: var(--w-light);
+  font-size: var(--text-small);
+  color: var(--c-text-2);
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+.route-card__score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.route-card__score-val {
+  font-family: var(--font-mono);
+  font-weight: var(--w-bold);
+  font-size: 1.4rem;
+  color: var(--c-success);
+}
+.route-card__score-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--c-text-3);
+  letter-spacing: 0.08em;
+}
+.route-card__route {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: var(--sp-4) 0;
+  flex-wrap: wrap;
+}
+.route-card__stop {
+  font-size: var(--text-small);
+  color: var(--c-text);
+  white-space: nowrap;
+}
+.route-card__dash {
+  flex: 1;
+  min-width: 16px;
+  height: 1px;
+  background: repeating-linear-gradient(90deg, var(--c-gold) 0 4px, transparent 4px 8px);
+  opacity: 0.5;
+}
+.route-card__stats {
+  display: flex;
+  gap: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px solid rgba(240, 165, 0, 0.08);
+}
+.route-card__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.route-card__stat-val {
+  font-family: var(--font-mono);
+  font-weight: var(--w-medium);
+  font-size: var(--text-body);
+  color: var(--c-gold);
+}
+.route-card__stat-key {
+  font-size: var(--text-micro);
+  color: var(--c-text-3);
+  letter-spacing: 0.05em;
+}
+.route-card__author {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+.route-card__avatar {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--grad-teal);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: var(--w-bold);
+  color: var(--c-base);
+}
+.route-card__author-name {
+  font-size: var(--text-small);
+  color: var(--c-text-2);
+}
+.route-card__verified {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--c-success);
+}
+
+/* 装饰几何 — 包豪斯 */
+.deco-bauhaus {
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+}
+.deco-bauhaus--1 {
+  top: 20%; right: 8%;
+  width: 180px; height: 180px;
+}
+.deco-bauhaus--2 {
+  top: 45%; right: 22%;
+  width: 90px; height: 90px;
+}
+
+/* ---- 响应式 ---- */
+@media (max-width: 960px) {
+  .destinations { grid-template-columns: repeat(2, 1fr); }
+  .routes-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .hero { padding: calc(var(--nav-h) + var(--sp-6)) var(--sp-5); }
+  .routes-section { padding: var(--sp-7) var(--sp-5); }
+  .destinations { grid-template-columns: repeat(2, 1fr); max-width: 100%; }
+  .search { max-width: 100%; }
+  .deco-bauhaus { display: none; }
+}
