@@ -7,12 +7,24 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-F0A500.svg?style=flat-square)](./LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D18-339933?style=flat-square&logo=node.js)](https://nodejs.org/)
-[![Sponsor](https://img.shields.io/badge/2026-火山杯%20Agent%20创新大赛-FF6B35?style=flat-square)](https://github.com/JimmyMi001/SUIT-TRAE-123Lets-GO)
+[![Sponsor](https://img.shields.io/badge/2026-火山杯%20Agent%20创新大赛-FF6B35?style=flat-square)](https://www.volcengine.com/)
 [![School](https://img.shields.io/badge/深圳信息职业技术大学-深信-1E40AF?style=flat-square)](https://www.suit-sz.edu.cn/)
 
 **社区路线众包 × AI 交叉验证 × 个性化旅行伴侣 · 全栈自研**
 
 [🚀 30 秒一键启动](#-30-秒一键启动推荐) · [📖 功能详解](#-核心功能) · [🏗️ 技术架构](#-技术架构) · [🔑 申请密钥](#-申请-api-密钥保姆级) · [📊 API 文档](#-api-接口文档) · [🤝 部署上线](#-部署指南)
+
+</div>
+
+---
+
+<div align="center">
+
+### 🏫 × ☁️ 联合出品
+
+<img src="./assets/icons/sziit-logo.png" alt="深圳信息职业技术大学" height="64" style="vertical-align: middle;"/>  ×  <img src="./assets/icons/volcengine-combine-color.svg" alt="火山引擎 Volcengine" height="48" style="vertical-align: middle;"/>
+
+**深圳信息职业技术大学 · 第 123 号队伍**  ×  **2026"火山杯"Agent 创新大赛 · 火山引擎**
 
 </div>
 
@@ -1177,20 +1189,19 @@ copies of the Software...
 - [GitHub](https://github.com/) / [Render](https://render.com/) / [Vercel](https://vercel.com/) - 部署平台
 - [gitleaks](https://github.com/gitleaks/gitleaks) - 密钥扫描
 - [2026"火山杯"Agent 创新大赛](https://www.volcengine.com/) - 比赛主办方
-- **[NVIDIA](https://www.nvidia.com/)** & **[Intel](https://www.intel.com/)** - 感谢两家计算巨头在 GPU/CPU 架构上的持续创新，让我们能用消费级笔记本跑通 AI 推理与粒子背景渲染
+- **[NVIDIA](https://www.nvidia.com/)** - GPU 算力提供方
+- **[Intel](https://www.intel.com/)** - CPU 算力提供方
 
 ---
 
 ## 🎁 同时感谢（彩蛋 · 非赞助）
 
-> 以下不是赞助商，是我们通宵打磨产品时**真实存在**的"功臣"。没有它们，这个项目可能要少做 30%。
+> 以下不是赞助商，是我们通宵打磨产品时**真实存在**的"功臣"。
 
-| 功臣 | 它到底帮了什么 |
-|------|--------------|
-| ☕ **[瑞幸咖啡](https://www.luckincoffee.com/)** | 9.9 一杯，是 7 天 7 夜连续编码的**物质基础** —— 没有它，思考链不会这么完整 |
-| ☕ **[库迪咖啡](https://www.cottilabs.com/)** | 9.9 平替，让 5 人小队的咖啡预算直接砍半 —— 是深夜复盘页的功臣 |
-| 🍔 **[麦当劳](https://www.mcdonalds.com.cn/)** | 24h 营业 + 全国统一价格 = 旅途最稳的"应急餐"，产品里"找餐厅"的兜底方案就是它给的灵感 |
-| 🧠 **GitHub Copilot** | AI 帮我们写了一半的 CSS 和正则 —— **同行，不是对手**，本项目也是 AI × 人类的协作范本 |
+- ☕ **[瑞幸咖啡](https://www.luckincoffee.com/)**
+- ☕ **[库迪咖啡](https://www.cottilabs.com/)**
+- 🍔 **[麦当劳](https://www.mcdonalds.com.cn/)**
+- 🧠 **GitHub Copilot**
 
 > *——这是给评委的小幽默 🫶，看到这里的都是有缘人。*
 
