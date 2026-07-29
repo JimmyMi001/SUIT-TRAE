@@ -1247,7 +1247,7 @@ copies of the Software...
 - [千问（通义千问）](https://tongyi.aliyun.com/) - 大模型技术参考
 - [Google](https://www.google.com/) - 搜索与开发工具
 - [Visual Studio Code](https://code.visualstudio.com/) - 代码编辑器
-- [CC Switch](https://www.ccswitch.io/zh/) - 网络加速工具
+- [CC Switch](https://www.ccswitch.io/zh/) - AI 编程 CLI 配置管理工具
 - [高德开放平台](https://lbs.amap.com/) - POI / 天气 / 地图 API
 - [DeepSeek](https://platform.deepseek.com/) - 中文大模型
 - [Open-Meteo](https://open-meteo.com/) - 免费天气数据
