@@ -31,7 +31,7 @@
       ×
     </td>
     <td align="center" valign="middle" style="border: none; padding: 0 24px;">
-      <img src="./assets/icons/volcengine-combine-color.svg" alt="火山引擎 Volcengine" height="48" style="vertical-align: middle;"/>
+      <img src="./assets/icons/volcengine-combine-color.png" alt="火山引擎 Volcengine" height="48" style="vertical-align: middle;"/>
     </td>
   </tr>
 </table>
