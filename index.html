@@ -1006,6 +1006,47 @@
     border:1px solid rgba(240,183,131,.2);border-radius:10px;letter-spacing:.02em}
   .com__hint b{color:var(--accent);font-family:var(--mono);font-weight:600}
 
+  /* ========================================================= Multi-Dim Travel Tips
+     ========================================================= */
+  .tips-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:0 0 24px 0}
+  @media (max-width:768px){.tips-grid{grid-template-columns:1fr}}
+  .tip-card{
+    position:relative;padding:16px 18px;border-radius:12px;
+    background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(255,255,255,.02));
+    border:1px solid var(--line);
+    border-left:3px solid var(--tip-color, #d4a574);
+    backdrop-filter:blur(8px) saturate(160%);
+    transition:transform .25s ease-out, border-color .25s ease-out, box-shadow .25s ease-out;
+    overflow:hidden
+  }
+  .tip-card::before{content:"";position:absolute;inset:0;
+    background:linear-gradient(135deg,color-mix(in srgb, var(--tip-color) 8%, transparent),transparent 60%);
+    pointer-events:none;opacity:.85}
+  .tip-card:hover{transform:translateY(-2px);
+    border-color:color-mix(in srgb, var(--tip-color) 50%, var(--line));
+    box-shadow:0 8px 24px rgba(0,0,0,.25),0 0 0 1px color-mix(in srgb, var(--tip-color) 20%, transparent)}
+  .tip-card__head{display:flex;align-items:center;gap:8px;margin-bottom:10px;position:relative}
+  .tip-card__icon{font-size:20px;line-height:1;filter:drop-shadow(0 0 6px color-mix(in srgb, var(--tip-color) 60%, transparent))}
+  .tip-card__label{font-size:15px;font-weight:600;color:var(--tip-color);
+    letter-spacing:.02em;font-family:'DM Serif Display',Georgia,serif}
+  .tip-card__src{margin-left:auto;font-size:10px;font-family:var(--mono);
+    padding:2px 8px;border-radius:10px;
+    background:color-mix(in srgb, var(--tip-color) 18%, transparent);
+    color:var(--tip-color);letter-spacing:.06em;font-weight:600;
+    border:1px solid color-mix(in srgb, var(--tip-color) 30%, transparent)}
+  .tip-card__list{margin:0;padding:0 0 0 18px;list-style:none;position:relative}
+  .tip-card__list li{position:relative;padding:5px 0 5px 8px;font-size:13px;
+    color:var(--text-2);line-height:1.7;border-bottom:1px dashed rgba(255,255,255,.04)}
+  .tip-card__list li:last-child{border-bottom:none}
+  .tip-card__list li::before{content:"▸";position:absolute;left:-14px;top:5px;
+    color:var(--tip-color);font-weight:700}
+  .tips-thinking summary{list-style:none;transition:color .2s}
+  .tips-thinking summary::-webkit-details-marker{display:none}
+  .tips-thinking summary::before{content:"🔍 ";margin-right:4px}
+  .tips-thinking summary:hover{color:#b29bff}
+  .tips-thinking[open] summary::before{content:"📂 "}
+  .tips-thinking code{font-family:var(--mono);font-size:11px}
+
   /* ========================================================= Modal
      ========================================================= */
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;
@@ -2845,7 +2886,45 @@ async function renderItinerary(data, params){
       </div>`).join('')}
     </div>` : ''}
 
-    ${(data.tips||[]).length ? `<h3 style="margin:24px 0 12px">💡 旅行贴士</h3><ul style="margin:0;padding-left:20px;color:var(--muted)">${data.tips.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>` : ''}
+    ${(data.tips_meta?.dimensions?.length) ? `
+    <h3 style="margin:28px 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span>💡 多维度旅行贴士</span>
+      <span style="font-size:12px;color:var(--muted);font-weight:normal">
+        ${data.tips_meta.source === 'deepseek' ? '🤖 DeepSeek V4 预览版 AI · 4 维度' : data.tips_meta.source === 'local' ? '🧠 本地知识库 · 4 维度' : '🤖 AI+🧠 知识库 · 4 维度'}
+      </span>
+      <span style="font-size:11px;color:var(--text-3);font-weight:normal;margin-left:auto">点击展开思考过程 ↓</span>
+    </h3>
+    <details class="tips-thinking" style="margin:0 0 14px 0;padding:10px 14px;background:rgba(155,139,224,.06);border:1px dashed rgba(155,139,224,.3);border-radius:8px;font-size:12px;color:var(--text-2)">
+      <summary style="cursor:pointer;font-weight:600;color:#9b8be0">🧠 思考过程：贴士是怎么生成的？</summary>
+      <div style="margin-top:8px;line-height:1.7">
+        <div>📌 <b>生成策略</b>：DeepSeek V4 预览版 AI 多维度提示词工程 + 本地知识库兜底（4 维度）</div>
+        <div>📌 <b>实际数据源</b>：<code style="background:rgba(0,0,0,.2);padding:1px 6px;border-radius:3px">${esc(data.tips_meta.source)}</code>
+          ${data.tips_meta.source === 'deepseek' ? '· DeepSeek 完整生成 4 维度' : data.tips_meta.source === 'local' ? '· 城市数据库 + 区域知识图谱' : '· DeepSeek 主生成 + 知识库补全'}
+        </div>
+        <div>📌 <b>覆盖维度</b>：${data.tips_meta.dimensions.map(d => `${d.icon}${d.label} ×${d.tips.length}（${d.source}）`).join(' · ')}</div>
+        <div>📌 <b>总贴士数</b>：${data.tips_meta.dimensions.reduce((s, d) => s + d.tips.length, 0)} 条
+          · <b>生成时间</b>：${new Date(data.tips_meta.generated_at).toLocaleString('zh-CN', { hour12: false })}
+        </div>
+        <div>📌 <b>AI 模型</b>：${esc(data.tips_meta.ai_model)}
+          ${data.tips_meta.source === 'local' && data.tips_meta.ai_model.includes('未启用') ? '（建议配置 DEEPSEEK_KEY 启用 AI 增强）' : ''}
+        </div>
+      </div>
+    </details>
+    <div class="tips-grid">
+      ${data.tips_meta.dimensions.map(dim => `
+        <div class="tip-card" style="--tip-color:${dim.color}">
+          <div class="tip-card__head">
+            <span class="tip-card__icon">${dim.icon}</span>
+            <span class="tip-card__label">${esc(dim.label)}</span>
+            <span class="tip-card__src" title="${dim.source === 'deepseek' ? '由 DeepSeek V4 预览版 AI 生成' : dim.source === 'local' ? '由本地知识库生成' : '由 DeepSeek + 本地知识库合并生成'}">${dim.source === 'deepseek' ? 'AI' : dim.source === 'local' ? '知识库' : 'AI+知识库'}</span>
+          </div>
+          <ul class="tip-card__list">
+            ${dim.tips.map(t => `<li>${esc(t)}</li>`).join('')}
+          </ul>
+        </div>
+      `).join('')}
+    </div>
+    ` : (data.tips?.length ? `<h3 style="margin:24px 0 12px">💡 旅行贴士</h3><ul style="margin:0;padding-left:20px;color:var(--muted)">${data.tips.map(t=>`<li>${esc(typeof t === 'string' ? t : t.text)}</li>`).join('')}</ul>` : '')}
 
     <div id="planCommWrap" style="margin-top:24px"></div>
   `;
@@ -4199,12 +4278,11 @@ async function loadCommunity(q){
   list = deduped;
   // "显示全部"头部提示
   const totalHint = isAll
-    ? `<div class="com__hint">共 <b>${list.length}</b> 条独立路线（已去重）· 按贡献者评分排序</div>`
+    ? `<div class="com__hint">共 <b>${list.length}</b> 条独立路线（已去重）· 按热度排序</div>`
     : `<div class="com__hint">搜索结果 <b>${list.length}</b> 条 · 已去重</div>`;
   const el = document.getElementById('comResult');
   el.innerHTML = totalHint + list.map(rt=>`<div class="card com__card" data-id="${esc(rt.id||'')}">
     <div class="card__title">🗺️ ${esc(rt.title)}</div>
-    <div class="com__card-author">${esc(rt.contributor?.name||'匿名')} · ${esc(rt.contributor?.level||'Lv.?')}</div>
     <div class="card__body">${esc(rt.summary || (rt.nodes||[]).slice(0,2).map(n=>n.poi).join(' · '))}</div>
     <div>${(rt.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
     <div class="card__row">
@@ -4225,14 +4303,12 @@ async function showRouteDetail(id, fullList){
     if(r.__error || !r?.route){ showModal('<p>详情加载失败</p>'); return; }
     rt = r.route;
   }
-  const c = rt.contributor || {};
   const stats = rt.stats || {};
   const html = `
     <h2>${esc(rt.title)}</h2>
     <p style="color:var(--muted)">${esc(rt.city)} · ${esc(String(rt.days))}天 · ${esc(rt.budget||'')}</p>
     <div style="margin:16px 0;padding:12px;background:var(--panel2);border-radius:8px">
-      <div>贡献者：${esc(c.name||'匿名')} ${esc(c.level||'')}</div>
-      <div style="color:var(--muted);font-size:13px;margin-top:4px">评分 ${esc(String(stats.rating||'—'))} · ${esc(String(stats.used||0))} 人用过 · ${esc(String(stats.likes||0))} 收藏</div>
+      <div style="color:var(--muted);font-size:13px">⭐ 评分 ${esc(String(stats.rating||'—'))} · ${esc(String(stats.used||0))} 人用过 · ${esc(String(stats.likes||0))} 收藏</div>
     </div>
     <p>${esc(rt.summary||'')}</p>
     <h3>每日行程</h3>
@@ -4244,33 +4320,96 @@ async function showRouteDetail(id, fullList){
       </div>
     </div>`).join('') || '<p style="color:var(--muted)">暂无详细行程</p>'}
     <div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn--pri" id="useRoutePlanBtn" data-city="${esc(rt.city)}" data-days="${esc(String(rt.days||3))}">用此生成行程</button>
+      <button class="btn btn--pri" id="useRoutePlanBtn" data-city="${esc(rt.city)}" data-days="${esc(String(rt.days||3))}">用此生成路线</button>
       <button class="btn btn--ghost" onclick="closeModal()">关闭</button>
     </div>`;
   showModal(html);
-  // 绑定"用此生成行程"按钮：先填表 → 切换到 plan 标签 → 触发 loadPlan
+  // 绑定"用此生成路线"按钮：先弹出发地输入界面 → 同步表单 → 切换 tab → 触发 loadPlan
   const btn = document.getElementById('useRoutePlanBtn');
   if (btn) {
     btn.onclick = async () => {
-      const city = btn.dataset.city;
+      const destCity = btn.dataset.city;
       const days = btn.dataset.days;
-      // 1) 同步到表单（级联 + 文本 双写）
-      syncCityToAllInputs(city);
+      // 1) 弹出出发地输入界面
+      const originCity = await promptOriginCity(destCity);
+      if (!originCity) {
+        // 用户取消
+        if (typeof showToast === 'function') showToast('⚠️ 已取消：未填写出发地', 'warn');
+        return;
+      }
+      // 2) 同步到表单（级联 + 文本 + 出发地）
+      syncCityToAllInputs(destCity);
       const daysInput = document.getElementById('planDays');
       if (daysInput) daysInput.value = days;
-      // 2) 关闭弹窗
+      // 出发地（如果不是广州默认值）
+      const originInput = document.getElementById('userOriginCity');
+      if (originInput && originCity && originCity !== '广州') {
+        originInput.value = originCity;
+        originInput.dispatchEvent(new Event('change'));
+      }
+      // 3) 关闭弹窗
       closeModal();
-      // 3) 切换到 plan 标签
+      // 4) 切换到 plan 标签
       switchTab('plan');
-      // 4) 滚动到结果区
+      // 5) 滚动到结果区
       document.getElementById('s-plan')?.scrollIntoView({behavior:'smooth'});
-      // 5) 显示 toast 提示
-      if (typeof showToast === 'function') showToast(`🎯 正在基于「${city} ${days}天」社区路线生成专属行程…`, 'info');
-      // 6) 立即触发 loadPlan
+      // 6) 显示 toast 提示
+      if (typeof showToast === 'function') showToast(`🎯 正在基于「${destCity} ${days}天」社区路线（出发地：${originCity}）生成专属行程…`, 'info');
+      // 7) 立即触发 loadPlan
       try { await loadPlan(); }
       catch(e) { console.error('loadPlan error:', e); }
     };
   }
+}
+
+// 弹出出发地输入界面（支持手动输入 + 50+ 城市快速选择）
+async function promptOriginCity(destCity){
+  return new Promise((resolve) => {
+    const quickCities = ['北京','上海','广州','深圳','杭州','成都','南京','武汉','西安','重庆','苏州','厦门','天津','青岛','长沙','郑州','昆明','拉萨','大理','丽江','三亚','哈尔滨','沈阳','大连','济南','合肥','福州','南昌','贵阳','南宁','兰州','西宁','海口','无锡','宁波','温州','佛山','东莞','珠海','泉州','烟台','太原','石家庄','呼和浩特','乌鲁木齐','桂林','张家界','黄山','九寨沟','敦煌','阳江','湛江','茂名'];
+    const html = `
+      <h2>✈️ 设置出发地</h2>
+      <p style="color:var(--muted);margin:8px 0 16px">即将基于社区路线「${esc(destCity)}」生成专属行程。请先选择/输入你的出发城市，方便计算交通方式和报价：</p>
+      <div style="margin:14px 0">
+        <label style="display:block;font-size:13px;color:var(--text-2);margin-bottom:6px">📍 快速选择（常用城市）</label>
+        <div id="originQuickCities" style="display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow-y:auto;padding:6px;background:var(--panel2);border-radius:6px">
+          ${quickCities.map(c => `<button class="tag" data-origin="${esc(c)}" style="cursor:pointer;border:1px solid var(--border);padding:4px 10px">${esc(c)}</button>`).join('')}
+        </div>
+      </div>
+      <div style="margin:14px 0">
+        <label style="display:block;font-size:13px;color:var(--text-2);margin-bottom:6px">✏️ 或手动输入（支持任意城市，如"阳江"）</label>
+        <input type="text" id="originInput" placeholder="输入出发城市" style="width:100%;padding:10px 12px;background:var(--panel2);color:var(--text-1);border:1px solid var(--border);border-radius:6px;font-size:14px" value="广州">
+      </div>
+      <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn--ghost" id="originCancel">取消</button>
+        <button class="btn btn--pri" id="originConfirm">🚀 开始生成</button>
+      </div>
+    `;
+    showModal(html);
+    // 绑定事件
+    setTimeout(() => {
+      const input = document.getElementById('originInput');
+      const confirmBtn = document.getElementById('originConfirm');
+      const cancelBtn = document.getElementById('originCancel');
+      // 快速选择 tag
+      document.querySelectorAll('#originQuickCities .tag').forEach(t => {
+        t.onclick = () => { if (input) input.value = t.dataset.origin; };
+      });
+      const doConfirm = () => {
+        const v = (input?.value || '').trim();
+        if (!v) {
+          if (typeof showToast === 'function') showToast('⚠️ 请输入或选择出发城市', 'warn');
+          input?.focus();
+          return;
+        }
+        resolve(v);
+      };
+      const doCancel = () => resolve(null);
+      confirmBtn.onclick = doConfirm;
+      cancelBtn.onclick = doCancel;
+      input.onkeydown = (e) => { if (e.key === 'Enter') doConfirm(); if (e.key === 'Escape') doCancel(); };
+      input?.focus();
+    }, 50);
+  });
 }
 
 // 把城市同步到所有可能的输入控件（级联 + 文本 + 伴侣）

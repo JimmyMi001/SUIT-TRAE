@@ -690,7 +690,7 @@ app.get('/api/destinations/recommend', async (req, res) => {
       score += tagScore;
       scored.push({ city, score, factors, data });
     }
-    // 3) 排序 + 选 Top 5（不重复）
+    // 3) 排序 + 选 Top 5（不重复：城市名精确去重 + 同 region 不连续出现 + 标签集合去重）
     scored.sort((a, b) => b.score - a.score);
     // 4) 用 seed 做小幅扰动，避免每天都一样
     const swap = (arr) => {
@@ -698,7 +698,38 @@ app.get('/api/destinations/recommend', async (req, res) => {
       const offset = seed % arr.length;
       return [...arr.slice(offset), ...arr.slice(0, offset)];
     };
-    const top = swap(scored).slice(0, 5);
+    const rotated = swap(scored);
+    // ===== 强化去重 =====
+    // 维度 A: 城市名精确去重
+    // 维度 B: 同一 region 不连续 2 个（保证地理多样性）
+    // 维度 C: 标签集合去重（避免同质化推荐：自然+历史 vs 历史+文化 不算重复；自然+历史+美食 算新组合）
+    const seenCity = new Set();
+    const lastRegion = [];
+    const seenTagCombo = new Set();
+    const top = [];
+    for (const s of rotated) {
+      if (top.length >= 5) break;
+      // A) 城市名去重
+      if (seenCity.has(s.city)) continue;
+      // B) 同一 region 连续两个跳过
+      if (lastRegion.length >= 1 && lastRegion[lastRegion.length - 1] === s.data.region && lastRegion.filter(r => r === s.data.region).length >= 2) continue;
+      // C) 标签组合去重（sorted tags 字符串）
+      const tagCombo = (s.data.tags || []).slice().sort().join('|');
+      if (tagCombo && seenTagCombo.has(tagCombo) && top.length < 4) continue;  // 只在前4个里强约束
+      seenCity.add(s.city);
+      lastRegion.push(s.data.region);
+      if (tagCombo) seenTagCombo.add(tagCombo);
+      top.push(s);
+    }
+    // 如果上面算法填不足 5 个（数据稀疏），用排序结果兜底
+    if (top.length < 5) {
+      for (const s of rotated) {
+        if (top.length >= 5) break;
+        if (seenCity.has(s.city)) continue;
+        seenCity.add(s.city);
+        top.push(s);
+      }
+    }
     res.json({
       error: false,
       seed,
@@ -2692,6 +2723,8 @@ app.get('/api/agent/plan', async (req, res) => {
     const b = Math.max(100, parseInt(budget) || 500);
     const tagList = tags ? String(tags).split(',').filter(Boolean) : [];
     const t0 = Date.now();
+    // ★ 修复：声明 cd（CITIES_DATA[city]）供后续步骤使用
+    const cd = CITIES_DATA[city];
 
     // ============================================================
     // 思考链：每步的实际数据都收集起来，让前端展示"信服力"
@@ -3202,13 +3235,22 @@ ${typesStr}
       }, 'community.json', dt);
     }
 
-    const tips = [
-      `${city}建议选择 ${tagList[0] || '经典'} 主题行程`,
-      `预算 ${b}元/天${b<300?'偏紧，建议民宿+小吃':b>1500?'宽裕，可加 1 晚高端酒店':'适中'}`,
-      `下载离线地图，${city}部分老城信号弱`,
-      '热门景点提前 1-3 天预约',
-      '留意当地天气，留 1 个机动日'
-    ];
+    // ---------- 步骤 7.5: 多维度旅行贴士（DeepSeek + 本地兜底） ----------
+    let tipsEnhanced = null;
+    {
+      const ts = Date.now();
+      tipsEnhanced = await generateMultiDimTips(city, cd, d, b, pax, tagList);
+      const dt = Date.now() - ts;
+      think(7.5, '多维度旅行贴士', tipsEnhanced.source === 'deepseek' ? 'success' : 'fallback', {
+        method: '4 维度智能生成：① 目的地文化背景 ② 当地风俗习惯 ③ 旅行安全提示 ④ 最佳游览时间',
+        primary_source: 'DeepSeek V4 预览版 AI（多维度提示词工程）',
+        fallback_source: '本地启发式（基于城市数据库 + 区域知识图谱）',
+        actually_used: tipsEnhanced.source,
+        dimensions: tipsEnhanced.dimensions.map(dim => ({ key: dim.key, label: dim.label, count: dim.tips.length, source: dim.source })),
+        total_tips: tipsEnhanced.tips.length,
+        thinking_chain_visible: true
+      }, tipsEnhanced.source === 'deepseek' ? 'deepseek+local' : 'local-heuristic', dt);
+    }
 
     res.json({
       error: false,
@@ -3225,7 +3267,13 @@ ${typesStr}
       depart_in_days: departDays,
       resolve: resolveInfo,
       community,
-      tips,
+      tips: tipsEnhanced.tips,
+      tips_meta: {
+        source: tipsEnhanced.source,
+        dimensions: tipsEnhanced.dimensions,
+        generated_at: new Date().toISOString(),
+        ai_model: DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here' ? 'DeepSeek V4 预览版' : 'DeepSeek V4 预览版（未启用 Key）'
+      },
       // 数据源 attribution — 用于前端炫酷展示
       data_sources: {
         model: DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here' ? 'DeepSeek V4 预览版' : 'DeepSeek V4 预览版（未启用 Key）',
@@ -3239,6 +3287,7 @@ ${typesStr}
               poiSource === 'city_poi_list' ? '城市专属 POI 池（动态生成坐标）' :
               '通用 POI 兜底池（高德兜底）',
         ai_search: '内置 AI 搜索 + 启发式规则',
+        tips: tipsEnhanced.source === 'deepseek' ? 'DeepSeek V4 预览版 AI 多维度生成' : '本地启发式（城市知识库 + 区域文化图谱）',
         attribution_summary: '此结果由 ' + (DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here' ? 'DeepSeek V4 预览版 大模型' : 'DeepSeek V4 预览版（需配置 Key）') + ' + 智能 AI 搜索 + 高德地图 API v3.0 联合生成'
       },
       thinking,  // 思考链 — 关键字段，前端展示
@@ -3414,6 +3463,245 @@ app.post('/api/agent/refine', express.json(), async (req, res) => {
  *   - 大麦（演出/景区联票）：https://www.damai.cn/
  *   - 景区官网（搜索"景区名+官网"）
  */
+
+/* ---------- 多维度旅行贴士生成（DeepSeek + 本地兜底） ----------
+ * 4 个维度：① 目的地文化背景 ② 当地风俗习惯 ③ 旅行安全提示 ④ 最佳游览时间
+ * 优先调用 DeepSeek V4 预览版 AI；失败时降级到本地多维度知识库
+ */
+async function generateMultiDimTips(city, cd, days, budget, pax, tagList) {
+  const region = cd?.region || '未分类';
+  const cityTags = cd?.tags || ['综合'];
+  const citySummary = cd?.summary || `${city} — 多元文化的旅游目的地`;
+  const seasonHint = getSeasonHint();
+  const baseTips = (cd?.tips || []).slice(0, 2);
+
+  // ===== 第一步：构造 4 维度的本地兜底数据（始终可用） =====
+  const localDim = buildLocalMultiDimTips(city, region, cityTags, cd, days, budget, pax, seasonHint);
+
+  // ===== 第二步：尝试 DeepSeek AI 生成更智能的版本 =====
+  if (DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here') {
+    try {
+      const aiPrompt = `你是专业旅游顾问，请为「${city}」生成多维度旅行贴士。
+
+【基本信息】
+- 城市：${city}
+- 区域：${region}
+- 城市标签：${cityTags.join('、')}
+- 城市特点：${citySummary}
+- 旅行天数：${days} 天
+- 人均预算：¥${budget}/天
+- 出行人：${pax}
+- 用户偏好：${tagList.join('、') || '通用'}
+- 当前季节：${seasonHint.label}
+- 已有本地贴士：${baseTips.join(' / ')}
+
+【任务】请按以下 4 个维度，每个维度生成 2-3 条实用贴士（每条 30-60 字）。
+
+维度 ① 文化背景：${city}的历史文脉、宗教信仰、民俗艺术、文学典故、值得了解的故事
+维度 ② 风俗习惯：${city}的礼仪禁忌、节庆习俗、餐桌礼仪、拍照禁忌、敬语称谓
+维度 ③ 安全提示：${city}的治安特点、防骗要点、交通安全、健康提醒、自然灾害
+维度 ④ 最佳游览时间：${city}的最佳旅游月份、节庆活动、避开高峰的技巧、不推荐的时段
+
+【输出格式】严格 JSON（不要 markdown 包裹），格式：
+{
+  "culture": ["贴士1","贴士2","贴士3"],
+  "customs": ["贴士1","贴士2","贴士3"],
+  "safety":   ["贴士1","贴士2","贴士3"],
+  "timing":   ["贴士1","贴士2","贴士3"]
+}`;
+      const aiText = await callAI(aiPrompt);
+      if (aiText) {
+        const m = aiText.match(/\{[\s\S]*\}/);
+        if (m) {
+          let parsed;
+          try { parsed = JSON.parse(m[0]); } catch (_) {}
+          if (parsed && (parsed.culture || parsed.customs || parsed.safety || parsed.timing)) {
+            // 合并：AI 生成的优先；本地兜底做补全
+            const mergeDim = (ai, fallback) => {
+              const out = (ai && Array.isArray(ai) ? ai.filter(Boolean) : []);
+              if (out.length >= 2) return { tips: out.slice(0, 3), source: 'deepseek' };
+              const fb = (fallback && Array.isArray(fallback) ? fallback : []).filter(Boolean);
+              return { tips: [...out, ...fb].slice(0, 3), source: 'deepseek+local' };
+            };
+            const dims = [
+              { key: 'culture', label: '文化背景', icon: '🏛', color: '#9b8be0', ...mergeDim(parsed.culture, localDim.culture) },
+              { key: 'customs', label: '风俗习惯', icon: '🎎', color: '#e0729b', ...mergeDim(parsed.customs, localDim.customs) },
+              { key: 'safety',  label: '安全提示', icon: '🛡', color: '#7bbf7b', ...mergeDim(parsed.safety,  localDim.safety) },
+              { key: 'timing',  label: '最佳时间', icon: '🕰', color: '#d4a574', ...mergeDim(parsed.timing,  localDim.timing) }
+            ];
+            const allTips = [];
+            dims.forEach(d => d.tips.forEach(t => allTips.push({ text: t, dim: d.key, dim_label: d.label, dim_icon: d.icon, dim_color: d.color, source: d.source })));
+            return { source: 'deepseek', dimensions: dims, tips: allTips };
+          }
+        }
+      }
+    } catch (e) {
+      // 静默降级到本地
+      console.warn('[tips] DeepSeek generate failed:', e.message);
+    }
+  }
+
+  // ===== 第三步：本地兜底（4 维度 + 合并扁平列表） =====
+  const dims = [
+    { key: 'culture', label: '文化背景', icon: '🏛', color: '#9b8be0', tips: localDim.culture, source: 'local' },
+    { key: 'customs', label: '风俗习惯', icon: '🎎', color: '#e0729b', tips: localDim.customs, source: 'local' },
+    { key: 'safety',  label: '安全提示', icon: '🛡', color: '#7bbf7b', tips: localDim.safety,  source: 'local' },
+    { key: 'timing',  label: '最佳时间', icon: '🕰', color: '#d4a574', tips: localDim.timing,  source: 'local' }
+  ];
+  const allTips = [];
+  dims.forEach(d => d.tips.forEach(t => allTips.push({ text: t, dim: d.key, dim_label: d.label, dim_icon: d.icon, dim_color: d.color, source: 'local' })));
+  return { source: 'local', dimensions: dims, tips: allTips };
+}
+
+function getSeasonHint() {
+  const m = new Date().getMonth() + 1;
+  if (m >= 3 && m <= 5) return { key: 'spring', label: '春季（3-5月）' };
+  if (m >= 6 && m <= 8) return { key: 'summer', label: '夏季（6-8月）' };
+  if (m >= 9 && m <= 11) return { key: 'autumn', label: '秋季（9-11月）' };
+  return { key: 'winter', label: '冬季（12-2月）' };
+}
+
+// 基于城市数据库 + 区域知识图谱的本地多维度贴士生成（兜底方案）
+function buildLocalMultiDimTips(city, region, cityTags, cd, days, budget, pax, seasonHint) {
+  // ============ 维度 1：文化背景 ============
+  const culture = [];
+  // 城市标签驱动
+  if (cityTags.includes('历史') || cityTags.includes('文化')) {
+    culture.push(`${city}承载数千年历史，建议在出发前阅读《${city}简史》或观看城市纪录片，游览时会有更深感触`);
+    culture.push('多数历史景点有电子讲解器（20-30元）或人工讲解（100-200元/团），强烈建议租借');
+  }
+  if (cityTags.includes('宗教')) {
+    culture.push('进入寺庙/宫殿需衣着得体（不露肩/不露膝），多数场所禁止拍照佛像或使用闪光灯');
+  }
+  if (cityTags.includes('高原')) {
+    culture.push(`${city}为高原地区，建议提前了解藏传佛教/苯教文化，对当地习俗保持敬畏`);
+  }
+  if (cityTags.includes('古城') || cityTags.includes('古镇')) {
+    culture.push('古城的青石板路承载着百年历史，建议放慢脚步，感受街巷里散发的旧时光味道');
+  }
+  if (cityTags.includes('海岛') || cityTags.includes('海')) {
+    culture.push('了解当地疍家文化/渔家民俗，吃海鲜要看时令（休渔期 5-8 月慎点野生大虾）');
+  }
+  if (cityTags.includes('少数民族') || /西北|西南|新疆|云南|贵州|广西|内蒙古|西藏/.test(region)) {
+    culture.push(`当地有独特的少数民族文化，建议尊重民族习俗，拍照前先征得对方同意`);
+  }
+  if (cityTags.includes('都市')) {
+    culture.push(`${city}汇集了传统与现代，可从一条老街走到 CBD 一窥城市演进的脉络`);
+  }
+  if (cityTags.includes('美食')) {
+    culture.push('本地饮食是文化的重要载体，建议从街边小吃和老字号开始，比网红店更地道');
+  }
+  if (culture.length === 0) {
+    culture.push(`了解${city}的城市博物馆（多数免费），是快速建立城市认知的最佳方式`);
+    culture.push('与当地人聊天能获得书上没有的城市故事，咖啡馆/茶馆/公园都是好选择');
+  }
+
+  // ============ 维度 2：风俗习惯 ============
+  const customs = [];
+  if (region === '华南' || /广州|深圳|香港|澳门|珠海|厦门|海口|三亚/.test(city)) {
+    customs.push('南方早茶文化盛行，点都德/陶陶居等茶楼 7-11 点为早茶黄金时段，虾饺/凤爪/肠粉是必点');
+    customs.push('粤语区叫服务员通常举右手或轻敲桌面，喊"靓仔/靓女"是常见的礼貌称呼');
+  }
+  if (region === '西北' || /西安|兰州|银川|西宁|乌鲁木齐/.test(city)) {
+    customs.push('西北人豪爽实在，面食/牛羊肉是主食，请客时主人会反复加菜，建议适量以免浪费');
+    customs.push('进清真餐厅需注意：不可带非清真食品、不可点猪肉类菜品');
+  }
+  if (region === '西南' || /成都|重庆|昆明|贵阳|拉萨|丽江|大理/.test(city)) {
+    customs.push('川渝地区"微辣"对不吃辣的人已是中辣，点菜时务必说明"不辣/微辣/中辣"');
+    customs.push('云南/贵州少数民族村寨有"敬酒歌"习俗，热情难拒但量力而行（可用双手接酒表示尊重）');
+  }
+  if (region === '华北' || /北京|天津|济南|青岛|太原|石家庄/.test(city)) {
+    customs.push('京派文化讲究礼数，叫"师傅"或"老师"是常见尊称，餐厅加菜前询问价格避免误会');
+  }
+  if (region === '华东' || /上海|南京|苏州|杭州|宁波/.test(city)) {
+    customs.push('江浙沪地区"精明细致"，结账时多看小票，海鲜/大份菜建议提前问清计价方式（按斤/按只）');
+  }
+  if (region === '华中' || /武汉|长沙|郑州|洛阳/.test(city)) {
+    customs.push('热干面/臭豆腐/毛氏红烧肉是当地特色，初尝建议从小份开始');
+  }
+  if (region === '东北' || /哈尔滨|沈阳|长春|大连/.test(city)) {
+    customs.push('东北菜量大实在，2-3 人点 2-3 个菜就够；称谓上叫"大哥/大姐"是普遍礼貌');
+  }
+  if (customs.length === 0) {
+    customs.push(`出发前查阅${city}本地新闻/论坛，能让你快速适应当地节奏`);
+    customs.push('尊重本地作息（如北方午休较长、南方夜生活丰富），行程安排与当地同步体验更佳');
+  }
+  // 通用
+  customs.push('热门景点提前 1-3 天在线预约，多数博物馆周一闭馆（少数调整到周二）');
+
+  // ============ 维度 3：安全提示 ============
+  const safety = [];
+  if (region === '华南' || /广州|深圳|香港|澳门|珠海|厦门|海口|三亚/.test(city)) {
+    safety.push('台风季（6-10月）出行密切关注气象预警，海岛/海岸线活动务必查看风力等级');
+    safety.push('珠江/海边/泳场夜间人多，注意财物安全（手机/钱包贴身放），避免在偏僻小巷独行');
+  }
+  if (region === '西北' || /西安|兰州|敦煌|嘉峪关/.test(city)) {
+    safety.push('西北紫外线极强，SPF50+ 防晒霜+墨镜+遮阳帽+长袖为标配，避免正午 12-15 点暴晒');
+    safety.push('沙漠地区昼夜温差大（昼夜 20°C+），即使夏季也建议备薄外套');
+  }
+  if (region === '西南' || /拉萨|丽江|香格里拉|九寨沟|稻城|峨眉山/.test(city)) {
+    safety.push('高原地区（海拔 3000m+）禁止剧烈运动，禁止饮酒/暴饮暴食；备好红景天/葡萄糖/氧气瓶');
+    safety.push('高原反应常见症状：头痛/失眠/气短，轻症休息 24h 即可缓解，重症立即下撤就医');
+  }
+  if (region === '华北' || /北京|天津|太原/.test(city)) {
+    safety.push('冬季雾霾较常见，N95 口罩+空气净化器+室内活动是稳妥选择；实时关注 AQI 指数');
+  }
+  if (/哈尔滨|长春|沈阳|漠河/.test(city)) {
+    safety.push('严寒地区（-20°C 以下）注意防冻伤：裸露皮肤 30 分钟即可冻伤，口罩/手套/雪地靴必备');
+  }
+  if (cityTags.includes('古城') || cityTags.includes('老街')) {
+    safety.push('古城石板路雨雪天湿滑，建议穿防滑鞋，夜间小巷照明不足避免独行');
+  }
+  if (cityTags.includes('山') || cityTags.includes('登山')) {
+    safety.push('登山景区（华山/黄山/泰山/峨眉山等）务必走规定路线，不要为拍照越界；建议结伴而行');
+  }
+  // 通用
+  safety.push('看管好随身物品（手机/钱包/身份证），人多的夜市/景区是高发区域');
+  safety.push('建议购买短期旅游意外险（10-30元，覆盖意外/医疗/行李），多一份保障');
+  if (safety.length < 3) {
+    safety.push('遇紧急情况拨打 110（公安）/ 120（急救）/ 122（交通事故），多数景区有医务室');
+  }
+
+  // ============ 维度 4：最佳游览时间 ============
+  const timing = [];
+  if (region === '华南' || /广州|深圳|香港|澳门|珠海|厦门|海口|三亚/.test(city)) {
+    timing.push('10-12 月 + 3-4 月是黄金期，气温 18-26°C 舒适；避开 6-9 月台风/酷暑期');
+    if (/三亚|海口|北海/.test(city)) timing.push('11-3 月是避寒首选，海水温暖，北方老人/小孩首选');
+  }
+  if (region === '西北' || /西安|兰州|敦煌|嘉峪关|乌鲁木齐/.test(city)) {
+    timing.push('5-10 月是最佳期，9-10 月秋色最美，瓜果飘香；冬季寒冷多数室外景点关闭');
+  }
+  if (region === '西南' || /成都|重庆|昆明|贵阳|拉萨|丽江|大理/.test(city)) {
+    if (/昆明|大理|丽江/.test(city)) timing.push('3-5 月 + 9-11 月是最佳，气候宜人；夏季多雨但凉爽，避开了大城市的酷热');
+    if (/成都|重庆/.test(city)) timing.push('3-6 月 + 9-11 月最适合，避开 7-8 月高温酷暑期（重庆夏季 40°C+）');
+    if (/拉萨|香格里拉|稻城/.test(city)) timing.push('5-10 月是黄金期，冬季严寒大雪封山，景区多关闭');
+  }
+  if (region === '华北' || /北京|天津|济南|青岛|太原/.test(city)) {
+    timing.push('4-5 月 + 9-10 月是黄金期，秋色和春花最美；夏季 35°C+ 高温，冬季寒冷有雾霾');
+  }
+  if (region === '华东' || /上海|南京|苏州|杭州|宁波/.test(city)) {
+    timing.push('3-5 月（春花/茶季）+ 10-11 月（秋色）最美；梅雨季（6月）多雨湿热，慎选');
+  }
+  if (region === '华中' || /武汉|长沙|郑州|洛阳/.test(city)) {
+    timing.push('3-5 月 + 9-11 月是最佳；武汉/长沙夏季"火炉"慎选，7-8 月 38°C+ 持续高温');
+  }
+  if (region === '东北' || /哈尔滨|沈阳|长春|大连/.test(city)) {
+    if (/哈尔滨/.test(city)) timing.push('12-2 月冰雪季是黄金期（冰雪大世界/雪乡/亚布力），夏季 6-8 月避暑也好');
+    else timing.push('6-9 月是最佳期，凉爽宜人；冬季严寒（-20°C+），部分户外项目受限');
+  }
+  // 节庆驱动
+  if (/西安|洛阳|开封/.test(city)) timing.push('春节 + 灯会 + 牡丹花会（4月）是当地特色时段，但人潮汹涌需提前订票/酒店');
+  if (/大理|丽江|西双版纳/.test(city)) timing.push('泼水节（4月）/ 火把节（6月）是当地少数民族盛大节庆，体验独特但需提前订住宿');
+  // 通用
+  timing.push(`当前是${seasonHint.label}，与上述最佳期对照可判断是否合适出发`);
+  timing.push('避开法定节假日（春节/国庆/五一）人潮，错峰 1-2 周体验提升 200%');
+  if (timing.length < 2) {
+    timing.push('工作日（周二-周四）出行性价比最高，景点人少 30-50%、酒店便宜 20-40%');
+  }
+
+  return { culture, customs, safety, timing };
+}
+
 app.get('/api/ticket', (req, res) => {
   try {
     const city = req.query.city || '成都';
