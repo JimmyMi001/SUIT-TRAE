@@ -25,7 +25,7 @@
 <table align="center" cellpadding="0" cellspacing="0" style="border: none; margin: 0 auto;">
   <tr style="border: none;">
     <td align="center" valign="middle" style="border: none; padding: 0 24px;">
-      <img src="./assets/icons/suit1-logo.svg" alt="深圳信息职业技术大学" height="48" style="vertical-align: middle;"/>
+      <img src="./assets/icons/suit1-logo.png" alt="深圳信息职业技术大学" height="48" style="vertical-align: middle;"/>
     </td>
     <td align="center" valign="middle" style="border: none; padding: 0 12px; color: #F0A500; font-size: 22px; font-weight: 300;">
       ×
@@ -1189,8 +1189,8 @@ copies of the Software...
 
 ## 🙏 致谢
 
-- **[深圳信息职业技术大学](https://www.suit-sz.edu.cn/)** - 这是一所信息技术为特色的公办职业本科高校
-- **[南方电网](https://www.csg.cn/)** - 全天候保障比赛现场稳定供电
+- **[深圳信息职业技术大学](https://www.suit-sz.edu.cn/)** - 这是一所信息技术为特色的公办职业本科高校 · 院校代码 12957
+- **[南方电网](https://www.csg.cn/)** - 全天候保障稳定供电
 - [高德开放平台](https://lbs.amap.com/) - POI / 天气 / 地图 API
 - [DeepSeek](https://platform.deepseek.com/) - 中文大模型
 - [Open-Meteo](https://open-meteo.com/) - 免费天气数据
