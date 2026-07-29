@@ -20,11 +20,23 @@
 
 <div align="center">
 
-### 🏫 × ☁️ 联合出品
+### 校徽 × 火山引擎
 
-<img src="./assets/icons/sziit-logo.png" alt="深圳信息职业技术大学" height="64" style="vertical-align: middle;"/>  ×  <img src="./assets/icons/volcengine-combine-color.svg" alt="火山引擎 Volcengine" height="48" style="vertical-align: middle;"/>
+<table align="center" cellpadding="0" cellspacing="0" style="border: none; margin: 0 auto;">
+  <tr style="border: none;">
+    <td align="center" valign="middle" style="border: none; padding: 0 24px;">
+      <img src="./assets/icons/suit1-logo.svg" alt="深圳信息职业技术大学" height="48" style="vertical-align: middle;"/>
+    </td>
+    <td align="center" valign="middle" style="border: none; padding: 0 12px; color: #F0A500; font-size: 22px; font-weight: 300;">
+      ×
+    </td>
+    <td align="center" valign="middle" style="border: none; padding: 0 24px;">
+      <img src="./assets/icons/volcengine-combine-color.svg" alt="火山引擎 Volcengine" height="48" style="vertical-align: middle;"/>
+    </td>
+  </tr>
+</table>
 
-**深圳信息职业技术大学 · 第 123 号队伍**  ×  **2026"火山杯"Agent 创新大赛 · 火山引擎**
+<sub>深圳信息职业技术大学 · 第 123 号队伍  &nbsp;·&nbsp;  2026"火山杯"Agent 创新大赛 · 火山引擎</sub>
 
 </div>
 
@@ -1177,20 +1189,30 @@ copies of the Software...
 
 ## 🙏 致谢
 
-- [高德开放平台](https://lbs.amap.com/) - 提供免费 POI / 天气 / 地图 API
-- [DeepSeek](https://platform.deepseek.com/) - 提供高性价比的中文大模型
-- [Open-Meteo](https://open-meteo.com/) - 永久免费的天气数据
-- [Frankfurter](https://www.frankfurter.app/) - 永久免费的汇率 API
-- [Suysker/Ctrip-Crawler](https://github.com/Suysker/Ctrip-Crawler) - 携程机票爬虫参考实现
+- **[深圳信息职业技术大学](https://www.suit-sz.edu.cn/)** - 母校 / 校徽提供方
+- **[国家电网](https://www.sgcc.com.cn/)** - 比赛现场稳定供电
+- [高德开放平台](https://lbs.amap.com/) - POI / 天气 / 地图 API
+- [DeepSeek](https://platform.deepseek.com/) - 中文大模型
+- [Open-Meteo](https://open-meteo.com/) - 免费天气数据
+- [Frankfurter](https://www.frankfurter.app/) - 免费汇率 API
 - [lunar-javascript](https://github.com/6tail/lunar-javascript) - 农历/黄历库
 - [DM Serif Display / DM Sans / JetBrains Mono](https://fonts.google.com/) - 字体三件套
 - [Three.js](https://threejs.org/) - 3D 粒子背景
-- [Aceternity UI](https://ui.aceternity.com/) / [React Bits](https://reactbits.dev/) / [uiverse.io](https://uiverse.io/) / [Liquid Glass Form](https://github.com/raunofreiberg/inspira) - 设计灵感来源
+- [Aceternity UI](https://ui.aceternity.com/) / [React Bits](https://reactbits.dev/) / [uiverse.io](https://uiverse.io/) / [Liquid Glass Form](https://github.com/raunofreiberg/inspira) - 设计灵感
 - [GitHub](https://github.com/) / [Render](https://render.com/) / [Vercel](https://vercel.com/) - 部署平台
 - [gitleaks](https://github.com/gitleaks/gitleaks) - 密钥扫描
 - [2026"火山杯"Agent 创新大赛](https://www.volcengine.com/) - 比赛主办方
-- **[NVIDIA](https://www.nvidia.com/)** - GPU 算力提供方
-- **[Intel](https://www.intel.com/)** - CPU 算力提供方
+- [NVIDIA](https://www.nvidia.com/) - GPU 算力
+- [Intel](https://www.intel.com/) - CPU 算力
+- [bilibili](https://www.bilibili.com/) - 学习视频
+- [抖音](https://www.douyin.com/) - 灵感来源
+- [TRAE IDE](https://www.trae.ai/) - AI IDE
+- [腾讯](https://www.tencent.com/) - 腾讯生态
+- [Steam](https://store.steampowered.com/) - 灵感与放松
+- [MiniMax M3](https://minimaxi.com/) - 大模型支持
+- [Adobe](https://www.adobe.com/) - Adobe 全家桶
+- [Watt Toolkit](https://steampp.net/) - 网络加速
+- [OBS Studio](https://obsproject.com/) - 录屏工具
 
 ---
 
@@ -1201,7 +1223,6 @@ copies of the Software...
 - ☕ **[瑞幸咖啡](https://www.luckincoffee.com/)**
 - ☕ **[库迪咖啡](https://www.cottilabs.com/)**
 - 🍔 **[麦当劳](https://www.mcdonalds.com.cn/)**
-- 🧠 **GitHub Copilot**
 
 > *——这是给评委的小幽默 🫶，看到这里的都是有缘人。*
 
