@@ -101,7 +101,8 @@
 | # | 创新点 | 业界对比 |
 |---|--------|----------|
 | 🥇 | **AI × 真实数据 × 社区三方交叉验证的 8 维评分体系** | 市面 AI 行程工具（如某程 AI 助手）只输出"看起来合理"的方案，无验证机制 |
-| 🥇 | **11 步可观察的思考链 + 实时进度条 + 数据源徽章** | 让用户**亲眼看到** AI 怎么想、查了什么、为什么这么推荐 |
+| 🥇 | **12 步可观察的思考链 + 实时进度条 + 数据源徽章** | 让用户**亲眼看到** AI 怎么想、查了什么、为什么这么推荐 |
+| 🥇 | **当地特色饮品 & 美食推荐（20+ 城市真实数据）** | 根据目的地推荐真实特色饮品（广州糖水、北京豆汁）和当地美食（桂林米粉、广府早茶），数据来自本地知识库 + 大众点评/美团口碑 |
 | 🥇 | **旅途伴侣：定位感知 + 应急拨号 + 实时高德 POI 推荐** | 绝大多数竞品是"出行前规划"，我们是**全旅程陪伴** |
 | 🥈 | **未知城市自动解析** ——县级市/小众景点也能生成路线 | 主流工具（去哪儿/携程）只支持地级市以上 |
 | 🥈 | **CSS 驱动的液态玻璃 UI**（无 React/Vue） | 业界罕有的"原生三件套 + 现代设计语言"实践 |
@@ -114,7 +115,7 @@
 
 ## 📸 功能展示（三大模块）
 
-> **3 大主模块 · 7 个 HTML 页面 · 19 个 CSS 文件 · 8 个 JS 模块**
+> **3 大主模块 · 7 个 HTML 页面 · 8 个 CSS 文件 · 9 个 JS 模块**
 > 主页 `index.html` 以顶部 3 个 Tab 承载三大主模块；点击"生成行程"后跳转到独立 `verify.html` 验证页；每个主模块都有独立全屏子页（旅途伴侣/社区/复盘）。
 
 ```
@@ -125,7 +126,7 @@
 │  │  · 一句话生成        │  · 详细地址解析    │  · 收藏/评分  │
 │  │  · AI 思考链        │  · 快捷工具        │  · 分享路线  │
 │  │  · 6 种交通比价      │  · 实时 POI        │  · 评论      │
-│  │  · 5 档餐厅 + 4 档酒店 │  · 应急拨号        │             │
+│  │  · 5 档餐厅 + 4 档酒店 + 特色饮品美食 │  · 应急拨号        │             │
 │  └────────────────────┴────────────────────┴─────────────┘
 │        │                       │                      │
 │        ▼                       ▼                      ▼
@@ -139,7 +140,7 @@
 
 ### 1️⃣ 智能规划（主页 Tab 1 + 验证页 + 复盘页）
 
-**用户旅程**：输入城市 + 天数 + 预算 + 偏好 → 11 步思考链实时展开 → 8 维评分 → 一键成行
+**用户旅程**：输入城市 + 天数 + 预算 + 偏好 → 12 步思考链实时展开 → 8 维评分 → 一键成行
 
 ```
 ┌─ 智能规划 ──────────────┐    ┌─ 验证页 verify.html ─────┐
@@ -150,18 +151,19 @@
 └────────────────────────┘    └──────────────────────────┘
 ```
 
-**11 步思考链**（展开后评委可见每步推理与数据来源）：
+**12 步思考链**（展开后评委可见每步推理与数据来源）：
 1. 城市解析（280+ 城市库 / 高德地理编码 fallback）
 2. POI 检索（高德 v3/place/text）
 3. 兴趣打分（标签 + 季节 + 天气加权）
 4. AI 行程设计（DeepSeek V4，JSON Schema 严格输出）
 5. POI 详情增强（高德 v3/place/detail，补全电话/营业时间/票种）
 6. 餐厅推荐（5 档位：苍蝇小馆/家常/中端/精致/Michelin，含 6 平台跳转）
-7. 酒店推荐（按星级分组，含均价/总价/6 平台比价）
-8. 路线验证评分（8 维 + 实际 vs 目标 + 进度条 + 数值动画）
-9. 出发日期推荐（15 天滚动 + 避雨/避高峰 + 节假日感知）
-10. AI 整体评价（DeepSeek 总结 + 风险标注）
-11. 社区路线（去哪儿/携程/小红书/马蜂窝/微博 5 平台检索结果）
+7. 当地特色饮品 & 美食推荐（LOCAL_SPECIALS_DB 本地知识库，20+ 城市真实数据）
+8. 酒店推荐（按星级分组，含均价/总价/6 平台比价）
+9. 路线验证评分（8 维 + 实际 vs 目标 + 进度条 + 数值动画）
+10. 出发日期推荐（15 天滚动 + 避雨/避高峰 + 节假日感知）
+11. AI 整体评价（DeepSeek 总结 + 风险标注）
+12. 社区路线（去哪儿/携程/小红书/马蜂窝/微博 5 平台检索结果）
 
 **主页智能规划的实际内容**（点击"一键生成"之前的表单页）：
 - 出发城市级联（省→地级市，支持县级市/景点直输）
@@ -220,7 +222,7 @@
 ┌──────────────────────────────────────────────────────────────────────┐
 │                          用户浏览器 (Chrome/Edge)                       │
 │  ┌──────────────────────────────────────────────────────────────┐    │
-│  │ HTML (4311行) + CSS (设计系统) + Vanilla JS (模块化)          │    │
+│  │ HTML (5441行) + CSS (设计系统) + Vanilla JS (模块化)          │    │
 │  │  · 液态玻璃 UI (backdrop-filter + filter:blur)                │    │
 │  │  · Three.js 粒子背景 (Hero区)                                 │    │
 │  │  · 高德 JS API v2.0 (地图渲染/标记/路线)                      │    │
@@ -232,7 +234,7 @@
 ┌──────────────────────────────────────────────────────────────────────┐
 │            Node.js 18+ 后端 (Express + 自研代理)                       │
 │  ┌──────────────────────────────────────────────────────────────┐    │
-│  │ server.js (3823 行) · 100+ API 端点 · 6 大路由组              │    │
+│  │ server.js (4745 行) · 100+ API 端点 · 6 大路由组              │    │
 │  │  · 高德代理 (POI/detail/direction/weather/staticmap)         │    │
 │  │  · 城市解析 (省级→地级市级联 / 280+ 城市库 / 县级市 fallback) │    │
 │  │  · 智能推荐 (天气×季节×标签 3 因素评分)                       │    │
@@ -285,7 +287,7 @@
     ↓
 [9] DeepSeek AI  → 整体评价
     ↓
-[10] 返回前端  → 思考链 11 步动画 + 数据源徽章
+[10] 返回前端  → 思考链 12 步动画 + 数据源徽章
     ↓
 前端地图渲染 (高德 JS API v2.0) + SVG 路径流动
 ```
@@ -298,7 +300,7 @@
 
 | 技术 | 用途 | 关键点 |
 |------|------|--------|
-| **HTML5** | 7 个页面 (index/verify/companion/community/posttrip + 2 历史) | 主页单页 4311 行，模块化结构 |
+| **HTML5** | 7 个页面 (index/verify/companion/community/posttrip + 2 历史) | 主页单页 5441 行，模块化结构 |
 | **CSS3** | 液态玻璃 + 深夜暖金调色板 | 设计系统 token 化、clamp 响应式、scroll-driven 动画 |
 | **Vanilla JS** | 业务逻辑（无 React/Vue/Tailwind） | IIFE 模块化，无构建步骤 |
 | **Three.js** | Hero 区粒子背景 | CDN 加载，按需启用 |
@@ -330,7 +332,6 @@
 
 | 工具 | 用途 |
 |------|------|
-| **Render** | 海外一键部署 |
 | **Vercel** | Serverless 部署（`vercel.json` 已配） |
 | **GitHub Actions** | CI（3 jobs: 基础检查 / 密钥扫描 / 加密验证） |
 | **gitleaks** | 密钥泄漏检测 |
@@ -340,11 +341,11 @@
 
 ## 🧠 核心实现原理
 
-### 1. 11 步思考链可观察化
+### 1. 12 步思考链可观察化
 
 **问题**：市面 AI 行程工具像"黑盒"，用户不知道为什么这么推荐。
 
-**解法**：把 AI + 数据查询拆成 11 个原子步骤，前端实时显示每个步骤的执行状态、数据源、关键结果。
+**解法**：把 AI + 数据查询拆成 12 个原子步骤，前端实时显示每个步骤的执行状态、数据源、关键结果。
 
 ```javascript
 // server.js 里的端点
@@ -359,7 +360,7 @@ app.post('/api/itinerary/plan', async (req, res) => {
   step('interest_score', '本地启发式', { top5: [...] });
   step('ai_design', 'DeepSeek V4 Flash (JSON Schema)', { days: 5, theme: '...' });
   step('poi_enhance', '高德 v3/place/detail', { enhanced: 18 });
-  // ... 11 步
+  // ... 12 步
 
   res.json({ trace, itinerary: ... });
 });
@@ -521,6 +522,7 @@ app.get('/api/amap/staticmap', async (req, res) => {
 | `社区路线` | 用户众包 | 紫色 |
 | `参考估算` | 本地启发式算法 | 灰色 |
 | `官方票务` | 12306/携程直采 | 红色 |
+| `本地知识库` | LOCAL_SPECIALS_DB 特色饮品 & 美食 | 橙色 |
 
 ---
 
@@ -595,8 +597,9 @@ app.get('/api/amap/staticmap', async (req, res) => {
 | 🟢 **状态指示器** | 顶栏最右 | 后端连通性心跳（绿/黄/红圆点 + 文字"已连接/重连中/离线"），故障自检 |
 | 🔍 **搜索框 Placeholder 轮播** | 主页 Hero | 4 个示例提示字符级打字/删除动画，55ms/字速率，焦点自动停止 |
 | 🧲 **目的地卡片磁吸效果** | 主页卡片网格 | 鼠标悬停 3D 倾斜，位移 ≤ 8px（避免突兀），离开自动回正 |
-| 🎬 **思考链进度条** | 验证页 | 11 步每步有数据源徽章（高德/天气/交通/酒店/餐厅/AI/社区），状态机：等待→处理(脉冲旋转)→完成 |
+| 🎬 **思考链进度条** | 验证页 | 12 步每步有数据源徽章（高德/天气/交通/酒店/餐厅/AI/社区），状态机：等待→处理(脉冲旋转)→完成 |
 | 📊 **8 维评分数字滚动** | 验证页右侧 | ease-out cubic 800ms 从 0 滚到目标值，每维都有"实际 vs 目标"对比条 |
+| 🥤 **当地特色饮品 & 美食卡片** | 验证页行程下方 | 双列网格展示：左列当地特色饮品（广州糖水、北京豆汁、长沙茶颜悦色等），右列当地特色美食（广府早茶、桂林米粉等），20+ 城市真实数据，含推荐店铺和推荐理由 |
 | 🌧 **每日推荐按天气动态变化** | 主页"今日推荐" | 基于天气×季节×标签 3 因素评分（60%/20%/20%），每次刷新换城市，最少重复 |
 | 📍 **旅途伴侣地址解析** | 旅途伴侣 Tab | 输入"武侯区人民南路四段18号"→ 高德地理编码 → 精确定位；标点可一键导航 |
 | 🔁 **复盘经验沉淀** | 复盘页 | "实际 vs 计划"AI 评估，一键分享到社区 (+50 经验值)，形成闭环 |
@@ -614,15 +617,15 @@ app.get('/api/amap/staticmap', async (req, res) => {
 
 | # | 类别 | 现状 | 涉及文件 / 改进成本 |
 |---|------|------|-------------------|
-| 1 | **数据规模** | `POI_DB` 仅 19 城真实坐标 POI，其余 260+ 城市走通用兜底；县级市 / 4A 以下景区需高德 Key 实时拉取 | [server.js:2047-2250](file:///d:/SUIT%20Trae%20CN/server.js#L2047-L2250) · 🟡 中（数据众包） |
+| 1 | **数据规模** | `POI_DB` 仅 19 城真实坐标 POI，其余 260+ 城市走通用兜底；县级市 / 4A 以下景区需高德 Key 实时拉取；`LOCAL_SPECIALS_DB` 仅 20+ 城市特色饮品 & 美食数据，其余城市为通用兜底建议 | [server.js:2047-2250](file:///d:/SUIT%20Trae%20CN/server.js#L2047-L2250) · 🟡 中（数据众包） |
 | 2 | **票务/酒店/餐厅价格** | 算法估算而非实时抓取，README 接口章节已标注"参考估算" | [server.js:2408-2470](file:///d:/SUIT%20Trae%20CN/server.js#L2408-L2470) · 🔴 高（需爬虫 + 合规） |
 | 3 | **测试覆盖** | `test/` 目录**不存在**，仅依赖 CI 语法检查 + 密钥扫描 + 加密校验 | 项目根 · 🟢 低（加 Jest 即可） |
 | 4 | **AI 单点依赖** | 仅 DeepSeek 一个 AI 提供商；Key 缺失降级到本地启发式，无多模型 fallback | [server.js:2680-2700](file:///d:/SUIT%20Trae%20CN/server.js#L2680-L2700) · 🟡 中（加 Anthropic / 通义 / 文心适配） |
-| 5 | **前端工程化** | 纯原生 JS，**无 TypeScript / 无打包 / 无状态管理**；CSS 散落 7 个文件，变量未统一 | [js/](file:///d:/SUIT%20Trae%20CN/js/) · 🟡 中（可选 Vite + TS 渐进迁移） |
+| 5 | **前端工程化** | 纯原生 JS，**无 TypeScript / 无打包 / 无状态管理**；CSS 散落 8 个文件，变量未统一 | [js/](file:///d:/SUIT%20Trae%20CN/js/) · 🟡 中（可选 Vite + TS 渐进迁移） |
 | 6 | **可观测性** | 无 APM、无前端性能埋点（LCP/FCP/INP）；错误处理大量 `console.error` 静默 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中（接 Sentry / Prometheus） |
 | 7 | **安全 / 隐私** | 无用户系统、无登录注册、无 GDPR 合规设计、无 Rate Limiting、无 Cookie 同意 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中 |
 | 8 | **国际化** | 仅中文界面；货币仅人民币；字体仅适配简中（繁体/英文 fallback 弱） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（接 i18next） |
-| 9 | **部署 / 运维** | 强依赖 Render / Vercel，**无 Dockerfile**、无蓝绿部署、无集中式日志 | 根目录 · 🟡 中（加 Dockerfile + docker-compose.yml） |
+| 9 | **部署 / 运维** | 强依赖 Vercel，**无 Dockerfile**、无蓝绿部署、无集中式日志 | 根目录 · 🟡 中（加 Dockerfile + docker-compose.yml） |
 | 10 | **移动端** | 无 PWA / 离线模式 / Service Worker；无 App 包装（Capacitor / RN） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（manifest.json + sw.js） |
 
 > **图例**：🟢 1 周内可做 · 🟡 1-4 周 · 🔴 1 月+ · 数据规模 0 城市起补，众包/数据团队可贡献。
@@ -630,6 +633,7 @@ app.get('/api/amap/staticmap', async (req, res) => {
 ### 短期可改进（1-2 周 · 适合新贡献者上手）
 
 - [ ] 补充 30+ 城市真实 POI（向 `POI_DB[city]` 数组 push 含 lng/lat/name/type 即可）
+- [ ] 补充 20+ 城市特色饮品 & 美食数据（向 `LOCAL_SPECIALS_DB[city]` 添加 drinks 和 foods 数组）
 - [ ] 添加 Jest 单元测试覆盖 `recommendRestaurants` / `scoreItinerary` / `generateMultiDimTips`
 - [ ] 增加 `express-rate-limit` 做基础 DoS 防护（10 req/s/IP）
 - [ ] CSS 变量系统重构：把 `#F0A500` / `DM Serif Display` 等抽到 `:root` 统一定义
@@ -662,7 +666,7 @@ app.get('/api/amap/staticmap', async (req, res) => {
 | 🎨 **设计/UX** | 前端 / 设计师 | 改 [css/](file:///d:/SUIT%20Trae%20CN/css/) 任意文件 → 跑 `node server.js` 实时预览 |
 | ⚙️ **后端** | Node.js 工程师 | 看 [server.js](file:///d:/SUIT%20Trae%20CN/server.js) 顶部注释 → 加 API 或测试 |
 | 🧠 **AI / Prompt** | 算法 / Prompt 工程师 | 改 [server.js:2680-2990](file:///d:/SUIT%20Trae%20CN/server.js#L2680-L2990) 的 prompt 模板 |
-| 📊 **数据** | 数据 / 爬虫工程师 | 在 `data/` 增删 JSON，或向 `POI_DB` 推新城市 |
+| 📊 **数据** | 数据 / 爬虫工程师 | 在 `data/` 增删 JSON，或向 `POI_DB` 推新城市，或向 `LOCAL_SPECIALS_DB` 补充特色饮品 & 美食数据 |
 | 🌐 **i18n** | 翻译 / 前端 | 把 [index.html](file:///d:/SUIT%20Trae%20CN/index.html) 中文文案抽到 `i18n/zh.json` |
 | 📱 **移动** | PWA / RN 工程师 | 加 `manifest.json` + `sw.js`，或用 Capacitor 打包 |
 | 🧪 **测试** | QA / 后端 | 加 `test/` 目录 + `*.test.js`，CI 会自动跑 |
@@ -917,7 +921,7 @@ Server listening on http://localhost:3000
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/destinations/recommend?seed=xxx&user_city=xxx` | 每日推荐（天气×季节×标签 3 因素）|
-| POST | `/api/itinerary/plan` | 11 步思考链生成行程 |
+| POST | `/api/itinerary/plan` | 12 步思考链生成行程 |
 | GET | `/api/itinerary/verify?city=xxx&days=xxx` | 8 维验证评分 |
 | GET | `/api/itinerary/departure?city=xxx&days=xxx` | 未来 15 天出发日期推荐 |
 
@@ -956,18 +960,9 @@ Server listening on http://localhost:3000
 
 ## 🤝 部署指南
 
-> 我们准备了 4 种部署方式，覆盖国内外不同场景。
+> 我们准备了 3 种部署方式，覆盖国内外不同场景。
 
-### 方式 1：Render（海外一键部署，2 分钟）
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/JimmyMi001/SUIT-TRAE-123Lets-GO)
-
-部署后在 Dashboard → Environment 配置 3 个变量：
-- `AMAP_KEY`
-- `DEEPSEEK_KEY`
-- `ENV_MASTER_KEY`（如果用密文，可选）
-
-### 方式 2：Vercel（Serverless，1 分钟）
+### 方式 1：Vercel（Serverless，1 分钟）
 
 项目已配 [`vercel.json`](./vercel.json)：
 
@@ -977,7 +972,7 @@ Server listening on http://localhost:3000
 4. 环境变量：同上
 5. Deploy
 
-### 方式 3：腾讯云开发 CloudBase（国内免费额度）
+### 方式 2：腾讯云开发 CloudBase（国内免费额度）
 
 适合国内用户体验。
 
@@ -987,7 +982,7 @@ Server listening on http://localhost:3000
 4. 「云函数」把 `server.js` 拆成函数
 5. 拿到 `https://xxx.tcloudbaseapp.com` 国内域名
 
-### 方式 4：自建 VPS（最稳定）
+### 方式 3：自建 VPS（最稳定）
 
 适合长期运营。推荐香港节点（9-38 元/月）。
 
@@ -1037,24 +1032,6 @@ server {
 **本地运行 CI 检查**：
 ```bash
 npm run setup  # 等价于 scripts/setup.js
-```
-
-### 自动部署到 Render
-
-`.github/workflows/deploy-render.yml` 在 CI 通过后调用 Render Deploy Hook。
-
-配置：
-1. Render Dashboard → 你的 Service → Settings → **Deploy Hook** → 复制 URL
-2. GitHub → Settings → Secrets and variables → Actions → New repository secret:
-   - Name: `RENDER_DEPLOY_HOOK`
-   - Value: 上面那个 URL
-
-之后 `git push origin main`：
-```
-[1] GitHub Actions: 基本检查 + 密钥扫描 + 加密验证 (约 30s)
-[2] CI 通过 → 自动调用 Render Deploy Hook
-[3] Render: 拉代码 + npm install + 重启 (约 60s)
-[4] 在线版本更新完成
 ```
 
 ---
@@ -1123,7 +1100,7 @@ npm run setup  # 等价于 scripts/setup.js
 | 指标 | 目标 | 实测 |
 |------|------|------|
 | 首页首屏 | < 2s | ~1.5s |
-| 思考链完整生成 | < 8s | ~5-7s（11 步）|
+| 思考链完整生成 | < 8s | ~5-7s（12 步）|
 | 地图渲染 | < 1s | ~0.6s |
 | API 响应（P50）| < 200ms | ~120ms |
 | API 响应（P95）| < 1s | ~700ms |
@@ -1153,7 +1130,7 @@ npm run setup  # 等价于 scripts/setup.js
 ```
 SUIT-TRAE-123Lets-GO/
 ├── 📄 核心页面
-│   ├── index.html                # 主页 (4311 行,内嵌 CSS · 3 个 Tab:智能规划/伴侣/社区)
+│   ├── index.html                # 主页 (5441 行,内嵌 CSS · 3 个 Tab:智能规划/伴侣/社区)
 │   ├── verify.html               # 验证页 (思考链 + 8 维评分)
 │   ├── companion.html            # 旅途伴侣全屏页
 │   ├── community.html            # 社区广场全屏页
@@ -1183,7 +1160,7 @@ SUIT-TRAE-123Lets-GO/
 │   └── js/particles.js           # Three.js 粒子
 │
 ├── 🖥️ 后端 (Node.js + Express)
-│   ├── server.js                 # 3823 行 · 100+ API
+│   ├── server.js                 # 4745 行 · 100+ API
 │   ├── env-loader.js             # .env.enc 加密加载器
 │   ├── flight-crawler.js         # 携程机票爬虫(可选)
 │   └── api/index.js              # Vercel Serverless 入口
@@ -1207,13 +1184,11 @@ SUIT-TRAE-123Lets-GO/
 │   ├── .env.example              # 环境变量模板
 │   ├── .env.enc                  # 加密后的环境变量(入仓)
 │   ├── .gitignore                # Git 忽略规则
-│   ├── render.yaml               # Render 部署配置
 │   └── vercel.json               # Vercel 部署配置
 │
 ├── 🤖 CI/CD
 │   └── .github/workflows/
-│       ├── ci.yml                # 3 Job 流水线
-│       └── deploy-render.yml     # 自动部署到 Render
+│       └── ci.yml                # 3 Job 流水线
 │
 ├── 💾 运行时缓存 (不入仓)
 │   ├── node_modules/
@@ -1242,7 +1217,7 @@ SUIT-TRAE-123Lets-GO/
 > **"AI 生成的旅行方案怎么让人信？"**
 
 - **问题 1**：AI 输出黑盒，用户不敢用
-  - **我们的解法**：11 步思考链 + 实时数据源标注 + 8 维量化评分
+  - **我们的解法**：12 步思考链 + 实时数据源标注 + 8 维量化评分
 - **问题 2**：攻略社区内容过时、良莠不齐
   - **我们的解法**：AI × 真实数据 × 社区三方交叉验证
 - **问题 3**：旅途孤立无援，AI 助手都是"出行前"
@@ -1280,6 +1255,15 @@ copies of the Software...
 
 - **[深圳信息职业技术大学](https://www.suit-sz.edu.cn/)** - 这是一所信息技术为特色的公办职业本科高校 · 院校代码 12957
 - **[南方电网](https://www.csg.cn/)** - 全天候保障稳定供电
+- [Microsoft](https://www.microsoft.com/) - 开发工具与云服务
+- [雷柏](https://www.rapoo.cn/) - 键鼠外设支持
+- [美团](https://www.meituan.com/) - 真实餐厅/酒店数据源
+- [千问（通义千问）](https://tongyi.aliyun.com/) - 大模型技术参考
+- [Google](https://www.google.com/) - 搜索与开发工具
+- [去哪儿](https://www.qunar.com/) - 真实交通/酒店数据源
+- [12306](https://www.12306.cn/) - 真实铁路票价数据源
+- [携程](https://www.ctrip.com/) - 真实机票/酒店数据源
+- [航旅纵横](https://www.umetrip.com/) - 航班动态数据参考
 - [高德开放平台](https://lbs.amap.com/) - POI / 天气 / 地图 API
 - [DeepSeek](https://platform.deepseek.com/) - 中文大模型
 - [Open-Meteo](https://open-meteo.com/) - 免费天气数据
@@ -1288,7 +1272,7 @@ copies of the Software...
 - [DM Serif Display / DM Sans / JetBrains Mono](https://fonts.google.com/) - 字体三件套
 - [Three.js](https://threejs.org/) - 3D 粒子背景
 - [Aceternity UI](https://ui.aceternity.com/) / [React Bits](https://reactbits.dev/) / [uiverse.io](https://uiverse.io/) / [Liquid Glass Form](https://github.com/raunofreiberg/inspira) - 设计灵感
-- [GitHub](https://github.com/) / [Render](https://render.com/) / [Vercel](https://vercel.com/) - 部署平台
+- [GitHub](https://github.com/) / [Vercel](https://vercel.com/) - 部署平台
 - [gitleaks](https://github.com/gitleaks/gitleaks) - 密钥扫描
 - [2026"火山杯"Agent 创新大赛](https://www.volcengine.com/) - 比赛主办方
 - [NVIDIA](https://www.nvidia.com/) - GPU 算力
