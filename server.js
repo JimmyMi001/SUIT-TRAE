@@ -1221,18 +1221,32 @@ for (const [name, v] of Object.entries(CITIES_DATA)) {
 app.get('/api/weather/fallback', async (req, res) => {
   try {
     const city = (req.query.city || '').toString().trim();
-    if (!city) return res.status(400).json({ error: true, message: 'city is required' });
+    const needForecast = ['1', 'true', 'yes'].includes(String(req.query.forecast || '').toLowerCase());
+    if (!city) return res.status(400).json({ error: false, message: 'city is required' });
     const coords = CITY_COORDS[city];
     if (!coords) {
       return res.status(404).json({ error: true, message: `unknown city: ${city}`, supported: Object.keys(CITY_COORDS) });
     }
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&timezone=auto&forecast_days=15`;
     const r = await fetch(url, { headers: { 'User-Agent': '123-travel/1.0' } });
     if (!r.ok) throw new Error(`open-meteo http ${r.status}`);
     const data = await r.json();
     const cur = data.current || {};
     const code = cur.weather_code;
     const condition = WMO_DESC[code] || `code ${code}`;
+    // 解析未来 15 天预报
+    let forecastList = [];
+    if (data.daily && Array.isArray(data.daily.time)) {
+      forecastList = data.daily.time.map((date, i) => ({
+        date,
+        weather_code: data.daily.weather_code?.[i],
+        max: data.daily.temperature_2m_max?.[i],
+        min: data.daily.temperature_2m_min?.[i],
+        precipitation: data.daily.precipitation_sum?.[i] || 0,
+        precipitation_probability: data.daily.precipitation_probability_max?.[i] || 0,
+        condition: WMO_DESC[data.daily.weather_code?.[i]] || `code ${data.daily.weather_code?.[i]}`
+      }));
+    }
     res.json({
       error: false,
       source: 'open-meteo',
@@ -1242,7 +1256,67 @@ app.get('/api/weather/fallback', async (req, res) => {
       wind_kmh: cur.wind_speed_10m,
       condition,
       icon: code,
-      fetched_at: data.current?.time || new Date().toISOString()
+      fetched_at: data.current?.time || new Date().toISOString(),
+      forecast: forecastList
+    });
+  } catch (e) {
+    res.status(500).json({ error: true, message: e.message });
+  }
+});
+
+/* ---------- 指定日期 / 未来 N 天天气（专门为"明天天气/后天/3天后"等场景） ---------- */
+app.get('/api/weather/forecast', async (req, res) => {
+  try {
+    const city = (req.query.city || '').toString().trim();
+    const day = Math.max(0, Math.min(15, parseInt(req.query.day) || 1)); // 0=今天, 1=明天
+    if (!city) return res.status(400).json({ error: true, message: 'city is required' });
+    const coords = CITY_COORDS[city];
+    if (!coords) {
+      return res.status(404).json({ error: true, message: `unknown city: ${city}`, supported: Object.keys(CITY_COORDS) });
+    }
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto&forecast_days=15`;
+    const r = await fetch(url, { headers: { 'User-Agent': '123-travel/1.0' }, signal: AbortSignal.timeout(5000) });
+    if (!r.ok) throw new Error(`open-meteo http ${r.status}`);
+    const data = await r.json();
+    const cur = data.current || {};
+    const curCode = cur.weather_code;
+    const curCondition = WMO_DESC[curCode] || `code ${curCode}`;
+    // 未来 N 天 (含今天)
+    const futureList = (data.daily?.time || []).map((date, i) => ({
+      date,
+      offset_days: i, // 0=今天, 1=明天
+      weather_code: data.daily.weather_code?.[i],
+      max: data.daily.temperature_2m_max?.[i],
+      min: data.daily.temperature_2m_min?.[i],
+      precipitation: data.daily.precipitation_sum?.[i] || 0,
+      precipitation_probability: data.daily.precipitation_probability_max?.[i] || 0,
+      condition: WMO_DESC[data.daily.weather_code?.[i]] || `code ${data.daily.weather_code?.[i]}`
+    }));
+    const target = futureList[day] || futureList[0];
+    if (!target) return res.status(500).json({ error: true, message: 'no forecast data' });
+    // 标签：今天 / 明天 / 后天 / N 天后
+    const dayLabel = ['今天', '明天', '后天'][day] || `${day} 天后`;
+    res.json({
+      error: false,
+      source: 'open-meteo',
+      city,
+      day_offset: day,
+      day_label: dayLabel,
+      date: target.date,
+      condition: target.condition,
+      icon: target.weather_code,
+      max: target.max,
+      min: target.min,
+      temperature_avg: target.max != null && target.min != null ? Math.round((target.max + target.min) / 2) : null,
+      precipitation: target.precipitation,
+      precipitation_probability: target.precipitation_probability,
+      current: {
+        temperature: cur.temperature_2m,
+        condition: curCondition,
+        humidity: cur.relative_humidity_2m,
+        wind_kmh: cur.wind_speed_10m
+      },
+      forecast: futureList.slice(0, 7)  // 只返回前 7 天
     });
   } catch (e) {
     res.status(500).json({ error: true, message: e.message });

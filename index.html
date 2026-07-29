@@ -614,6 +614,67 @@
     transition:all .2s}
   .nav__time-huangli:hover{background:rgba(240,183,131,.16);border-color:var(--accent);color:var(--accent)}
 
+  /* ========================================================= 日期日历 Popover
+     鼠标悬停 navDate 弹出月历，可选某天 → 自动填入 planDepartDays */
+  .nav__time-date{cursor:pointer;transition:color .2s}
+  .nav__time-date:hover{color:var(--accent)}
+  .date-pop{position:fixed;left:0;top:0;z-index:300;width:min(360px,94vw);display:none;pointer-events:none;
+    transform-origin:top right;animation:holiday-pop-in .22s cubic-bezier(.4,0,.2,1)}
+  .date-pop.open{display:block;pointer-events:auto}
+  .date-pop__box{position:relative;isolation:isolate;overflow:hidden;background:rgba(15,17,22,.55);
+    border-radius:14px;padding:14px 16px;
+    backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);
+    box-shadow:0 12px 40px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.08),inset 0 -8px 18px -4px rgba(0,0,0,.35)}
+  .date-pop__box::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;
+    background:linear-gradient(135deg,rgba(240,183,131,.10),rgba(99,102,241,.06))}
+  .date-pop__box::after{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent)}
+  .date-pop__arrow{position:absolute;top:-6px;right:24px;width:12px;height:12px;background:rgba(15,17,22,.65);
+    border-left:1px solid rgba(255,255,255,.08);border-top:1px solid rgba(255,255,255,.08);
+    transform:rotate(45deg);backdrop-filter:blur(20px)}
+  .date-pop__head{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:0 2px}
+  .date-pop__nav{width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid var(--line);
+    color:var(--text-2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;
+    transition:all .15s;font-family:inherit}
+  .date-pop__nav:hover{background:rgba(240,183,131,.12);border-color:rgba(240,183,131,.4);color:var(--accent)}
+  .date-pop__title{flex:1;text-align:center;font-family:var(--serif);font-size:15px;font-weight:600;color:var(--text);letter-spacing:.02em}
+  .date-pop__title b{color:var(--accent);font-weight:600}
+  .date-pop__today{font-size:10px;padding:2px 8px;border-radius:99px;background:rgba(240,183,131,.12);color:var(--accent);
+    border:1px solid rgba(240,183,131,.3);cursor:pointer;letter-spacing:.04em}
+  .date-pop__today:hover{background:rgba(240,183,131,.20)}
+  .date-pop__weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:6px}
+  .date-pop__wk{font-size:10px;color:var(--text-3);text-align:center;padding:4px 0;letter-spacing:.05em;font-weight:500}
+  .date-pop__wk--weekend{color:var(--accent);opacity:.6}
+  .date-pop__grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .date-pop__day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    border-radius:8px;cursor:pointer;transition:all .15s;border:1px solid transparent;
+    font-family:inherit;background:transparent;color:var(--text);font-size:12px;font-weight:500;
+    position:relative}
+  .date-pop__day:hover{background:rgba(240,183,131,.10);border-color:rgba(240,183,131,.3);color:var(--accent);transform:scale(1.05)}
+  .date-pop__day--out{color:var(--text-3);opacity:.35}
+  .date-pop__day--out:hover{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08);color:var(--text-2)}
+  .date-pop__day--today{background:linear-gradient(135deg,rgba(240,183,131,.20),rgba(217,140,183,.10));
+    border-color:rgba(240,183,131,.4);color:var(--accent);font-weight:700}
+  .date-pop__day--today::after{content:'今';position:absolute;bottom:1px;font-size:7px;color:var(--accent);opacity:.8}
+  .date-pop__day--weekend{color:#c89b6a}
+  .date-pop__day--selected{background:linear-gradient(135deg,var(--accent),#d68b7c);color:#0f1116;font-weight:700;
+    box-shadow:0 0 16px rgba(240,183,131,.5),inset 0 1px 0 rgba(255,255,255,.3)}
+  .date-pop__day--selected:hover{background:linear-gradient(135deg,#f5c590,#e89a8a);color:#0f1116}
+  .date-pop__day-num{font-size:12px;line-height:1.1}
+  .date-pop__day-festive{font-size:8px;line-height:1;margin-top:1px;opacity:.85;max-width:100%;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .date-pop__foot{margin-top:10px;padding-top:8px;border-top:1px dashed rgba(255,255,255,.08);
+    display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:var(--text-2)}
+  .date-pop__foot-info{flex:1;min-width:0;font-size:11px;letter-spacing:.02em}
+  .date-pop__foot-info b{color:var(--accent);font-weight:600;font-family:var(--mono)}
+  .date-pop__foot-btn{padding:5px 12px;font-size:11px;border-radius:99px;background:var(--accent);
+    color:#0f1116;border:0;font-weight:600;cursor:pointer;letter-spacing:.04em;transition:all .15s;font-family:inherit}
+  .date-pop__foot-btn:hover{background:#f5c590;box-shadow:0 0 16px rgba(240,183,131,.4);transform:translateY(-1px)}
+  .date-pop__foot-btn:disabled{background:rgba(255,255,255,.08);color:var(--text-3);cursor:not-allowed;box-shadow:none;transform:none}
+  @media (prefers-reduced-motion: reduce){.date-pop{animation:none}}
+  @media (max-width: 768px) {.date-pop__foot{flex-direction:column;align-items:stretch}}
+
+
   /* ========================================================= Hero
      Aceternity 招牌：大字号渐变 + spotlight + 浮动 stats */
   .hero{padding:120px 0 80px;text-align:center;position:relative}
@@ -1794,6 +1855,32 @@
       <div class="nav__time-holiday" id="navHoliday" style="display:none">
         <span class="nav__time-holiday-text">--</span>
       </div>
+      <!-- 日期日历 Popover — 鼠标悬停"几月几日星期几"弹出月历，可选某天→自动填入 planDepartDays -->
+      <div class="date-pop" id="datePop" role="tooltip" aria-hidden="true">
+        <div class="date-pop__box">
+          <div class="date-pop__arrow"></div>
+          <div class="date-pop__head">
+            <button class="date-pop__nav" id="datePopPrev" aria-label="上个月">‹</button>
+            <div class="date-pop__title" id="datePopTitle">2026年 7月</div>
+            <button class="date-pop__nav" id="datePopNext" aria-label="下个月">›</button>
+            <button class="date-pop__today" id="datePopToday">今天</button>
+          </div>
+          <div class="date-pop__weekdays" id="datePopWeekdays">
+            <div class="date-pop__wk">日</div>
+            <div class="date-pop__wk">一</div>
+            <div class="date-pop__wk">二</div>
+            <div class="date-pop__wk">三</div>
+            <div class="date-pop__wk">四</div>
+            <div class="date-pop__wk">五</div>
+            <div class="date-pop__wk date-pop__wk--weekend">六</div>
+          </div>
+          <div class="date-pop__grid" id="datePopGrid"></div>
+          <div class="date-pop__foot">
+            <div class="date-pop__foot-info" id="datePopFoot">点击日期查看距今天数</div>
+            <button class="date-pop__foot-btn" id="datePopApply" disabled>设为出发日</button>
+          </div>
+        </div>
+      </div>
       <!-- NTP 授时服务器 popover (鼠标悬停时钟显示) — 放在 navHoliday 外,避免被其 mouseenter 误触 -->
       <div class="ntp-pop" id="ntpPop" role="tooltip" aria-hidden="true">
         <div class="ntp-pop__box">
@@ -2134,6 +2221,7 @@ const API = {
   poi:(kw,city)=>API.get('/api/amap/poi?keywords='+encodeURIComponent(kw||'')+'&city='+encodeURIComponent(city||'')),
   weather:(city)=>API.get('/api/amap/weather?city='+encodeURIComponent(city||'')),
   weatherFallback:(city)=>API.get('/api/weather/fallback?city='+encodeURIComponent(city||'')),
+  weatherForecast:(city, day)=>API.get('/api/weather/forecast?city='+encodeURIComponent(city||'')+'&day='+(day||1)),
   fx:(from,to)=>API.get('/api/fx?from='+(from||'CNY')+'&to='+(to||'USD')),
   direction:(o,d,type,city)=>API.get('/api/amap/direction?origin='+o+'&destination='+d+'&type='+(type||'driving')+(city?'&city='+encodeURIComponent(city):'')),
   destinations:(q={})=>API.get('/api/destinations'+(Object.keys(q).length?'?'+new URLSearchParams(q):'')),
@@ -2610,6 +2698,9 @@ async function renderItinerary(data, params){
 
   el.innerHTML = `
     ${dsAttrHtml}
+    <div id="destWeatherCard" style="margin-bottom:16px;padding:14px 18px;background:linear-gradient(135deg,rgba(110,193,212,.10),rgba(240,183,131,.06));border:1px solid rgba(110,193,212,.28);border-radius:12px;display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+      <div style="font-size:13px;color:var(--text-2);letter-spacing:.03em">🌤 加载中…</div>
+    </div>
     <div class="card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(168,85,247,.12))">
       <div class="card__title">🗺️ ${esc(city)} · ${days}天 · ${esc(pax)} · 人均${budget}元/天</div>
       <div class="card__meta">${tagsHtml} · 数据源：${esc(data.source || 'amap+local+AI')}</div>
@@ -2751,6 +2842,9 @@ async function renderItinerary(data, params){
     <div id="planCommWrap" style="margin-top:24px"></div>
   `;
 
+  // 异步加载目的地天气（不影响主流程）
+  loadDestWeather(city, days);
+
   // 餐厅 tab 切换
   const tierTabs = document.getElementById('restTierTabs');
   if (tierTabs) {
@@ -2838,6 +2932,81 @@ async function renderItinerary(data, params){
       }
     });
   }
+}
+
+// 加载目的地天气卡片（高德 + Open-Meteo 兜底）
+async function loadDestWeather(city, days){
+  const card = document.getElementById('destWeatherCard');
+  if (!card) return;
+  const dayHint = days > 0 ? `${days}天` : '今天';
+  // 1) 当前天气（高德）
+  let cur = null;
+  try {
+    const r1 = await API.weather(city);
+    const w1 = r1?.data?.lives?.[0];
+    if (w1) cur = { source: '高德', temperature: w1.temperature_float || w1.temperature, condition: w1.weather, humidity: w1.humidity_float || w1.humidity, wind: w1.windpower + '级' };
+  } catch(_) {}
+  // 2) Open-Meteo 兜底（含预报）
+  let f = null;
+  try {
+    const r2 = await API.weatherFallback(city);
+    if (r2 && !r2.__error && !r2.error) {
+      f = {
+        source: 'Open-Meteo',
+        temperature: r2.temperature,
+        condition: r2.condition,
+        humidity: r2.humidity,
+        wind_kmh: r2.wind_kmh,
+        forecast: (r2.forecast || []).slice(0, Math.min(days || 3, 7))
+      };
+    }
+  } catch(_) {}
+  // 3) 渲染
+  const now = cur || (f ? { source: f.source, temperature: f.temperature, condition: f.condition, humidity: f.humidity, wind: (f.wind_kmh || 0) + ' km/h' } : null);
+  if (!now) {
+    card.innerHTML = `<div style="font-size:13px;color:var(--text-2)">⚠️ ${esc(city)} 天气暂不可用</div>`;
+    return;
+  }
+  const forecastHtml = (f?.forecast || []).map(d => {
+    const date = new Date(d.date);
+    const wkMap = ['日','一','二','三','四','五','六'];
+    const wd = `周${wkMap[date.getDay()]}`;
+    const isToday = d.offset_days === 0 || d.date === new Date().toISOString().slice(0, 10);
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;background:${isToday ? 'rgba(240,183,131,.12)' : 'rgba(255,255,255,.04)'};border-radius:8px;min-width:64px;border:1px solid ${isToday ? 'rgba(240,183,131,.4)' : 'rgba(255,255,255,.06)'}">
+      <div style="font-size:10px;color:var(--text-2);letter-spacing:.04em">${isToday ? '今天' : wd}</div>
+      <div style="font-size:10px;color:var(--text-2)">${(d.date || '').slice(5)}</div>
+      <div style="font-size:13px;color:var(--text);font-weight:600">${Math.round(d.max)}°/${Math.round(d.min)}°</div>
+      <div style="font-size:10px;color:var(--text-2)">${esc(d.condition || '')}</div>
+      ${d.precipitation > 0 || d.precipitation_probability > 30 ? `<div style="font-size:9px;color:#60a5fa">☔${d.precipitation_probability}%</div>` : ''}
+    </div>`;
+  }).join('');
+  card.innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px;flex:0 0 auto">
+      <div style="font-size:36px;line-height:1">${weatherEmoji(now.condition)}</div>
+      <div>
+        <div style="font-family:var(--mono);font-size:28px;font-weight:600;color:var(--text);letter-spacing:-.02em">${Math.round(Number(now.temperature) || 0)}°<span style="font-size:14px;color:var(--text-2);font-weight:400">C</span></div>
+        <div style="font-size:12px;color:var(--text-2);margin-top:2px">${esc(now.condition || '—')} · 湿度 ${now.humidity || '—'}${now.wind ? ' · ' + esc(String(now.wind)) : ''}</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:2px">📍 ${esc(city)} · 数据源 ${esc(now.source || 'open-meteo')}</div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:200px;border-left:1px dashed rgba(255,255,255,.1);padding-left:18px">
+      <div style="font-size:11px;color:var(--text-2);letter-spacing:.05em;margin-bottom:6px;text-transform:uppercase">📅 ${dayHint}行程天气预报</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${forecastHtml || '<div style="color:var(--text-3);font-size:11px">暂无预报</div>'}</div>
+    </div>
+  `;
+}
+
+function weatherEmoji(cond){
+  if (!cond) return '🌤';
+  const s = String(cond);
+  if (s.includes('晴') || /clear/i.test(s) || /sunny/i.test(s)) return '☀️';
+  if (s.includes('多云') || /partly/i.test(s) || /cloudy/i.test(s)) return '⛅';
+  if (s.includes('阴') || /overcast/i.test(s)) return '☁️';
+  if (s.includes('雨') || /rain/i.test(s) || /drizzle/i.test(s) || /shower/i.test(s)) return '🌧';
+  if (s.includes('雪') || /snow/i.test(s)) return '❄️';
+  if (s.includes('雷') || /thunder/i.test(s)) return '⛈';
+  if (s.includes('雾') || /fog/i.test(s) || /haze/i.test(s)) return '🌫';
+  return '🌤';
 }
 
 function renderAmapRoute(containerId, city, nodes, days){
@@ -2996,7 +3165,20 @@ function exportTxt(data, params){
 async function loadDailyRecommendations(){
   const wrap = document.getElementById('dailyRecoWrap');
   if (!wrap) return;
-  const userCity = (document.getElementById('userOriginCity')?.value || '').trim() || '广州';
+  // 智能获取"用户当前城市"：级联优先，回退到文本输入
+  const originCascade = document.getElementById('originCascadeBox');
+  const isOriginCascade = originCascade && originCascade.style.display !== 'none';
+  let userCity = '广州';
+  if (isOriginCascade) {
+    const op = document.getElementById('originProvince');
+    const oc = document.getElementById('originCitySel');
+    if (oc && oc.value) userCity = oc.value;
+    else if (op && op.value) userCity = op.value; // 只选了省
+  }
+  if (!userCity || userCity === '广州') {
+    const textInput = document.getElementById('userOriginCity')?.value?.trim();
+    if (textInput) userCity = textInput;
+  }
   // 拿今天的日期作为 seed，保证同一天不变
   const today = new Date();
   const dayIdx = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 86400000);
@@ -3054,8 +3236,8 @@ async function loadDailyRecommendations(){
             <div class="dr-aspect"><b>🏯 历史：</b>${(today1.history || []).join('、')}</div>
           </div>
           ${today1.weather ? `<div class="dr-today__weather">🌡 当前 ${esc(today1.weather.condition || '未知')} · ${Math.round(today1.weather.temp || 0)}°C · 风速 ${Math.round(today1.weather.wind || 0)} km/h · 天气评分 ${weatherActual}/60 · 季节评分 ${seasonActual}/20 · 标签评分 ${tagsActual}/20</div>` : ''}
-          <details class="dr-today__method">
-            <summary>📊 多维度智能计算方法（点击展开）</summary>
+          <details class="dr-today__method" open>
+            <summary>📊 多维度智能计算方法（已展开 · 实时评分依据）</summary>
             <div class="dr-today__method-body">
               <div class="dr-method-line"><b>① 实时天气（权重 60%）</b>：调用 <span class="dr-method-src">Open-Meteo</span> 实时天气 API 并行获取全国 280+ 城市当前温度/天气码/风速，按人体舒适度（18-25°C 满分）+天气现象（晴 25 / 多云 22 / 阴 12 / 雨雪 5-10）+风速（&lt;15 km/h 满分 10）三维加权；气温区间、天气现象、风速任一异常都会扣分。</div>
               <div class="dr-method-line"><b>② 季节适宜性（权重 20%）</b>：基于该城市的物候与最佳旅游季（避暑型 6-8 月 / 避寒型 11-2 月 / 春秋型 3-5/9-11 月）匹配当前月份打分；处于最佳季 +20、平季 +15、过渡季 +12、常规 +10、淡季 +5。</div>
@@ -3093,16 +3275,77 @@ async function loadDailyRecommendations(){
 }
 
 function useRecoCity(city){
-  // 1) 同步到目的地下拉（如果显示了）
-  const planCity = document.getElementById('planCity');
-  if (planCity) planCity.value = city;
+  // 1) 优先同步到级联下拉（如果当前是级联模式）— 自动找到对应省份
+  const cascadeBox = document.getElementById('cascadeBox');
+  const isCascade = cascadeBox && cascadeBox.style.display !== 'none';
+  const textInput = document.getElementById('planCity');
+  if (isCascade) {
+    const provSel = document.getElementById('planProvince');
+    const citySel = document.getElementById('planCitySel');
+    if (provSel && citySel) {
+      // 找到 city 所在的省份（在 CASCADE_DATA 中查找）
+      let found = false;
+      if (typeof CASCADE_DATA !== 'undefined' && CASCADE_DATA) {
+        for (const p of CASCADE_DATA) {
+          if (p.cities.includes(city)) {
+            provSel.value = p.province;
+            // 触发 onchange 重填 citySel 选项
+            provSel.dispatchEvent(new Event('change'));
+            // 然后选 city
+            setTimeout(() => {
+              citySel.value = city;
+              citySel.dispatchEvent(new Event('change'));
+            }, 0);
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found) {
+        // 找不到对应省份 → 切到文本输入
+        if (typeof setupCascadeToggle === 'function') {
+          document.getElementById('cascadeToggle')?.click();
+        }
+        if (textInput) textInput.value = city;
+      }
+    }
+  } else {
+    if (textInput) textInput.value = city;
+  }
+  // 兜底：planCity（隐藏 input）也同步
+  if (textInput) textInput.value = city;
   // 2) 同步到伴侣
   currentPlanCity = city;
   syncCompanion(city);
   // 3) 滚动到规划表单
   document.getElementById('s-plan')?.scrollIntoView({behavior:'smooth'});
-  // 4) 提示
-  showToast(`已选用 ${city}，点击下方"🚀 一键生成行程"开始规划`);
+  // 4) 检查"你所在城市"是否已填 → 没填就高亮提示
+  const userOriginInput = document.getElementById('userOriginCity');
+  const originCascade = document.getElementById('originCascadeBox');
+  const originProv = document.getElementById('originProvince');
+  const originCitySel = document.getElementById('originCitySel');
+  const isOriginCascade = originCascade && originCascade.style.display !== 'none';
+  const userOriginVal = isOriginCascade
+    ? (originProv?.value && originCitySel?.value ? `${originProv.value}-${originCitySel.value}` : '')
+    : (userOriginInput?.value || '').trim();
+  // 滚动 + 高亮 + 提示
+  setTimeout(() => {
+    const planOrigin = document.querySelector('.plan-origin');
+    if (planOrigin) {
+      planOrigin.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      planOrigin.style.transition = 'all .4s cubic-bezier(.4,0,.2,1)';
+      planOrigin.style.boxShadow = '0 0 0 3px rgba(240,183,131,.45), 0 0 24px rgba(240,183,131,.25)';
+      planOrigin.style.borderRadius = '14px';
+      setTimeout(() => {
+        planOrigin.style.boxShadow = '';
+      }, 2400);
+    }
+    if (!userOriginVal) {
+      showToast(`✅ 已选用 ${city}。📌 请填写"你所在城市"以计算交通价格`, 'info');
+    } else {
+      showToast(`✅ 已选用 ${city}。系统将基于你的所在地计算交通方式`, 'info');
+    }
+  }, 350);
 }
 
 /* ---------- 轻量 Toast ---------- */
@@ -3458,6 +3701,39 @@ async function compSend(){
 
   // 2) 天气
   if(/天气|温度|下雨|晴|阴|下雪|几度/.test(msg)){
+    // 检测：是否询问特定日期（明天/后天/3天后/周X）
+    let dayOffset = 0;  // 0=今天, 1=明天, 2=后天...
+    let dayLabel = '当前';
+    if(/今天|今日/.test(msg)) { dayOffset = 0; dayLabel = '今天'; }
+    else if(/明天|明日|明儿|次日后天/.test(msg)) { dayOffset = 1; dayLabel = '明天'; }
+    else if(/后天/.test(msg)) { dayOffset = 2; dayLabel = '后天'; }
+    else if(/大后天/.test(msg)) { dayOffset = 3; dayLabel = '大后天'; }
+    else {
+      const m3 = msg.match(/(\d+)\s*天后/);
+      if (m3) { dayOffset = Math.min(15, parseInt(m3[1])); dayLabel = `${dayOffset} 天后`; }
+    }
+    // 如果询问的是未来某天 → 用 forecast 接口
+    if (dayOffset > 0) {
+      const r = await API.weatherForecast(city, dayOffset);
+      if (r && !r.__error && !r.error && r.date) {
+        const t = r.temperature_avg != null ? `${r.min}°~${r.max}°C` : '—';
+        const rainHint = r.precipitation > 0 || r.precipitation_probability > 30
+          ? `<br>☔ 降水概率 <b style="color:#60a5fa">${r.precipitation_probability}%</b> · 累计 <b>${r.precipitation} mm</b>`
+          : '';
+        const curStr = r.current?.temperature != null
+          ? `<br><small style="color:var(--muted)">今天实况: ${r.current.condition} ${r.current.temperature}°C · 湿度 ${r.current.humidity}%</small>`
+          : '';
+        compAddMsg('agent',
+          `📍 <strong>${esc(city)}</strong> · <b>${dayLabel}</b>（${r.date}）<br>
+           🌡 温度：<strong>${t}</strong><br>
+           ☁ 天气：${esc(r.condition)}${rainHint}${curStr}`,
+          '🌤 Open-Meteo 预报');
+      } else {
+        compAddMsg('agent', `查不到 ${esc(city)} ${dayLabel}的天气（${esc(r?.message || '请检查城市名或网络')}）`, '⚠️');
+      }
+      return;
+    }
+    // 当前天气（高德 → Open-Meteo 双源兜底）
     let r = await API.weather(city);
     let w = r?.data?.lives?.[0];
     let src = '🌤 高德实时';
@@ -4346,6 +4622,192 @@ async function initNavTime() {
       if (huangliCloseBtn) huangliCloseBtn.onclick = (e) => { e.stopPropagation(); closeHuangli(); };
     }
   } catch (e) { /* ignore */ console.warn('initNavTime error:', e); }
+
+  // 3) 日期日历 Popover — 鼠标悬停 navDate 弹出月历
+  initDatePopover(dateEl);
+}
+
+/* ---------- 日期日历 Popover ---------- */
+function initDatePopover(triggerEl){
+  const pop = document.getElementById('datePop');
+  const titleEl = document.getElementById('datePopTitle');
+  const gridEl = document.getElementById('datePopGrid');
+  const footEl = document.getElementById('datePopFoot');
+  const applyBtn = document.getElementById('datePopApply');
+  const prevBtn = document.getElementById('datePopPrev');
+  const nextBtn = document.getElementById('datePopNext');
+  const todayBtn = document.getElementById('datePopToday');
+  if (!pop || !titleEl || !gridEl || !triggerEl) return;
+  let viewYear, viewMonth; // 0-11
+  let selectedDate = null; // 选中的日期对象
+  let timer = null;
+
+  const today = () => {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  };
+
+  const renderCalendar = () => {
+    const firstDay = new Date(viewYear, viewMonth, 1);
+    const lastDay = new Date(viewYear, viewMonth + 1, 0);
+    const startWeekday = firstDay.getDay();
+    const daysInMonth = lastDay.getDate();
+    const daysInPrev = new Date(viewYear, viewMonth, 0).getDate();
+    titleEl.innerHTML = `${viewYear}年 <b>${viewMonth + 1}月</b>`;
+    const cells = [];
+    // 上月补位
+    for (let i = startWeekday - 1; i >= 0; i--) {
+      const d = new Date(viewYear, viewMonth - 1, daysInPrev - i);
+      cells.push({ date: d, out: true });
+    }
+    // 本月
+    for (let i = 1; i <= daysInMonth; i++) {
+      cells.push({ date: new Date(viewYear, viewMonth, i), out: false });
+    }
+    // 下月补位（补到 42 格，6 行）
+    const remain = 42 - cells.length;
+    for (let i = 1; i <= remain; i++) {
+      cells.push({ date: new Date(viewYear, viewMonth + 1, i), out: true });
+    }
+    const t = today();
+    gridEl.innerHTML = cells.map(c => {
+      const d = c.date;
+      const isToday = d.getTime() === t.getTime();
+      const isSel = selectedDate && d.getTime() === selectedDate.getTime();
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+      const cls = ['date-pop__day'];
+      if (c.out) cls.push('date-pop__day--out');
+      if (isToday) cls.push('date-pop__day--today');
+      if (isSel) cls.push('date-pop__day--selected');
+      if (isWeekend) cls.push('date-pop__day--weekend');
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return `<button type="button" class="${cls.join(' ')}" data-iso="${iso}">
+        <span class="date-pop__day-num">${d.getDate()}</span>
+      </button>`;
+    }).join('');
+    gridEl.querySelectorAll('.date-pop__day').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const iso = btn.dataset.iso;
+        const [y, m, d] = iso.split('-').map(Number);
+        selectedDate = new Date(y, m - 1, d);
+        const diffDays = Math.round((selectedDate - today()) / 86400000);
+        if (diffDays < 0) {
+          footEl.innerHTML = `<b>${iso}</b> · 过去 ${-diffDays} 天 · 不能作为出发日`;
+          applyBtn.disabled = true;
+        } else if (diffDays === 0) {
+          footEl.innerHTML = `<b>${iso}</b> · 今天 · 可立即出发`;
+          applyBtn.disabled = false;
+        } else if (diffDays > 15) {
+          footEl.innerHTML = `<b>${iso}</b> · 距今 <b>${diffDays}</b> 天 · 超过 15 天上限`;
+          applyBtn.disabled = true;
+        } else {
+          footEl.innerHTML = `<b>${iso}</b> · 距今 <b>${diffDays}</b> 天 · 设为出发日`;
+          applyBtn.disabled = false;
+        }
+        renderCalendar();
+      };
+    });
+  };
+
+  const positionPop = () => {
+    const rect = triggerEl.getBoundingClientRect();
+    const popW = pop.offsetWidth || 360;
+    const popH = pop.offsetHeight || 400;
+    const margin = 8;
+    let left = rect.right - popW;
+    if (left < margin) left = margin;
+    if (left + popW > window.innerWidth - margin) left = window.innerWidth - margin - popW;
+    let top = rect.bottom + 12;
+    if (top + popH > window.innerHeight - margin) top = rect.top - popH - 12;
+    if (top < margin) top = margin;
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+  };
+
+  const open = () => {
+    if (pop.classList.contains('open')) return;
+    const n = new Date();
+    viewYear = n.getFullYear();
+    viewMonth = n.getMonth();
+    selectedDate = null;
+    footEl.textContent = '点击日期查看距今天数';
+    applyBtn.disabled = true;
+    renderCalendar();
+    pop.style.visibility = 'hidden';
+    pop.classList.add('open');
+    pop.setAttribute('aria-hidden', 'false');
+    positionPop();
+    pop.style.visibility = '';
+  };
+  const close = () => {
+    if (!pop.classList.contains('open')) return;
+    pop.classList.remove('open');
+    pop.setAttribute('aria-hidden', 'true');
+  };
+
+  triggerEl.style.cursor = 'pointer';
+  triggerEl.onmouseenter = () => { clearTimeout(timer); open(); };
+  triggerEl.onclick = (e) => { e.stopPropagation(); if (pop.classList.contains('open')) close(); else open(); };
+  triggerEl.onmouseleave = (e) => {
+    if (e.relatedTarget && pop.contains(e.relatedTarget)) return;
+    timer = setTimeout(() => { if (!pop.matches(':hover')) close(); }, 220);
+  };
+  pop.onmouseenter = () => clearTimeout(timer);
+  pop.onmouseleave = (e) => {
+    if (e.relatedTarget && triggerEl.contains(e.relatedTarget)) return;
+    timer = setTimeout(close, 220);
+  };
+  prevBtn.onclick = (e) => {
+    e.stopPropagation();
+    viewMonth -= 1;
+    if (viewMonth < 0) { viewMonth = 11; viewYear -= 1; }
+    renderCalendar();
+  };
+  nextBtn.onclick = (e) => {
+    e.stopPropagation();
+    viewMonth += 1;
+    if (viewMonth > 11) { viewMonth = 0; viewYear += 1; }
+    renderCalendar();
+  };
+  todayBtn.onclick = (e) => {
+    e.stopPropagation();
+    const n = new Date();
+    viewYear = n.getFullYear();
+    viewMonth = n.getMonth();
+    renderCalendar();
+  };
+  applyBtn.onclick = (e) => {
+    e.stopPropagation();
+    if (!selectedDate) return;
+    const diffDays = Math.round((selectedDate - today()) / 86400000);
+    if (diffDays < 0 || diffDays > 15) return;
+    // 同步到 planDepartDays
+    const ddInput = document.getElementById('planDepartDays');
+    if (ddInput) {
+      ddInput.value = diffDays;
+      ddInput.dataset.userSet = '1';
+      // 视觉反馈
+      ddInput.style.transition = 'all .3s ease';
+      ddInput.style.boxShadow = '0 0 0 3px rgba(240,183,131,.5)';
+      setTimeout(() => { ddInput.style.boxShadow = ''; }, 1500);
+    }
+    showToast(`✅ 出发日已设为 ${selectedDate.toISOString().slice(0, 10)}（${diffDays} 天后）`, 'info');
+    close();
+  };
+  // 点击外部关闭
+  document.addEventListener('click', (e) => {
+    if (pop.classList.contains('open') && !pop.contains(e.target) && !triggerEl.contains(e.target)) {
+      close();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && pop.classList.contains('open')) close();
+  });
+  // 重定位
+  const reposition = () => { if (pop.classList.contains('open')) positionPop(); };
+  window.addEventListener('scroll', reposition, { passive: true });
+  window.addEventListener('resize', reposition);
 }
 
 // 详细地址解析
@@ -4383,6 +4845,20 @@ function setupDepartDaysTracking() {
   dd.addEventListener('input', () => { dd.dataset.userSet = '1'; });
 }
 
+// "你所在城市"输入监听 → 自动刷新每日推荐（按用户所在地权重计算）
+function setupOriginChangeRefresh(){
+  const textInput = document.getElementById('userOriginCity');
+  const originCitySel = document.getElementById('originCitySel');
+  const refresh = () => {
+    clearTimeout(window.__originRefreshTimer);
+    window.__originRefreshTimer = setTimeout(() => {
+      if (typeof loadDailyRecommendations === 'function') loadDailyRecommendations();
+    }, 600);  // 防抖 600ms
+  };
+  if (textInput) textInput.addEventListener('input', refresh);
+  if (originCitySel) originCitySel.addEventListener('change', refresh);
+}
+
 /* ========== 13. 启动 ========== */
 (async function init(){
   renderTabs();
@@ -4414,6 +4890,7 @@ function setupDepartDaysTracking() {
   };
   setupAddressGeocode();
   setupDepartDaysTracking();
+  setupOriginChangeRefresh();
   // 默认伴侣页空状态
   const cc = document.getElementById('compChat');
   if(cc && !cc.innerHTML.trim()) cc.innerHTML = `<div class="comp__msg comp__msg--agent">👋 你好！我是旅途伴侣。试试上方的快捷按钮，或直接输入。</div>`;
