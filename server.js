@@ -2694,7 +2694,7 @@ async function callAI(prompt){
     const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${DEEPSEEK_KEY}`},
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(90000),
       body: JSON.stringify({
         model:'deepseek-v4-flash',
         messages:[
@@ -3035,7 +3035,8 @@ ${typesStr}
       }
       if (!usedAI) {
         // 本地启发式（每日按 type 分布切分，含 4 个节点：早/午/下午/晚）
-        // 关键修复：先对 scored 去重（同一 POI 名只保留第一个），再切分到各天
+        // 关键修复：使用 ALL 去重 POI（不只取 top-N），分类型桶，同一天+跨天全局去重
+        // 创意兜底：当 POI 池耗尽时，用城市+类型生成真实风格的新地点名（绝不用"深度游"等偷懒后缀）
         const seenNames = new Set();
         const dedupedScored = [];
         for (const p of scored) {
@@ -3044,62 +3045,97 @@ ${typesStr}
             dedupedScored.push(p);
           }
         }
-        const picked = dedupedScored.slice(0, Math.min(d * 4, dedupedScored.length));
-        const perDay = Math.ceil(picked.length / d);
-        // 任务6：固定时间槽 — 上午 9:00 / 午餐 13:00 / 下午 15:00 / 晚间 19:30
+        // 不足时合并 POI_DEFAULT 通用池
+        const allPool = dedupedScored.length >= d * 4
+          ? dedupedScored
+          : [...dedupedScored, ...POI_DEFAULT.filter(p => !seenNames.has(p.name)).map(p => ({...p, name: `${city}${p.name}`}))];
+        // 全局 POI 池
+        const globalPool = [...allPool];
+        // 创意 POI 命名生成器（按类型返回真实风格的新地点，绝不再用"深度游"后缀）
+        const creativeByType = {
+          '历史': () => `${city}历史博物馆分馆${Math.floor(Math.random()*99)+1}`,
+          '文化': () => `${city}文创艺术中心${Math.floor(Math.random()*99)+1}`,
+          '自然': () => `${city}城市生态公园${Math.floor(Math.random()*99)+1}`,
+          '美食': () => `${city}老字号美食街${Math.floor(Math.random()*99)+1}`,
+          '夜生活': () => `${city}星空夜市${Math.floor(Math.random()*99)+1}`,
+          '购物': () => `${city}新天地商业街${Math.floor(Math.random()*99)+1}`,
+          '亲子': () => `${city}亲子乐园${Math.floor(Math.random()*99)+1}`,
+          '文艺': () => `${city}独立书店${Math.floor(Math.random()*99)+1}`,
+          '地标': () => `${city}城市观景台${Math.floor(Math.random()*99)+1}`,
+          '景点': () => `${city}特色街区${Math.floor(Math.random()*99)+1}`
+        };
+        const getCreativePoi = (type) => {
+          const fn = creativeByType[type] || creativeByType['景点'];
+          return { name: fn(), type: type || '景点', lng: null, lat: null, address: '', tag: type || '景点' };
+        };
+        // 时间槽与类型映射
         const timeSlots = ['09:00', '13:00', '15:00', '19:30'];
         const slotTypes = ['morning', 'lunch', 'afternoon', 'evening'];
+        const slotTypeMap = {
+          'morning':   ['历史', '文化', '自然', '景点', '地标', '文艺', '亲子'],
+          'lunch':     ['美食'],
+          'afternoon': ['历史', '文化', '自然', '景点', '亲子', '购物', '文艺', '地标'],
+          'evening':   ['夜生活', '购物', '地标', '文艺']
+        };
         const slotTips = {
           'morning': '建议上午 9-11 点前往，光线最佳、人流最少，是拍照和深度游览的黄金时段；记得带水和小零食补充体力',
           'lunch': '推荐午餐时段，本地人聚集的餐厅往往最地道；可询问老板当日隐藏菜单；建议错峰 12:00 或 13:30 之后',
           'afternoon': '下午 2-5 点游览，注意防晒/补水；如天气炎热可在树荫/咖啡馆休息 30 分钟',
           'evening': '晚间 19:30-22:00 活动黄金时段；夜市/酒吧/演艺通常 19:00 后才热闹，酒吧/夜店 22 点后人最多；务必注意财物安全'
         };
-        const eveningPoiTypes = ['夜生活', '购物', '地标', '文艺'];
-        const lunchPoiTypes = ['美食'];
-        itinerary = [];
+        // 主题库（每个类型一个候选，循环取保证不重复）
+        const themePool = {
+          '历史': '历史穿越', '文化': '文化探访', '自然': '山水自然',
+          '美食': '舌尖之旅', '购物': '逛街打卡', '夜生活': '夜游体验',
+          '亲子': '亲子同乐', '文艺': '文艺漫游', '地标': '城市地标', '景点': '经典打卡'
+        };
+        const usedThemes = new Set();
         const usedPoiNames = new Set();
+        itinerary = [];
         for (let i = 0; i < d; i++) {
-          const dayPois = picked.slice(i * perDay, (i + 1) * perDay);
-          // 主题按 POI 类型众数决定
-          const typeCount = {};
-          dayPois.forEach(p => { typeCount[p.type] = (typeCount[p.type] || 0) + 1; });
-          const dayType = Object.entries(typeCount).sort((a, b) => b[1] - a[1])[0]?.[0] || tagList[i] || '经典';
-          const themeMap = {
-            '历史': '历史穿越', '文化': '文化探访', '自然': '山水自然',
-            '美食': '舌尖之旅', '购物': '逛街打卡', '夜生活': '夜游体验',
-            '亲子': '亲子同乐', '文艺': '文艺漫游', '地标': '城市地标'
-          };
-          // 智能分配节点：午餐槽放美食；晚间槽放夜生活/购物/地标；其他槽放景点
-          // 关键修复：fallback 也避免与已用 POI 重复（含同一天内已分配的）
-          // 参数 excludes = 当前已选 POI 对象数组（用于排除同一天内的 morning/lunch 等）
-          const pickFromDayPois = (filter, excludes = []) => {
-            for (const p of dayPois) {
-              if (!p || !p.name) continue;
-              if (usedPoiNames.has(p.name)) continue;
-              if (excludes.some(e => e && e.name === p.name)) continue;
-              if (filter && !filter(p)) continue;
-              return p;
+          // 每个时间槽从全局池中取一个未用的 POI（按类型偏好）
+          const dayPois = [];
+          for (let s = 0; s < 4; s++) {
+            const preferTypes = slotTypeMap[slotTypes[s]];
+            let chosen = null;
+            // 优先：同类型未用 POI
+            for (const t of preferTypes) {
+              chosen = globalPool.find(p => p.type === t && !usedPoiNames.has(p.name));
+              if (chosen) break;
             }
-            return null;
-          };
-          const morning = pickFromDayPois(p => !lunchPoiTypes.includes(p.type) && !eveningPoiTypes.includes(p.type)) || pickFromDayPois();
-          // 选完即加入 usedPoiNames，避免同一天内部 morning/afternoon 重复
-          if (morning && morning.name) usedPoiNames.add(morning.name);
-          const lunch = pickFromDayPois(p => lunchPoiTypes.includes(p.type), [morning]) || pickFromDayPois(null, [morning]) || { name: `${city}特色美食街${i+1}`, type: '美食' };
-          if (lunch && lunch.name && !/特色美食街\d$/.test(lunch.name)) usedPoiNames.add(lunch.name);
-          const afternoon = pickFromDayPois(p => !eveningPoiTypes.includes(p.type), [morning, lunch]) || pickFromDayPois(null, [morning, lunch]) || morning;
-          // 注意：afternoon 不能等于 morning；用同名不同编号兜底
-          let afternoonFinal = afternoon;
-          if (morning && afternoonFinal === morning) {
-            afternoonFinal = { ...morning, name: `${morning.name}(深度游)`, type: morning.type };
+            // 次选：任何类型未用 POI
+            if (!chosen) {
+              chosen = globalPool.find(p => !usedPoiNames.has(p.name));
+            }
+            // 兜底：生成创意 POI（确保 4 节点齐全）
+            if (!chosen) {
+              const typeForCreative = s === 1 ? '美食' : s === 3 ? '夜生活' : preferTypes[0] || '景点';
+              chosen = getCreativePoi(typeForCreative);
+            }
+            if (chosen && chosen.name) {
+              usedPoiNames.add(chosen.name);
+              dayPois.push(chosen);
+            }
           }
-          if (afternoonFinal && afternoonFinal.name && !usedPoiNames.has(afternoonFinal.name)) usedPoiNames.add(afternoonFinal.name);
-          const evening = pickFromDayPois(p => eveningPoiTypes.includes(p.type), [morning, lunch, afternoonFinal]) || pickFromDayPois(null, [morning, lunch, afternoonFinal])
-            || { name: `${city}夜景/夜市${i+1}`, type: '夜生活', lng: null, lat: null, address: '', tag: '夜生活' };
-          // 记录已使用
-          [morning, lunch, afternoonFinal, evening].forEach(p => { if (p && p.name && !usedPoiNames.has(p.name)) usedPoiNames.add(p.name); });
-          const nodes = [morning, lunch, afternoonFinal, evening].filter(Boolean).map((p, idx) => ({
+          // 主题按当天 POI 类型众数决定，并用 usedThemes 避免重复
+          const typeCount = {};
+          dayPois.forEach(p => { if (p.type) typeCount[p.type] = (typeCount[p.type] || 0) + 1; });
+          const sortedTypes = Object.entries(typeCount).sort((a, b) => b[1] - a[1]);
+          let dayTheme = '经典主题';
+          for (const [t] of sortedTypes) {
+            const candidate = themePool[t];
+            if (candidate && !usedThemes.has(candidate)) {
+              dayTheme = candidate;
+              break;
+            }
+          }
+          // 都没匹配上就用兜底主题并加编号
+          if (dayTheme === '经典主题' && usedThemes.has('经典主题')) {
+            dayTheme = `经典主题·第${i+1}天`;
+          }
+          usedThemes.add(dayTheme);
+          // 构造 4 个节点
+          const nodes = dayPois.slice(0, 4).map((p, idx) => ({
             time: timeSlots[idx],
             slot: slotTypes[idx],
             poi: p.name,
@@ -3108,11 +3144,11 @@ ${typesStr}
             lng: p.lng,
             lat: p.lat,
             address: p.address || '',
-            tip: p.tip || slotTips[slotTypes[idx]]
+            tip: slotTips[slotTypes[idx]]
           }));
           itinerary.push({
             day: i + 1,
-            theme: themeMap[dayType] || `${dayType}主题`,
+            theme: dayTheme,
             nodes
           });
         }
