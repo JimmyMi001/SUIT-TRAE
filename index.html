@@ -1602,6 +1602,32 @@
   .hotel-card__links a:hover{color:var(--accent);border-color:rgba(240,183,131,.3)}
   .hotel-card__src{font-size:10px;color:var(--muted);font-family:var(--mono);
     margin-top:6px;padding-top:6px;border-top:1px dashed var(--line-2)}
+  /* ===== 当地特色饮品 & 美食卡片 ===== */
+  .specials-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}
+  @media(max-width:700px){.specials-grid{grid-template-columns:1fr}}
+  .specials-col{display:flex;flex-direction:column;gap:8px}
+  .specials-col__title{font-size:14px;font-weight:600;color:var(--accent);
+    display:flex;align-items:center;gap:6px;margin-bottom:4px;
+    padding-bottom:6px;border-bottom:1px solid rgba(240,183,131,.2)}
+  .specials-card{background:rgba(8,9,12,.4);border:1px solid var(--line);
+    border-radius:10px;padding:12px 14px;transition:all .2s}
+  .specials-card:hover{border-color:rgba(240,183,131,.3);
+    box-shadow:0 4px 12px rgba(0,0,0,.2)}
+  .specials-card__name{font-size:14px;font-weight:600;color:var(--text);
+    display:flex;align-items:center;gap:6px;margin-bottom:4px}
+  .specials-card__name .specials-badge{font-size:10px;padding:1px 6px;
+    border-radius:99px;font-weight:400}
+  .specials-card__desc{font-size:12px;color:var(--text-2);line-height:1.5;margin-bottom:4px}
+  .specials-card__shops{font-size:11px;color:var(--text-3);line-height:1.5;
+    margin-bottom:4px;padding:4px 8px;background:rgba(240,183,131,.06);
+    border-radius:4px;border-left:2px solid rgba(240,183,131,.3)}
+  .specials-card__why{font-size:11px;color:var(--text-2);line-height:1.5;
+    padding:4px 8px;background:rgba(16,185,129,.04);
+    border-left:2px solid #10b981;border-radius:0 4px 4px 0}
+  .specials-note{padding:8px 12px;background:rgba(245,158,11,.06);
+    border:1px dashed rgba(245,158,11,.3);border-radius:8px;
+    font-size:12px;color:var(--text-2);line-height:1.6;margin-top:8px}
+  .specials-note b{color:#fbbf24}
   .plan-chat__input{display:flex;gap:0;
     border:1px solid var(--line);background:rgba(8,9,12,.5);border-radius:10px;overflow:hidden;
     transition:border-color .2s,box-shadow .2s}
@@ -2685,6 +2711,7 @@ async function renderItinerary(data, params){
         <div><b>POI</b>${esc(ds_data.poi || '—')}</div>
         <div><b>AI 搜索</b>${esc(ds_data.ai_search || '—')}</div>
         <div><b>社区路线</b>${esc(ds_data.community || '—')}</div>
+        <div><b>特色饮品/美食</b>${esc(ds_data.local_specials || '—')}</div>
       </div>
     </div>`;
   }
@@ -2865,6 +2892,43 @@ async function renderItinerary(data, params){
         </div>`).join('') || `<div style="color:var(--muted);padding:16px;background:rgba(8,9,12,.3);border-radius:8px;text-align:center;font-size:13px">该档次暂无推荐（可能超出预算）</div>`;
         return `<div class="rest-tier-panel" data-tier="${t}" style="${display}">${cards}</div>`;
       }).join('')}
+    </div>` : ''}
+
+    ${(data.local_specials && data.local_specials.has_data) ? `
+    <h3 style="margin:32px 0 12px;display:flex;align-items:center;gap:8px">🍜 当地特色体验 <span style="font-size:12px;color:var(--muted);font-weight:normal">${esc(city)} 特色饮品 & 地道美食</span></h3>
+    <div class="specials-grid">
+      <div class="specials-col">
+        <div class="specials-col__title">🥤 当地特色饮品</div>
+        ${data.local_specials.drinks.map(d => `
+        <div class="specials-card">
+          <div class="specials-card__name">
+            <span>🥤</span> ${esc(d.name)}
+            <span class="specials-badge" style="background:rgba(240,183,131,.15);color:var(--accent)">必喝</span>
+          </div>
+          <div class="specials-card__desc">${esc(d.desc)}</div>
+          ${d.shops ? `<div class="specials-card__shops">🏪 推荐店铺：${esc(d.shops)}</div>` : ''}
+          <div class="specials-card__why">💡 ${esc(d.why)}</div>
+        </div>`).join('')}
+        ${data.local_specials.drinks.length === 0 ? '<div style="color:var(--muted);font-size:12px;padding:12px">暂无当地特色饮品数据</div>' : ''}
+      </div>
+      <div class="specials-col">
+        <div class="specials-col__title">🍽️ 当地特色美食</div>
+        ${data.local_specials.foods.map(f => `
+        <div class="specials-card">
+          <div class="specials-card__name">
+            <span>🍽️</span> ${esc(f.name)}
+            <span class="specials-badge" style="background:rgba(16,185,129,.15);color:#10b981">必吃</span>
+          </div>
+          <div class="specials-card__desc">${esc(f.desc)}</div>
+          <div class="specials-card__why">💡 ${esc(f.why)}</div>
+        </div>`).join('')}
+        ${data.local_specials.foods.length === 0 ? '<div style="color:var(--muted);font-size:12px;padding:12px">暂无当地特色美食数据</div>' : ''}
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--text-3);margin-top:6px;padding:4px 0;border-top:1px dashed var(--line-2);font-family:var(--mono)">📊 数据源：本地知识库 + 大众点评/美团/小红书口碑数据</div>` : (data.local_specials && !data.local_specials.has_data) ? `
+    <div class="specials-note">
+      <b>🔍 ${esc(city)} 特色饮品 & 美食</b><br>
+      ${esc(data.local_specials.note || '正在通过本地知识库和线上查询获取当地特色饮品和美食信息，暂时未找到精确数据。')}
     </div>` : ''}
 
     ${(data.hotels && data.hotels.hotels && data.hotels.hotels.length) ? `
@@ -3275,6 +3339,48 @@ function buildExportTemplate(data, params){
     });
     html += `</div>`;
   });
+  // 当地特色饮品 & 美食（导出专用）
+  const renderExportSpecials = () => {
+    if (!data.local_specials) return '';
+    const s = data.local_specials;
+    if (!s.has_data) {
+      return s.note ? `<div style="margin-top:24px;padding:12px 16px;background:#fff8ee;border:1px solid #f0d6a8;border-radius:6px;font-size:12px;color:#8a6d3b;page-break-inside:avoid">
+        <b>🔍 ${esc(data.city)} 特色饮品 & 美食</b><br>${esc(s.note)}</div>` : '';
+    }
+    let html = `<div style="margin-top:26px;page-break-inside:avoid">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <div style="font-size:16px;font-weight:700;color:#1a1a1a">🍜 ${esc(data.city)} 当地特色体验</div>
+        <div style="font-size:11px;color:#888;font-weight:normal;padding:1px 8px;background:#eee;border-radius:8px">本地知识库 · 饮品×${s.drinks.length} 美食×${s.foods.length}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">`;
+    // 饮品列
+    html += `<div style="page-break-inside:avoid">
+      <div style="font-size:13px;font-weight:700;color:#d4a574;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #d4a574">🥤 当地特色饮品</div>`;
+    s.drinks.forEach(d => {
+      html += `<div style="background:#fff;border:1px solid #eee;border-radius:6px;padding:8px 10px;margin-bottom:6px;page-break-inside:avoid">
+        <div style="font-size:13px;font-weight:600;color:#1a1a1a">🥤 ${esc(d.name)}</div>
+        <div style="font-size:11px;color:#666;margin-top:2px">${esc(d.desc)}</div>
+        ${d.shops ? `<div style="font-size:10px;color:#a37434;margin-top:3px;padding:2px 6px;background:#fdf6ec;border-radius:4px">🏪 ${esc(d.shops)}</div>` : ''}
+        <div style="font-size:11px;color:#777;margin-top:3px;padding:3px 6px;background:#f0faf4;border-left:2px solid #10b981;border-radius:2px">💡 ${esc(d.why)}</div>
+      </div>`;
+    });
+    html += `</div>`;
+    // 美食列
+    html += `<div style="page-break-inside:avoid">
+      <div style="font-size:13px;font-weight:700;color:#d4a574;margin-bottom:6px;padding-bottom:4px;border-bottom:2px solid #d4a574">🍽️ 当地特色美食</div>`;
+    s.foods.forEach(f => {
+      html += `<div style="background:#fff;border:1px solid #eee;border-radius:6px;padding:8px 10px;margin-bottom:6px;page-break-inside:avoid">
+        <div style="font-size:13px;font-weight:600;color:#1a1a1a">🍽️ ${esc(f.name)}</div>
+        <div style="font-size:11px;color:#666;margin-top:2px">${esc(f.desc)}</div>
+        <div style="font-size:11px;color:#777;margin-top:3px;padding:3px 6px;background:#f0faf4;border-left:2px solid #10b981;border-radius:2px">💡 ${esc(f.why)}</div>
+      </div>`;
+    });
+    html += `</div></div>
+      <div style="font-size:10px;color:#999;padding-top:4px;border-top:1px dashed #ddd;font-family:monospace">📊 数据源：本地知识库 + 大众点评/美团/小红书口碑数据</div>
+    </div>`;
+    return html;
+  };
+  html += renderExportSpecials();
   // 旅行贴士 — 优先用多维度卡片；兜底用扁平列表
   // 关键：t 可能是 {text,dim,dim_label,...} 对象，必须用 typeof 判断避免 [object Object]
   const normalizeTip = (t) => (typeof t === 'string' ? t : (t && t.text) ? t.text : '');
@@ -3336,6 +3442,7 @@ function buildExportTemplate(data, params){
     <span style="background:#e0729b22;color:#a13c66;padding:1px 8px;border-radius:8px">12306/携程</span>
     <span style="background:#7bbf7b22;color:#3a7a3a;padding:1px 8px;border-radius:8px">POI 知识库</span>
     <span style="background:#c89b6a22;color:#7d5c30;padding:1px 8px;border-radius:8px">社区路线</span>
+    <span style="background:#e0729b22;color:#a13c66;padding:1px 8px;border-radius:8px">特色饮品/美食</span>
   </div>
   <div style="margin-top:10px;font-size:10px;color:#bbb;text-align:right">由 123 就出发 智能生成 · 仅供参考</div>`;
   wrap.innerHTML = html;
@@ -3447,6 +3554,33 @@ function exportTxt(data, params){
     });
     lines.push('');
   });
+  // 当地特色饮品 & 美食（导出文本）
+  if (data.local_specials) {
+    const s = data.local_specials;
+    if (s.has_data) {
+      lines.push('## 🍜 当地特色体验');
+      lines.push('');
+      lines.push('### 🥤 当地特色饮品');
+      s.drinks.forEach(d => {
+        lines.push(`  - ${d.name}`);
+        lines.push(`    品类：${d.desc}`);
+        if (d.shops) lines.push(`    推荐店铺：${d.shops}`);
+        lines.push(`    推荐理由：${d.why}`);
+      });
+      lines.push('');
+      lines.push('### 🍽️ 当地特色美食');
+      s.foods.forEach(f => {
+        lines.push(`  - ${f.name}`);
+        lines.push(`    品类：${f.desc}`);
+        lines.push(`    推荐理由：${f.why}`);
+      });
+      lines.push('');
+    } else if (s.note) {
+      lines.push(`## 🔍 ${data.city} 特色饮品 & 美食`);
+      lines.push(`  ${s.note}`);
+      lines.push('');
+    }
+  }
   if(data.tips?.length){
     lines.push('## 💡 旅行贴士');
     // 关键：t 可能是 {text,dim,dim_label,...} 对象，必须 typeof 判断避免 [object Object]
