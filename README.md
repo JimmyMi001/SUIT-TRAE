@@ -22,19 +22,11 @@
 
 ### 校徽 × 火山引擎
 
-<table align="center" cellpadding="0" cellspacing="0" style="border: none; margin: 0 auto;">
-  <tr style="border: none;">
-    <td align="center" valign="middle" style="border: none; padding: 0 24px;">
-      <img src="./assets/icons/suit1-logo.png" alt="深圳信息职业技术大学" height="48" style="vertical-align: middle;"/>
-    </td>
-    <td align="center" valign="middle" style="border: none; padding: 0 12px; color: #F0A500; font-size: 22px; font-weight: 300;">
-      ×
-    </td>
-    <td align="center" valign="middle" style="border: none; padding: 0 24px;">
-      <img src="./assets/icons/volcengine-combine-color.png" alt="火山引擎 Volcengine" height="48" style="vertical-align: middle;"/>
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <img src="./assets/icons/suit1-logo.png" alt="深圳信息职业技术大学" height="48" style="vertical-align: middle; display: inline-block;"/>
+  &nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #F0A500; font-size: 22px; font-weight: 300; vertical-align: middle; display: inline-block;">×</span>&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="./assets/icons/volcengine-combine-color.png" alt="火山引擎 Volcengine" height="48" style="vertical-align: middle; display: inline-block;"/>
+</p>
 
 <sub>深圳信息职业技术大学 · 第 123 号队伍 · 2026"火山杯"Agent 创新大赛 · 火山引擎</sub>
 
