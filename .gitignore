@@ -72,6 +72,9 @@ coverage/
 # 报告(本地用,不入仓)
 REPORT.md
 
+# 个人上传备忘(包含用户名等)
+GITHUB_UPLOAD.md
+
 # 风险:不在本仓的 secret 文件
 secrets/
 *.pem
