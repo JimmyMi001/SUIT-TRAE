@@ -2735,7 +2735,7 @@ async function renderItinerary(data, params){
           ${(trans.mid_stops || []).length ? `<div style="margin-top:6px"><b>中转城市：</b>${trans.mid_stops.map(s=>`<span class="tag" style="margin:2px">${esc(s)}</span>`).join('')}</div>` : ''}
         </div>` : '';
         transportBlock = `
-        <h3 style="margin:24px 0 12px">🚩 ${esc(originCity)} → ${esc(city)} 交通方式对比（${tr.distance_km} km）</h3>
+        <h3 style="margin:24px 0 12px">🚩 ${esc(originCity)} → ${esc(city)} 交通方式对比（${tr.straight_km} km）</h3>
         ${transferHtml}
         <div class="trans-grid">${items}</div>`;
       }
@@ -2812,7 +2812,7 @@ async function renderItinerary(data, params){
     <h3 style="margin:24px 0 12px">📅 每日安排 <span style="font-size:12px;color:var(--muted);font-weight:normal">（含 早/午/下午/晚 4 时段，含推荐理由 + 实用建议）</span></h3>
     ${data.itinerary.map(d=>`<div class="itin__day">
       <div class="itin__day-title">Day ${d.day} · ${esc(d.theme||'')}</div>
-      ${(d.nodes||[]).map((n,i)=>{
+      ${(d.nodes||[]).filter(n => !n._removed).map((n,i)=>{
         const slotIcon = n.timeSlot === 'morning' ? '🌅' : n.timeSlot === 'lunch' ? '🍱' : n.timeSlot === 'afternoon' ? '☕' : n.timeSlot === 'evening' ? '🌃' : '⏱';
         const slotLabel = n.timeSlot === 'morning' ? '上午' : n.timeSlot === 'lunch' ? '午餐' : n.timeSlot === 'afternoon' ? '下午' : n.timeSlot === 'evening' ? '晚间' : '';
         return `<div class="itin__node">
@@ -3257,7 +3257,7 @@ function buildExportTemplate(data, params){
         <span style="background:#d4a574;color:#fff;border-radius:50%;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:13px">${d.day}</span>
         Day ${d.day} · ${esc(d.theme || '')}
       </div>`;
-    (d.nodes || []).forEach((n, i) => {
+    (d.nodes || []).filter(n => !n._removed).forEach((n, i) => {
       const slotIcon = n.timeSlot === 'morning' ? '🌅 早' : n.timeSlot === 'lunch' ? '🍱 午' : n.timeSlot === 'afternoon' ? '☕ 下午' : n.timeSlot === 'evening' ? '🌃 晚' : '⏱';
       html += `<div style="margin:8px 0 12px 36px;border-left:2px solid #eee;padding:4px 0 4px 14px">
         <div style="font-size:11px;color:#888;letter-spacing:.05em">${slotIcon} · ${esc(n.time || '—')}</div>
@@ -3433,7 +3433,7 @@ function exportTxt(data, params){
   lines.push('');
   (data.itinerary||[]).forEach(d=>{
     lines.push(`## Day ${d.day} · ${d.theme||''}`);
-    (d.nodes||[]).forEach((n,i)=>{
+    (d.nodes||[]).filter(n => !n._removed).forEach((n,i)=>{
       const slotIcon = n.timeSlot === 'morning' ? '🌅' : n.timeSlot === 'lunch' ? '🍱' : n.timeSlot === 'afternoon' ? '☕' : n.timeSlot === 'evening' ? '🌃' : '⏱';
       lines.push(`  ${i+1}. ${slotIcon} ${n.time||'—'}  ${n.poi}  ${n.tip||''}`);
       if (n.why) lines.push(`     💡 推荐理由：${n.why}`);

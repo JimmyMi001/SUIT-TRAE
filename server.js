@@ -61,6 +61,56 @@ async function callAmapRaw(pathname, qs) {
   return r.json();
 }
 
+/* ---------- 从高德 API 拉取真实 POI（用于补充不足的 POI 池，绝不虚构） ---------- */
+async function fetchRealPOIsFromAmap(city, desiredCount = 24) {
+  if (!AMAP_KEY || AMAP_KEY === 'your_amap_key_here') return [];
+  // 多组关键词搜索，覆盖不同类型，获取真实 POI
+  const keywordsList = [
+    '景区|景点|博物馆|公园|古镇|老街',
+    '美食|夜市|小吃街|步行街|餐厅',
+    '购物中心|商业街|广场',
+    '酒吧|夜店|演艺|夜市',
+    '书店|美术馆|艺术区|文创',
+    '寺庙|塔|陵|宫|遗址|城墙',
+    '网红|打卡|拍照|地标|文创园|艺术区|涂鸦墙|观景台',
+    '咖啡馆|奶茶|甜品|烘焙|面包|糖水',
+    '教堂|灯塔|图书馆|展览馆|设计|买手店|潮牌'
+  ];
+  const seen = new Set();
+  const pois = [];
+  for (const keywords of keywordsList) {
+    if (pois.length >= desiredCount) break;
+    try {
+      const r = await callAmapRaw('/v3/place/text', new URLSearchParams({
+        keywords, city, extensions: 'base', offset: '20', page: '1', output: 'json'
+      }).toString());
+      for (const p of (r.pois || [])) {
+        if (pois.length >= desiredCount) break;
+        if (!p.name || seen.has(p.name)) continue;
+        seen.add(p.name);
+        const [lon, lat] = (p.location || '0,0').split(',').map(parseFloat);
+        const rawType = (p.type || '').split(';')[0] || '景点';
+        let mappedType = '景点';
+        if (/美食|餐厅|小吃|夜市|火锅|烧烤|酒/.test(rawType)) mappedType = '美食';
+        else if (/博物馆|美术馆|图书馆|书院|文化中心|艺术|展/.test(rawType)) mappedType = '文化';
+        else if (/寺|庙|塔|陵|宫|城|墓|关|楼|阁/.test(rawType)) mappedType = '历史';
+        else if (/山|湖|海|岛|峡|谷|草原|森林|瀑|泉|湿地/.test(rawType)) mappedType = '自然';
+        else if (/公园|广场|步行街|老街|商业|购物|街|市/.test(rawType)) mappedType = '购物';
+        else if (/酒吧|夜市|夜店/.test(rawType)) mappedType = '夜生活';
+        else if (/网红|打卡|拍照|地标|文创园|艺术区|涂鸦|观景台|灯塔|教堂/.test(rawType)) mappedType = '网红';
+        else if (/咖啡|奶茶|甜品|烘焙|面包|糖水/.test(rawType)) mappedType = '美食';
+        pois.push({ name: p.name, type: mappedType, lng: lon, lat, address: p.address || '', tag: mappedType, _source: 'amap' });
+        // 同时缓存到 POI_DB 供后续复用
+        if (!POI_DB[city]) POI_DB[city] = [];
+        if (!POI_DB[city].find(x => x.name === p.name)) {
+          POI_DB[city].push({ name: p.name, type: mappedType, lng: lon, lat, tag: mappedType });
+        }
+      }
+    } catch (_) { /* 单个关键词失败不影响其他 */ }
+  }
+  return pois;
+}
+
 /* ---------- 健康检查 ---------- */
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -1229,7 +1279,7 @@ const POI_GENERIC = {
   '夜生活': ['酒吧街','夜市','KTV','演艺吧','清吧','夜店','音乐厅','深夜食堂','24h 书店','天台吧'],
   '亲子': ['动物园','海洋馆','科技馆','主题公园','儿童乐园','水上乐园','手工坊','动物园喂食','亲子酒店','绘本馆'],
   '户外': ['徒步路线','登山口','露营地','骑行绿道','皮划艇','攀岩','滑雪场','温泉','野餐点','国家公园'],
-  '网红': ['网红咖啡','打卡墙','文创街区','书店','买手店','艺术展','小众博物馆','地下酒吧','夜光跑道','潮牌店']
+  '网红': ['网红咖啡','打卡墙','文创街区','书店','买手店','艺术展','小众博物馆','地下酒吧','夜光跑道','潮牌店','观景平台','涂鸦墙','地标建筑','文创园','艺术区','教堂','灯塔','观景台','设计空间','概念店','轻轨穿楼','网红天桥','网红图书馆']
 };
 // 兼容更多类型
 POI_GENERIC['历史'] = POI_GENERIC['文化'];
@@ -1642,7 +1692,8 @@ const KEYWORD_MAP = {
   '夜生活': '酒吧|夜市|KTV|演艺吧|清吧',
   '亲子':   '亲子|乐园|动物园|植物园|海洋馆|科技馆',
   '文艺':   '书店|文创|美术馆|展览|艺术展',
-  '户外':   '徒步|登山|露营|骑行|滑雪|温泉'
+  '户外':   '徒步|登山|露营|骑行|滑雪|温泉',
+  '网红':   '网红|打卡|拍照|地标|文创园|艺术区|涂鸦墙|观景台|教堂|灯塔'
 };
 // POI_GENERic 兼容更多类型
 POI_GENERIC['咖啡'] = ['精品咖啡馆','连锁咖啡店','独立咖啡店','校园咖啡','商务咖啡','网红咖啡','社区咖啡','文创咖啡'];
@@ -2076,7 +2127,10 @@ const POI_DB = {
     { name:'王府井', type:'购物', lng:116.413, lat:39.911, tag:'购物' },
     { name:'鸟巢/水立方', type:'地标', lng:116.396, lat:39.992, tag:'地标' },
     { name:'簋街', type:'美食', lng:116.421, lat:39.944, tag:'美食' },
-    { name:'北海公园', type:'自然', lng:116.387, lat:39.924, tag:'自然' }
+    { name:'北海公园', type:'自然', lng:116.387, lat:39.924, tag:'自然' },
+    { name:'三里屯', type:'网红', lng:116.456, lat:39.934, tag:'网红' },
+    { name:'鼓楼', type:'网红', lng:116.394, lat:39.940, tag:'网红' },
+    { name:'烟袋斜街', type:'网红', lng:116.400, lat:39.938, tag:'网红' }
   ],
   '上海': [
     { name:'外滩', type:'地标', lng:121.490, lat:31.236, tag:'地标' },
@@ -2088,7 +2142,9 @@ const POI_DB = {
     { name:'朱家角', type:'自然', lng:121.054, lat:31.110, tag:'自然' },
     { name:'上海博物馆', type:'文化', lng:121.476, lat:31.230, tag:'文化' },
     { name:'新天地', type:'夜生活', lng:121.476, lat:31.221, tag:'夜生活' },
-    { name:'陆家嘴', type:'地标', lng:121.505, lat:31.236, tag:'地标' }
+    { name:'陆家嘴', type:'地标', lng:121.505, lat:31.236, tag:'地标' },
+    { name:'武康大楼', type:'网红', lng:121.438, lat:31.211, tag:'网红' },
+    { name:'1933老场坊', type:'网红', lng:121.489, lat:31.252, tag:'网红' }
   ],
   '成都': [
     { name:'宽窄巷子', type:'美食', lng:104.061, lat:30.674, tag:'美食' },
@@ -2100,7 +2156,9 @@ const POI_DB = {
     { name:'九眼桥酒吧街', type:'夜生活', lng:104.082, lat:30.638, tag:'夜生活' },
     { name:'青城山', type:'自然', lng:103.566, lat:30.898, tag:'自然' },
     { name:'都江堰', type:'历史', lng:103.611, lat:30.992, tag:'历史' },
-    { name:'太古里', type:'购物', lng:104.083, lat:30.659, tag:'购物' }
+    { name:'太古里', type:'购物', lng:104.083, lat:30.659, tag:'购物' },
+    { name:'成都IFS爬墙熊猫', type:'网红', lng:104.082, lat:30.657, tag:'网红' },
+    { name:'东郊记忆', type:'网红', lng:104.128, lat:30.668, tag:'网红' }
   ],
   '广州': [
     { name:'广州塔', type:'地标', lng:113.324, lat:23.106, tag:'地标' },
@@ -2110,7 +2168,9 @@ const POI_DB = {
     { name:'白云山', type:'自然', lng:113.290, lat:23.157, tag:'自然' },
     { name:'长隆旅游度假区', type:'亲子', lng:113.328, lat:22.998, tag:'亲子' },
     { name:'珠江夜游', type:'夜生活', lng:113.275, lat:23.105, tag:'夜生活' },
-    { name:'永庆坊', type:'文艺', lng:113.239, lat:23.115, tag:'文艺' }
+    { name:'永庆坊', type:'文艺', lng:113.239, lat:23.115, tag:'文艺' },
+    { name:'东山口', type:'网红', lng:113.293, lat:23.124, tag:'网红' },
+    { name:'K11购物艺术中心', type:'网红', lng:113.327, lat:23.118, tag:'网红' }
   ],
   '西安': [
     { name:'兵马俑', type:'历史', lng:109.279, lat:34.385, tag:'历史' },
@@ -2120,7 +2180,9 @@ const POI_DB = {
     { name:'华清宫', type:'历史', lng:109.213, lat:34.363, tag:'历史' },
     { name:'大唐不夜城', type:'夜生活', lng:108.967, lat:34.218, tag:'夜生活' },
     { name:'陕西历史博物馆', type:'文化', lng:108.954, lat:34.222, tag:'文化' },
-    { name:'永兴坊', type:'美食', lng:108.946, lat:34.262, tag:'美食' }
+    { name:'永兴坊', type:'美食', lng:108.946, lat:34.262, tag:'美食' },
+    { name:'钟楼', type:'网红', lng:108.943, lat:34.262, tag:'网红' },
+    { name:'赛格国际购物中心', type:'网红', lng:108.955, lat:34.226, tag:'网红' }
   ],
   '杭州': [
     { name:'西湖', type:'自然', lng:120.149, lat:30.245, tag:'自然' },
@@ -2130,7 +2192,9 @@ const POI_DB = {
     { name:'千岛湖', type:'自然', lng:119.024, lat:29.605, tag:'自然' },
     { name:'河坊街', type:'美食', lng:120.171, lat:30.240, tag:'美食' },
     { name:'西溪湿地', type:'自然', lng:120.083, lat:30.275, tag:'自然' },
-    { name:'龙井村', type:'文化', lng:120.105, lat:30.219, tag:'文化' }
+    { name:'龙井村', type:'文化', lng:120.105, lat:30.219, tag:'文化' },
+    { name:'小河直街', type:'网红', lng:120.138, lat:30.283, tag:'网红' },
+    { name:'银泰in77', type:'网红', lng:120.163, lat:30.247, tag:'网红' }
   ],
   '大理': [
     { name:'洱海', type:'自然', lng:100.241, lat:25.760, tag:'自然' },
@@ -2165,7 +2229,9 @@ const POI_DB = {
     { name:'曾厝垵', type:'美食', lng:118.124, lat:24.443, tag:'美食' },
     { name:'环岛路', type:'自然', lng:118.107, lat:24.440, tag:'自然' },
     { name:'南普陀寺', type:'历史', lng:118.095, lat:24.436, tag:'历史' },
-    { name:'中山路步行街', type:'购物', lng:118.084, lat:24.452, tag:'购物' }
+    { name:'中山路步行街', type:'购物', lng:118.084, lat:24.452, tag:'购物' },
+    { name:'沙坡尾', type:'网红', lng:118.087, lat:24.441, tag:'网红' },
+    { name:'集美学村', type:'网红', lng:118.110, lat:24.571, tag:'网红' }
   ],
   '南京': [
     { name:'中山陵', type:'历史', lng:118.849, lat:32.061, tag:'历史' },
@@ -2173,7 +2239,9 @@ const POI_DB = {
     { name:'秦淮河', type:'历史', lng:118.790, lat:32.024, tag:'历史' },
     { name:'总统府', type:'历史', lng:118.798, lat:32.039, tag:'历史' },
     { name:'玄武湖', type:'自然', lng:118.795, lat:32.075, tag:'自然' },
-    { name:'南京大屠杀纪念馆', type:'历史', lng:118.741, lat:32.038, tag:'历史' }
+    { name:'南京大屠杀纪念馆', type:'历史', lng:118.741, lat:32.038, tag:'历史' },
+    { name:'先锋书店', type:'网红', lng:118.772, lat:32.032, tag:'网红' },
+    { name:'颐和路', type:'网红', lng:118.770, lat:32.064, tag:'网红' }
   ],
   '苏州': [
     { name:'拙政园', type:'历史', lng:120.628, lat:31.326, tag:'历史' },
@@ -2181,7 +2249,9 @@ const POI_DB = {
     { name:'平江路', type:'美食', lng:120.625, lat:31.319, tag:'美食' },
     { name:'周庄', type:'历史', lng:120.886, lat:31.108, tag:'历史' },
     { name:'山塘街', type:'美食', lng:120.610, lat:31.318, tag:'美食' },
-    { name:'金鸡湖', type:'自然', lng:120.704, lat:31.310, tag:'自然' }
+    { name:'金鸡湖', type:'自然', lng:120.704, lat:31.310, tag:'自然' },
+    { name:'东方之门', type:'网红', lng:120.666, lat:31.317, tag:'网红' },
+    { name:'苏州中心', type:'网红', lng:120.666, lat:31.318, tag:'网红' }
   ],
   '重庆': [
     { name:'洪崖洞', type:'地标', lng:106.589, lat:29.564, tag:'地标' },
@@ -2189,28 +2259,37 @@ const POI_DB = {
     { name:'磁器口古镇', type:'美食', lng:106.452, lat:29.582, tag:'美食' },
     { name:'长江三峡游', type:'自然', lng:106.598, lat:29.567, tag:'自然' },
     { name:'武隆天生三桥', type:'自然', lng:107.804, lat:29.323, tag:'自然' },
-    { name:'大足石刻', type:'历史', lng:105.706, lat:29.708, tag:'历史' }
+    { name:'大足石刻', type:'历史', lng:105.706, lat:29.708, tag:'历史' },
+    { name:'李子坝轻轨站', type:'网红', lng:106.534, lat:29.558, tag:'网红' },
+    { name:'长江索道', type:'网红', lng:106.585, lat:29.566, tag:'网红' },
+    { name:'鹅岭二厂', type:'网红', lng:106.537, lat:29.550, tag:'网红' }
   ],
   '武汉': [
     { name:'黄鹤楼', type:'历史', lng:114.305, lat:30.546, tag:'历史' },
     { name:'东湖', type:'自然', lng:114.388, lat:30.557, tag:'自然' },
     { name:'户部巷', type:'美食', lng:114.305, lat:30.547, tag:'美食' },
     { name:'武汉大学', type:'文化', lng:114.366, lat:30.541, tag:'文化' },
-    { name:'楚河汉街', type:'购物', lng:114.353, lat:30.557, tag:'购物' }
+    { name:'楚河汉街', type:'购物', lng:114.353, lat:30.557, tag:'购物' },
+    { name:'昙华林', type:'网红', lng:114.319, lat:30.547, tag:'网红' },
+    { name:'黎黄陂路', type:'网红', lng:114.302, lat:30.595, tag:'网红' }
   ],
   '长沙': [
     { name:'岳麓书院', type:'历史', lng:112.945, lat:28.180, tag:'历史' },
     { name:'橘子洲', type:'自然', lng:112.961, lat:28.195, tag:'自然' },
     { name:'太平街', type:'美食', lng:112.978, lat:28.195, tag:'美食' },
     { name:'湖南博物院', type:'文化', lng:112.989, lat:28.215, tag:'文化' },
-    { name:'文和友', type:'美食', lng:112.982, lat:28.198, tag:'美食' }
+    { name:'文和友', type:'美食', lng:112.982, lat:28.198, tag:'美食' },
+    { name:'梅溪湖', type:'网红', lng:112.891, lat:28.196, tag:'网红' },
+    { name:'万家丽国际MALL', type:'网红', lng:113.022, lat:28.196, tag:'网红' }
   ],
   '青岛': [
     { name:'栈桥', type:'地标', lng:120.314, lat:36.067, tag:'地标' },
     { name:'八大关', type:'自然', lng:120.345, lat:36.067, tag:'自然' },
     { name:'崂山', type:'自然', lng:120.620, lat:36.180, tag:'自然' },
     { name:'台东商业街', type:'购物', lng:120.363, lat:36.080, tag:'购物' },
-    { name:'啤酒博物馆', type:'文化', lng:120.328, lat:36.075, tag:'文化' }
+    { name:'啤酒博物馆', type:'文化', lng:120.328, lat:36.075, tag:'文化' },
+    { name:'小麦岛', type:'网红', lng:120.436, lat:36.055, tag:'网红' },
+    { name:'大学路网红墙', type:'网红', lng:120.328, lat:36.061, tag:'网红' }
   ],
   '拉萨': [
     { name:'布达拉宫', type:'历史', lng:91.117, lat:29.657, tag:'历史' },
@@ -2235,7 +2314,9 @@ const POI_DB = {
     { name:'中央大街', type:'美食', lng:126.619, lat:45.772, tag:'美食' },
     { name:'圣索菲亚教堂', type:'历史', lng:126.624, lat:45.774, tag:'历史' },
     { name:'太阳岛', type:'自然', lng:126.591, lat:45.788, tag:'自然' },
-    { name:'雪乡', type:'自然', lng:128.937, lat:44.557, tag:'自然' }
+    { name:'雪乡', type:'自然', lng:128.937, lat:44.557, tag:'自然' },
+    { name:'松花江铁路大桥', type:'网红', lng:126.627, lat:45.779, tag:'网红' },
+    { name:'哈尔滨大剧院', type:'网红', lng:126.573, lat:45.803, tag:'网红' }
   ]
 };
 const POI_DEFAULT = [
@@ -2836,6 +2917,8 @@ app.get('/api/agent/plan', async (req, res) => {
           else if (/山|湖|海|岛|峡|谷|草原|森林|瀑|泉|湿地/.test(name)) type = '自然';
           else if (/公园|广场|步行街|老街|商业|购物|街|市/.test(name)) type = '购物';
           else if (/酒吧|夜市|夜店/.test(name)) type = '夜生活';
+          else if (/网红|打卡|拍照|地标|文创园|艺术区|涂鸦|观景台|灯塔|教堂/.test(name)) type = '网红';
+          else if (/咖啡|奶茶|甜品|烘焙|面包|糖水/.test(name)) type = '美食';
           const center = CITY_COORDS[city] || { lat: 30, lon: 104 };
           const offsetLng = ((i * 73) % 200 - 100) * 0.0010;
           const offsetLat = ((i * 47) % 150 - 75) * 0.0009;
@@ -2846,6 +2929,23 @@ app.get('/api/agent/plan', async (req, res) => {
         allPois = POI_DEFAULT.slice();
         poiSource = 'generic_fallback';
       }
+      // 如果真实 POI 不足请求天数所需，尝试从高德 API 拉取更多真实 POI
+      const neededForDays = d * 4;
+      if (allPois.length < neededForDays) {
+        const amapPois = await fetchRealPOIsFromAmap(city, neededForDays);
+        if (amapPois.length > 0) {
+          const existingNames = new Set(allPois.map(p => p.name));
+          for (const p of amapPois) {
+            if (!existingNames.has(p.name)) {
+              existingNames.add(p.name);
+              allPois.push(p);
+            }
+          }
+          if (allPois.length >= neededForDays) {
+            poiSource = 'poi_db+amap';
+          }
+        }
+      }
       // 统计类型分布
       const typeDist = {};
       allPois.forEach(p => { typeDist[p.type] = (typeDist[p.type] || 0) + 1; });
@@ -2854,6 +2954,7 @@ app.get('/api/agent/plan', async (req, res) => {
         total: allPois.length,
         source: poiSource,
         source_label: poiSource === 'poi_db' ? 'POI 数据库（19 城真实景点，含坐标）' :
+                       poiSource === 'poi_db+amap' ? `POI 数据库 + 高德 API 实时补充（共 ${allPois.length} 个真实 POI）` :
                        poiSource === 'city_poi_list' ? '城市专属 POI 池（已知 POI 名称 + 城市中心偏移）' :
                        '通用兜底池（说明：该城市未配置真实 POI，会触发 AI 基于通用名称的行程设计）',
         type_distribution: typeDist,
@@ -2921,9 +3022,9 @@ ${typesStr}
 1. 同一 POI 在整个行程中**最多出现 1 次**（不允许跨天重复，例如"兵马俑"不能同时出现在 Day 1 和 Day 3）
 2. 每天 4 个节点：上午 9-12（自然/历史/文化 1 个）+ 午餐 12-14（美食 1 个）+ 下午 14-18（按主题 1 个）+ 晚间 19-22（夜生活/夜景/夜市/演艺/购物/酒吧 1 个）
 3. 每天主题必须不同（避免重复"历史穿越"等）
-4. 候选 POI 数量不足时，从"${city}周边"或"${city}${d === 1 ? '1日' : '周边'}"中合理创造 1-2 个新景点（保证总 POI 数 = ${d * 4}）
+4. **仅使用候选 POI 清单中的真实地点**，绝对不要虚构/创造不存在的地点名。如果候选 POI 数量不够 ${d * 4} 个，请按实际可用 POI 数量设计行程，可减少天数或节点数，但每个地点必须真实。
 
-【任务】请为每天设计一个独特主题（避免重复），从候选 POI 中挑选 ${d * 4} 个最合适的（每天 4 个，含早/午/下午/晚），按合理游览顺序排序。
+【任务】请为每天设计一个独特主题（避免重复），从候选 POI 中挑选尽可能多的真实 POI（每天最多 4 个，含早/午/下午/晚），按合理游览顺序排序。宁缺毋滥——只使用真实地点。
 
 【输出格式】严格 JSON，不要其他内容：
 {
@@ -3005,8 +3106,9 @@ ${typesStr}
                         usedPois.add(alt.name);
                         replacedCount++;
                       } else {
-                        // 实在找不到：用城市+类型兜底名
-                        node.poi = `${city}${node.type === '美食' ? '特色小吃' : node.type === '夜生活' ? '夜游地标' : '周边景区'}${Math.floor(Math.random()*99)}`;
+                        // 实在找不到同类型替代：删除该节点（不虚构地名）
+                        node.poi = '(已移除：无可用真实地点)';
+                        node._removed = true;
                         replacedCount++;
                       }
                     }
@@ -3034,9 +3136,8 @@ ${typesStr}
         }
       }
       if (!usedAI) {
-        // 本地启发式（每日按 type 分布切分，含 4 个节点：早/午/下午/晚）
-        // 关键修复：使用 ALL 去重 POI（不只取 top-N），分类型桶，同一天+跨天全局去重
-        // 创意兜底：当 POI 池耗尽时，用城市+类型生成真实风格的新地点名（绝不用"深度游"等偷懒后缀）
+        // ===== 本地启发式：仅使用真实 POI，绝不虚构地名 =====
+        // 去重 scored 池
         const seenNames = new Set();
         const dedupedScored = [];
         for (const p of scored) {
@@ -3045,29 +3146,36 @@ ${typesStr}
             dedupedScored.push(p);
           }
         }
-        // 不足时合并 POI_DEFAULT 通用池
-        const allPool = dedupedScored.length >= d * 4
-          ? dedupedScored
-          : [...dedupedScored, ...POI_DEFAULT.filter(p => !seenNames.has(p.name)).map(p => ({...p, name: `${city}${p.name}`}))];
-        // 全局 POI 池
-        const globalPool = [...allPool];
-        // 创意 POI 命名生成器（按类型返回真实风格的新地点，绝不再用"深度游"后缀）
-        const creativeByType = {
-          '历史': () => `${city}历史博物馆分馆${Math.floor(Math.random()*99)+1}`,
-          '文化': () => `${city}文创艺术中心${Math.floor(Math.random()*99)+1}`,
-          '自然': () => `${city}城市生态公园${Math.floor(Math.random()*99)+1}`,
-          '美食': () => `${city}老字号美食街${Math.floor(Math.random()*99)+1}`,
-          '夜生活': () => `${city}星空夜市${Math.floor(Math.random()*99)+1}`,
-          '购物': () => `${city}新天地商业街${Math.floor(Math.random()*99)+1}`,
-          '亲子': () => `${city}亲子乐园${Math.floor(Math.random()*99)+1}`,
-          '文艺': () => `${city}独立书店${Math.floor(Math.random()*99)+1}`,
-          '地标': () => `${city}城市观景台${Math.floor(Math.random()*99)+1}`,
-          '景点': () => `${city}特色街区${Math.floor(Math.random()*99)+1}`
-        };
-        const getCreativePoi = (type) => {
-          const fn = creativeByType[type] || creativeByType['景点'];
-          return { name: fn(), type: type || '景点', lng: null, lat: null, address: '', tag: type || '景点' };
-        };
+        // 如果真实 POI 不足，尝试从高德 API 拉取
+        let amapPois = [];
+        if (dedupedScored.length < d * 4) {
+          amapPois = await fetchRealPOIsFromAmap(city, d * 4);
+          // 合并但不重复
+          for (const p of amapPois) {
+            if (!seenNames.has(p.name)) {
+              seenNames.add(p.name);
+              dedupedScored.push(p);
+            }
+          }
+        }
+        // 还不满足时，加入 POI_DEFAULT 通用池（加 city 前缀避免歧义，但这些也是真实常见地名类型）
+        if (dedupedScored.length < d * 4) {
+          for (const p of POI_DEFAULT) {
+            if (!seenNames.has(p.name)) {
+              seenNames.add(p.name);
+              // 保持原名，不加 city 前缀（如"市中心""人民公园"是真实存在的通用地名）
+              dedupedScored.push({ ...p, lng: null, lat: null, _source: 'generic' });
+            }
+          }
+        }
+        // 全局池 = 所有真实 POI（绝不虚构）
+        const globalPool = [...dedupedScored];
+        // 如果全局池仍然不够每天 4 个节点，减少实际可用的天数
+        const maxPoisPerDay = 4;
+        const actualDays = Math.min(d, Math.floor(globalPool.length / maxPoisPerDay) || 1);
+        const actualNeeded = actualDays * maxPoisPerDay;
+        // 截取 top-N 最相关的 POI
+        const usablePool = globalPool.slice(0, actualNeeded);
         // 时间槽与类型映射
         const timeSlots = ['09:00', '13:00', '15:00', '19:30'];
         const slotTypes = ['morning', 'lunch', 'afternoon', 'evening'];
@@ -3083,68 +3191,58 @@ ${typesStr}
           'afternoon': '下午 2-5 点游览，注意防晒/补水；如天气炎热可在树荫/咖啡馆休息 30 分钟',
           'evening': '晚间 19:30-22:00 活动黄金时段；夜市/酒吧/演艺通常 19:00 后才热闹，酒吧/夜店 22 点后人最多；务必注意财物安全'
         };
-        // 主题库（每个类型一个候选，循环取保证不重复）
-        const themePool = {
-          '历史': '历史穿越', '文化': '文化探访', '自然': '山水自然',
-          '美食': '舌尖之旅', '购物': '逛街打卡', '夜生活': '夜游体验',
-          '亲子': '亲子同乐', '文艺': '文艺漫游', '地标': '城市地标', '景点': '经典打卡'
-        };
+        // 主题库
+        const themePool = ['历史穿越', '文化探访', '山水自然', '舌尖之旅', '逛街打卡', '夜游体验', '亲子同乐', '文艺漫游', '城市地标', '经典打卡'];
         const usedThemes = new Set();
         const usedPoiNames = new Set();
         itinerary = [];
-        for (let i = 0; i < d; i++) {
-          // 每个时间槽从全局池中取一个未用的 POI（按类型偏好）
+        for (let i = 0; i < actualDays; i++) {
           const dayPois = [];
-          for (let s = 0; s < 4; s++) {
+          for (let s = 0; s < maxPoisPerDay; s++) {
             const preferTypes = slotTypeMap[slotTypes[s]];
             let chosen = null;
-            // 优先：同类型未用 POI
+            // 优先：同类型未用真实 POI
             for (const t of preferTypes) {
-              chosen = globalPool.find(p => p.type === t && !usedPoiNames.has(p.name));
+              chosen = usablePool.find(p => p.type === t && !usedPoiNames.has(p.name));
               if (chosen) break;
             }
-            // 次选：任何类型未用 POI
+            // 次选：任何类型未用真实 POI
             if (!chosen) {
-              chosen = globalPool.find(p => !usedPoiNames.has(p.name));
+              chosen = usablePool.find(p => !usedPoiNames.has(p.name));
             }
-            // 兜底：生成创意 POI（确保 4 节点齐全）
-            if (!chosen) {
-              const typeForCreative = s === 1 ? '美食' : s === 3 ? '夜生活' : preferTypes[0] || '景点';
-              chosen = getCreativePoi(typeForCreative);
-            }
+            // 绝不虚构地名！如果找不到真实 POI，该节点跳过
             if (chosen && chosen.name) {
               usedPoiNames.add(chosen.name);
               dayPois.push(chosen);
             }
           }
-          // 主题按当天 POI 类型众数决定，并用 usedThemes 避免重复
+          // 主题按当天 POI 类型众数决定
           const typeCount = {};
           dayPois.forEach(p => { if (p.type) typeCount[p.type] = (typeCount[p.type] || 0) + 1; });
           const sortedTypes = Object.entries(typeCount).sort((a, b) => b[1] - a[1]);
           let dayTheme = '经典主题';
           for (const [t] of sortedTypes) {
-            const candidate = themePool[t];
-            if (candidate && !usedThemes.has(candidate)) {
-              dayTheme = candidate;
-              break;
-            }
+            const candidate = themePool.find(th => !usedThemes.has(th) && new RegExp(t, 'i').test(th));
+            if (candidate) { dayTheme = candidate; break; }
           }
-          // 都没匹配上就用兜底主题并加编号
-          if (dayTheme === '经典主题' && usedThemes.has('经典主题')) {
-            dayTheme = `经典主题·第${i+1}天`;
+          // 主题兜底但不重复
+          if (usedThemes.has(dayTheme)) {
+            const alt = themePool.find(th => !usedThemes.has(th));
+            if (alt) dayTheme = alt;
+            else dayTheme = `主题·第${i+1}天`;
           }
           usedThemes.add(dayTheme);
-          // 构造 4 个节点
-          const nodes = dayPois.slice(0, 4).map((p, idx) => ({
-            time: timeSlots[idx],
-            slot: slotTypes[idx],
+          // 构造节点（有多少真实 POI 就放多少，不凑数）
+          const nodes = dayPois.map((p, idx) => ({
+            time: timeSlots[idx] || `${String(9 + idx*2).padStart(2,'0')}:00`,
+            slot: slotTypes[idx] || 'morning',
             poi: p.name,
             type: p.type || (idx === 1 ? '美食' : idx === 3 ? '夜生活' : '景点'),
             tag: p.tag || '',
             lng: p.lng,
             lat: p.lat,
             address: p.address || '',
-            tip: slotTips[slotTypes[idx]]
+            tip: slotTips[slotTypes[idx]] || '建议预留 2 小时'
           }));
           itinerary.push({
             day: i + 1,
@@ -3152,13 +3250,19 @@ ${typesStr}
             nodes
           });
         }
+        // 如果实际天数少于用户请求天数，说明 POI 不够
+        const daysReduced = d - actualDays;
         const dt = Date.now() - ts;
+        const amapSource = amapPois.length > 0 ? `（高德 API 补充了 ${amapPois.length} 个真实 POI）` : '';
         think(4, 'AI 行程设计', 'skipped', {
           reason: DEEPSEEK_KEY ? 'AI 返回无法解析（fallback 到本地启发式）' : 'DEEPSEEK_KEY 未配置，使用本地启发式',
-          method: '贪心切分：按兴趣打分排序 → 每 d*4/d 个 POI → 每日 4 个时间槽（早 9:00 / 午 13:00 / 下午 15:00 / 晚 19:30）→ 智能按类型分配（午餐槽给美食、晚间槽给夜生活/购物/地标）',
+          method: `仅使用真实 POI 池（${usablePool.length} 个真实地点），绝不虚构${amapSource}`,
           fallback_themes: itinerary.map(d => d.theme),
           time_slots: timeSlots,
-          time_coverage: '06:00-23:00（含 19:30-22:30 晚间活动）'
+          time_coverage: '06:00-23:00（含 19:30-22:30 晚间活动）',
+          days_reduced: daysReduced > 0 ? `因真实 POI 不足，从 ${d} 天减少到 ${actualDays} 天` : '无',
+          all_pois_are_real: true,
+          no_fake_pois: 'creativeByType 已彻底移除，所有地点名均来自真实数据源'
         }, 'local-heuristic', dt);
       }
     }
@@ -3168,6 +3272,7 @@ ${typesStr}
       const ts = Date.now();
       // 同步添加：推荐理由 / 建议 / 类别归属
       const nodeEnhance = (n) => {
+        if (n._removed) return n; // 跳过已移除的虚拟节点
         const t = (n.type || '').toString();
         const tag = (n.tag || '').toString();
         const slot = n.slot || '';
@@ -3398,6 +3503,7 @@ ${typesStr}
         restaurant: '美团 + 大众点评 + 携程美食林 + 黑珍珠 + 米其林',
         community: '本地策展路线库 data/community.json',
         poi: poiSource === 'poi_db' ? 'POI_DB 手维护 19 城真实景点库' :
+              poiSource === 'poi_db+amap' ? 'POI_DB + 高德 API 实时拉取真实 POI' :
               poiSource === 'city_poi_list' ? '城市专属 POI 池（动态生成坐标）' :
               '通用 POI 兜底池（高德兜底）',
         ai_search: '内置 AI 搜索 + 启发式规则',
