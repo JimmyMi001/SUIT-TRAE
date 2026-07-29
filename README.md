@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-F0A500.svg?style=flat-square)](./LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D18-339933?style=flat-square&logo=node.js)](https://nodejs.org/)
 [![Sponsor](https://img.shields.io/badge/2026-火山杯%20Agent%20创新大赛-FF6B35?style=flat-square)](https://github.com/JimmyMi001/SUIT-TRAE-123Lets-GO)
-[![School](https://img.shields.io/badge/深圳信息职业技术大学-深信-1E40AF?style=flat-square)](https://www.sziit.edu.cn/)
+[![School](https://img.shields.io/badge/深圳信息职业技术大学-深信-1E40AF?style=flat-square)](https://www.suit-sz.edu.cn/)
 
 **社区路线众包 × AI 交叉验证 × 个性化旅行伴侣 · 全栈自研**
 
