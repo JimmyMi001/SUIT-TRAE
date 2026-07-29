@@ -1224,8 +1224,6 @@ copies of the Software...
 - ☕ **[库迪咖啡](https://www.cottilabs.com/)**
 - 🍔 **[麦当劳](https://www.mcdonalds.com.cn/)**
 
-> *——这是给评委的小幽默 🫶，看到这里的都是有缘人。*
-
 ---
 
 <div align="center">
