@@ -53,6 +53,7 @@
 - [🧠 核心实现原理](#-核心实现原理)
 - [🎨 设计哲学](#-设计哲学)
 - [🎁 细节小心思](#-细节小心思)
+- [🚧 已知不足 / 待改进空间（Roadmap）](#-已知不足--待改进空间roadmap)
 - [🚀 30 秒一键启动](#-30-秒一键启动推荐)
 - [🛠️ 保姆级手动安装](#-保姆级手动安装)
 - [🔑 申请 API 密钥](#-申请-api-密钥保姆级)
@@ -601,6 +602,94 @@ app.get('/api/amap/staticmap', async (req, res) => {
 | 🔁 **复盘经验沉淀** | 复盘页 | "实际 vs 计划"AI 评估，一键分享到社区 (+50 经验值)，形成闭环 |
 
 > 💡 **为什么花时间做这些**？ 我们认为"产品诚意"不只在主功能，也在用户不会特意去看、但看到时会微微一笑的地方 —— 这是把"工具"做成"作品"的分水岭。
+
+---
+
+## 🚧 已知不足 / 待改进空间（Roadmap）
+
+> **坦诚是开源的第一步** — 下面列出的每一项都真实存在于当前代码库，不是凑数。  
+> 我们鼓励所有协作者、参赛队伍、感兴趣的同学基于这些方向继续优化。**每一项都附了"最低改进成本估算"和"涉及的文件"**，方便上手。
+
+### 当前局限（实事求是 · 10 项）
+
+| # | 类别 | 现状 | 涉及文件 / 改进成本 |
+|---|------|------|-------------------|
+| 1 | **数据规模** | `POI_DB` 仅 19 城真实坐标 POI，其余 260+ 城市走通用兜底；县级市 / 4A 以下景区需高德 Key 实时拉取 | [server.js:2047-2250](file:///d:/SUIT%20Trae%20CN/server.js#L2047-L2250) · 🟡 中（数据众包） |
+| 2 | **票务/酒店/餐厅价格** | 算法估算而非实时抓取，README 接口章节已标注"参考估算" | [server.js:2408-2470](file:///d:/SUIT%20Trae%20CN/server.js#L2408-L2470) · 🔴 高（需爬虫 + 合规） |
+| 3 | **测试覆盖** | `test/` 目录**不存在**，仅依赖 CI 语法检查 + 密钥扫描 + 加密校验 | 项目根 · 🟢 低（加 Jest 即可） |
+| 4 | **AI 单点依赖** | 仅 DeepSeek 一个 AI 提供商；Key 缺失降级到本地启发式，无多模型 fallback | [server.js:2680-2700](file:///d:/SUIT%20Trae%20CN/server.js#L2680-L2700) · 🟡 中（加 Anthropic / 通义 / 文心适配） |
+| 5 | **前端工程化** | 纯原生 JS，**无 TypeScript / 无打包 / 无状态管理**；CSS 散落 7 个文件，变量未统一 | [js/](file:///d:/SUIT%20Trae%20CN/js/) · 🟡 中（可选 Vite + TS 渐进迁移） |
+| 6 | **可观测性** | 无 APM、无前端性能埋点（LCP/FCP/INP）；错误处理大量 `console.error` 静默 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中（接 Sentry / Prometheus） |
+| 7 | **安全 / 隐私** | 无用户系统、无登录注册、无 GDPR 合规设计、无 Rate Limiting、无 Cookie 同意 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中 |
+| 8 | **国际化** | 仅中文界面；货币仅人民币；字体仅适配简中（繁体/英文 fallback 弱） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（接 i18next） |
+| 9 | **部署 / 运维** | 强依赖 Render / Vercel，**无 Dockerfile**、无蓝绿部署、无集中式日志 | 根目录 · 🟡 中（加 Dockerfile + docker-compose.yml） |
+| 10 | **移动端** | 无 PWA / 离线模式 / Service Worker；无 App 包装（Capacitor / RN） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（manifest.json + sw.js） |
+
+> **图例**：🟢 1 周内可做 · 🟡 1-4 周 · 🔴 1 月+ · 数据规模 0 城市起补，众包/数据团队可贡献。
+
+### 短期可改进（1-2 周 · 适合新贡献者上手）
+
+- [ ] 补充 30+ 城市真实 POI（向 `POI_DB[city]` 数组 push 含 lng/lat/name/type 即可）
+- [ ] 添加 Jest 单元测试覆盖 `recommendRestaurants` / `scoreItinerary` / `generateMultiDimTips`
+- [ ] 增加 `express-rate-limit` 做基础 DoS 防护（10 req/s/IP）
+- [ ] CSS 变量系统重构：把 `#F0A500` / `DM Serif Display` 等抽到 `:root` 统一定义
+- [ ] 加 `Dockerfile`（一行 `FROM node:18-alpine` 即可）
+- [ ] 错误日志结构化：把 `console.error` 换成 JSON Line（方便后续接日志平台）
+
+### 中期可改进（1-2 月 · 需要产品/工程权衡）
+
+- [ ] **用户系统**：注册/登录/个人路线库（Postgres + Prisma + JWT）
+- [ ] **第二 AI 提供商 fallback**：通义千问 / 文心一言 / 智谱 GLM（任一可用即接管）
+- [ ] **真实价格聚合**：携程/美团/去哪儿价格抓取（注意 `robots.txt` 合规 + 缓存 TTL）
+- [ ] **PWA 化**：`manifest.json` + Service Worker + 离线行程缓存
+- [ ] **i18n 框架**：接入 `i18next`，先做英文（团队学校背景 +1 国际化故事）
+- [ ] **可观测性**：Sentry（前端错误）+ Prometheus（后端 QPS/延迟）+ Grafana 看板
+
+### 长期可演进（3 月+ · 产品级跃迁）
+
+- [ ] **多 AI Agent 协同**：规划 Agent + 验证 Agent + 谈判 Agent（每个 Agent 独立 prompt，独立模型）
+- [ ] **实时多人协作**：WebSocket + CRDT（Yjs）让多人同时编辑同一份行程
+- [ ] **AR 实景导航**：接入高德 AR 步行导航 API
+- [ ] **路线市场**：创作者可定价售卖路线，平台抽佣（涉及支付 / 分账 / 合规）
+- [ ] **公开数据集**：将 `data/community.json` 开放为公开数据集（CC-BY-SA）
+
+### 🤝 欢迎贡献（如何动手）
+
+> **不知道从哪开始？** 挑一个对你胃口的方向，PR 即可，CI 通过后我们会合并：
+
+| 方向 | 适合人群 | 起步指南 |
+|------|---------|---------|
+| 🎨 **设计/UX** | 前端 / 设计师 | 改 [css/](file:///d:/SUIT%20Trae%20CN/css/) 任意文件 → 跑 `node server.js` 实时预览 |
+| ⚙️ **后端** | Node.js 工程师 | 看 [server.js](file:///d:/SUIT%20Trae%20CN/server.js) 顶部注释 → 加 API 或测试 |
+| 🧠 **AI / Prompt** | 算法 / Prompt 工程师 | 改 [server.js:2680-2990](file:///d:/SUIT%20Trae%20CN/server.js#L2680-L2990) 的 prompt 模板 |
+| 📊 **数据** | 数据 / 爬虫工程师 | 在 `data/` 增删 JSON，或向 `POI_DB` 推新城市 |
+| 🌐 **i18n** | 翻译 / 前端 | 把 [index.html](file:///d:/SUIT%20Trae%20CN/index.html) 中文文案抽到 `i18n/zh.json` |
+| 📱 **移动** | PWA / RN 工程师 | 加 `manifest.json` + `sw.js`，或用 Capacitor 打包 |
+| 🧪 **测试** | QA / 后端 | 加 `test/` 目录 + `*.test.js`，CI 会自动跑 |
+
+**最低贡献门槛**：`npm install && node server.js` 跑起来，提一个能通过 CI 的 PR。
+
+### 📋 贡献流程（5 步）
+
+1. **Fork** 本仓库 → 创建 feature 分支 (`git checkout -b feat/your-feature`)
+2. **本地开发** → 跑 `node server.js` 自测 → 确保无新增 `console.error`
+3. **写测试**（如有逻辑变更）→ `npm test` 跑通
+4. **提交** → Commit message 遵循 `feat:` / `fix:` / `docs:` / `refactor:` 前缀
+5. **Push & PR** → 在 PR 描述里附截图 / GIF / 思考过程，模板会自动加载
+
+### 📜 Code of Conduct
+
+- **不破坏现有功能**：所有按钮、API 必须保持向后兼容
+- **保持设计语言**：暗夜底色 + 暖金强调，**禁止紫色渐变 / Inter 字体 / 纯白背景**
+- **保持思考链可观测**：AI 生成的每一步都要让前端能看到"为什么"
+- **数据来源必须标注**：票价 / 酒店 / 餐厅 / 天气 / 路线 都要附真实数据源 + 估算说明
+
+---
+
+> 💡 **为什么把这部分写进 README**：  
+> 我们相信真正的好项目不只展示"做成了什么"，也展示"还差什么"。  
+> 把不足暴露出来，是邀请而非示弱 — 是把接力棒递给下一位维护者的最好方式。  
+> 期待你的 PR。🚀
 
 ---
 
