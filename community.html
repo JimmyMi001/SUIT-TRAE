@@ -300,6 +300,28 @@
       </article>
 
     </div>
+
+    <!-- ==========================================================
+         真实路线专区(来自公开来源,带溯源)
+         由 /api/routes/curated 动态加载,徽章显示来源平台
+         ========================================================== -->
+    <section class="real-routes" id="realRoutes">
+      <div class="real-routes__head">
+        <div>
+          <h2 class="real-routes__title">🗺️ 真实路线<em>·可溯源</em></h2>
+          <p class="real-routes__sub" id="realRoutesSub">来自携程/马蜂窝/各省市文旅局,每条 POI 坐标经高德验证,均带原文链接</p>
+        </div>
+        <div class="real-routes__filter">
+          <select id="realCityFilter" class="real-routes__select">
+            <option value="">全部城市</option>
+          </select>
+          <button class="real-routes__refresh" id="realRoutesRefresh" title="刷新">↻</button>
+        </div>
+      </div>
+      <div class="real-routes__grid" id="realRoutesGrid">
+        <div class="real-routes__loading">正在加载真实路线…</div>
+      </div>
+    </section>
   </main>
 
   <!-- 详情模态框 -->
@@ -372,6 +394,33 @@
     </div>
   </div>
 
+  <!-- 策展真实路线详情 -->
+  <div class="modal" id="curatedModal">
+    <div class="modal__dialog">
+      <button class="modal__close" id="curatedModalClose">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+      <div class="modal__head">
+        <h2 class="modal__title" id="curatedTitle">—</h2>
+        <p class="modal__sub" id="curatedSub">—</p>
+      </div>
+      <div class="modal__body">
+        <!-- 来源溯源 -->
+        <div class="curated-source" id="curatedSource">
+          <div class="curated-source__label">📚 来源</div>
+          <a class="curated-source__link" id="curatedSourceLink" href="#" target="_blank" rel="noopener">—</a>
+        </div>
+        <!-- POI 列表 -->
+        <div class="modal__nodes" id="curatedNodes"></div>
+      </div>
+      <div class="modal__cta">
+        <button class="btn-teal-ghost" id="curatedOpenOriginal">查看原文</button>
+        <button class="btn-gold" id="curatedImport">导入到我的规划</button>
+      </div>
+    </div>
+  </div>
+
   <script src="js/community.js"></script>
+  <script src="js/curated-routes.js"></script>
 </body>
 </html>

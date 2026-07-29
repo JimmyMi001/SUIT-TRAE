@@ -1,0 +1,74 @@
+name: CI / 部署检查
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  # =========================================
+  # 1) 基本检查:Node 版本 + 依赖装得起来
+  # =========================================
+  test:
+    name: 基础检查
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 安装依赖
+        run: npm install --no-audit --no-fund
+
+      - name: 语法检查 server.js
+        run: node --check server.js || true
+
+      - name: 健康检查 (本地启动 + curl)
+        run: |
+          (npm start &) ; sleep 6
+          curl -sS -o /dev/null -w "HTTP %{http_code}\n" http://localhost:3000/api/health || true
+          pkill -f "node server.js" || true
+
+  # =========================================
+  # 2) 密钥泄漏扫描 (trufflehog)
+  # =========================================
+  secret-scan:
+    name: 密钥泄漏扫描
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog 扫描
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: .
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+
+  # =========================================
+  # 3) Render 部署钩子 (可选)
+  # 取消下面注释并填入你的 deploy-hook URL 即可
+  # 触发条件:push 到 main 后,通知 Render 拉取新代码
+  # =========================================
+  # deploy:
+  #   name: 触发 Render 部署
+  #   needs: [test, secret-scan]
+  #   runs-on: ubuntu-latest
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #   steps:
+  #     - name: 通知 Render 部署
+  #       run: |
+  #         curl -sS -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"

@@ -1,0 +1,32 @@
+name: 同步到 Render
+
+# =============================================================
+# 当 main 分支有新 push 时,通知 Render 拉取并重新部署
+# 配置方法:
+#   1) 在 Render Dashboard → 你的 Service → Settings → Deploy Hook
+#      复制 URL
+#   2) 在 GitHub → Settings → Secrets and variables → Actions
+#      新建 secret: RENDER_DEPLOY_HOOK = 上面那个 URL
+#   3) 本 workflow 会自动触发
+# =============================================================
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  notify-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: 触发 Render 部署
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK 未配置,跳过部署通知"
+            exit 0
+          fi
+          echo "通知 Render 拉取最新代码..."
+          curl -sS -X POST "$HOOK" -w "\nHTTP %{http_code}\n"

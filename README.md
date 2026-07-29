@@ -6,40 +6,83 @@
 
 ---
 
-## 产品简介
+## 一键部署到 Render
 
-**123就出发** 是一个覆盖旅行全生命周期的 AI 助手。不再是"给你一个目的地就结束"——从灵感激发、路线验证、行程规划、行前准备、旅途陪伴、旅行复盘到社区分享，每一个环节都有专门的 AI Agent 为你服务。
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/YOUR_USERNAME/123-jiu-chu-fa)
 
-### 7 个 Agent，全生命周期覆盖
+> 部署后,在 Render Dashboard → Environment 设置 `AMAP_KEY` 和 `DEEPSEEK_KEY` 即可,密钥不会进入 GitHub。
 
-| Agent | 做什么 | 核心能力 |
-|-------|--------|---------|
-| 🎯 目的地推荐 | 不知道去哪？渐进式提问推荐 | 多维打分（预算/季节/兴趣/交通） |
-| 🔍 路线验证 | 刷到一条攻略？验证真假 | 四维验证引擎（时间/空间/时效/多源一致性） |
-| 📅 行程规划 | 生成详细行程 | 个性化适配矩阵（预算/体力/人数/季节） |
-| 🎒 行前准备 | 出发前要带什么？ | 7 项检查（证件/天气/健康/支付/通讯/保险/预约） |
-| 🧭 旅途伴侣 | 在路上遇到问题？ | 周边搜索/天气预警/翻译/紧急求助/记账 |
-| 📝 旅行复盘 | 旅行回来记录 | 高光时刻/避坑指南/美食红黑榜/预算复盘 |
-| 👥 社区知识库 | 分享你的路线 | 路线众包 + 去重合并 + 贡献者激励体系 |
+## 本地开发
 
-## 技术架构
+```bash
+git clone https://github.com/YOUR_USERNAME/123-jiu-chu-fa.git
+cd 123-jiu-chu-fa
+npm install
+cp .env.example .env
+# 编辑 .env 填入 AMAP_KEY 和 DEEPSEEK_KEY
+npm start
+# 浏览器打开 http://localhost:3000
+```
+
+## 密钥加密(可选,但推荐)
+
+如果想把 `.env` 加密后推送到 GitHub(例如团队协作、备份):
+
+```bash
+# 1) 生成主密钥(会写到 .env.keys,这个文件不入仓)
+node scripts/encrypt-env.js --genkey
+
+# 2) 加密 .env → .env.enc
+node scripts/encrypt-env.js
+
+# 3) 把 .env.keys 的内容(纯文本)配置到部署平台的环境变量 ENV_MASTER_KEY
+#    部署时,env-loader.js 会自动解密
+```
+
+**GitHub 工作流**:
+- 真实密钥永远不入仓(`.env` / `.env.keys` 已在 `.gitignore`)
+- `.env.enc` 是密文,公开也没关系(没有主密钥解不开)
+- 部署平台(Render)只需配置 `ENV_MASTER_KEY` 一个变量
+
+## 目录结构
 
 ```
-index.html (前端 SPA)
-    │
-    ├── 设计系统: 深夜暖金 · DM Serif + DM Sans · 三栏不对称
-    ├── Mock Agent 调度器 (7 Agent → 关键词 → 预设数据)
-    ├── API Client (优先真实 API，失败降级 Mock)
-    │
-    ▼
-server.js (Express 后端)
-    │
-    ├── /api/amap/*      → 高德地图 (POI/天气/路线)
-    ├── /api/weather/*   → Open-Meteo 免费降级
-    ├── /api/routes      → 社区路线 CRUD
-    ├── /api/fx          → Frankfurter 实时汇率
-    ├── /api/chat        → DeepSeek AI 对话 (8 角色)
-    └── /api/health      → 服务状态检查
+123-jiu-chu-fa/
+├── index.html / community.html / companion.html / ...
+├── server.js                 # Express 后端
+├── api/index.js              # Vercel Serverless 入口
+├── env-loader.js             # .env 加密加载器
+├── scripts/encrypt-env.js    # 密钥加密/解密 CLI
+├── render.yaml               # Render 部署配置
+├── vercel.json               # Vercel 部署配置
+├── .github/workflows/        # CI + 自动部署到 Render
+├── css/  js/  data/          # 前端与数据
+└── .env.example              # 环境变量模板
+```
+
+## GitHub Actions 自动部署
+
+`.github/workflows/deploy-render.yml` 在每次 `push main` 时自动通知 Render 拉取新代码。
+
+配置:
+1. Render Dashboard → 你的 Service → Settings → **Deploy Hook** → 复制 URL
+2. GitHub → Settings → Secrets and variables → Actions → New repository secret:
+   - Name: `RENDER_DEPLOY_HOOK`
+   - Value: 上面那个 URL
+3. 之后 `git push origin main` 即可自动部署
+
+## 持续开发流程
+
+```bash
+# 1. 改完代码
+git add .
+git commit -m "feat: 优化城市选择"
+git push origin main
+
+# 2. GitHub Actions 自动:
+#    - 运行基础检查 + 密钥扫描
+#    - 通知 Render 拉取新代码
+#    - Render 自动重启服务(约 30-60s)
 ```
 
 ## 数据源策略
@@ -53,78 +96,19 @@ server.js (Express 后端)
 | AI 对话 | DeepSeek | Mock | ✅ |
 | 社区路线 | 本地 JSON | 种子数据 | ✅ |
 
-## 快速开始
-
-```bash
-# 1. 克隆项目
-git clone https://github.com/YOUR_USERNAME/123-jiu-chu-fa.git
-cd 123-jiu-chu-fa
-
-# 2. 安装依赖
-npm install
-
-# 3. 配置环境变量
-cp .env.example .env
-# 编辑 .env 填入你的高德 Key 和 DeepSeek Key
-# 不填也能运行——自动降级 Mock
-
-# 4. 启动
-npm start
-
-# 5. 浏览器打开
-open http://localhost:3000
-```
-
-## 环境变量
-
-```bash
-AMAP_KEY=           # 高德地图 API Key（可选，不填自动降级）
-DEEPSEEK_KEY=       # DeepSeek API Key（可选，不填自动降级）
-PORT=3000           # 服务端口（默认 3000）
-```
-
-## 部署到 Vercel
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/YOUR_USERNAME/123-jiu-chu-fa)
-
-或在 Vercel Dashboard 中：
-1. Import GitHub 仓库
-2. 在 Environment Variables 中设置 `AMAP_KEY` 和 `DEEPSEEK_KEY`
-3. Deploy
-
 ## 设计特色
 
 - **深夜暖金** 调色板 — `#0A0E1A` 底色 × `#F0A500` 暖金 × `#00C6B7` 青碧
-- **DM Serif Display + DM Sans** 字体配对 — 拒绝 Inter/Roboto
-- **三栏不对称布局** — 打破居中对称的"AI 味"
+- **DM Serif Display + DM Sans** 字体配对
+- **三栏不对称布局** — 打破居中对称
 - **毛玻璃视觉语言** — `backdrop-filter: blur(20px)` 统一参数
 - **CSS 驱动动画** — scroll-driven、transform-only、prefers-reduced-motion 全适配
-- **字符级标题动画** — 逐字弹出 + 微妙 overshoot 缓动
-
-## 项目结构
-
-```
-123-jiu-chu-fa/
-├── index.html           # 前端 SPA（7 页面）
-├── server.js            # Express 后端
-├── api/index.js         # Vercel Serverless 入口
-├── package.json
-├── .env.example
-├── vercel.json
-├── README.md
-├── data/
-│   └── community.json   # 社区路线库（5 条种子数据）
-├── css/                 # 独立 CSS（8 个文件）
-└── js/                  # 独立 JS（8 个文件）
-```
 
 ## 比赛信息
 
 - **赛事**: 2026 年度"火山杯"Agent 创新大赛暨国赛遴选赛
 - **学校**: 深圳信息职业技术大学
 - **队伍**: 第 123 号
-- **截止**: 2026 年 7 月 31 日
-- **平台**: 火山引擎 Trae
 
 ## License
 

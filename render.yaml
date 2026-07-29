@@ -1,0 +1,34 @@
+# =============================================================
+# Render 部署配置
+# =============================================================
+# Render 会自动读取此文件,创建 Web Service + 配置环境
+# 部署地址: https://render.com → New → Blueprint
+# =============================================================
+
+services:
+  - type: web
+    name: 123-jiu-chu-fa
+    runtime: node
+    plan: free
+    region: singapore      # 新加坡区域,亚洲访问快
+    branch: main
+    rootDir: .
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true       # 推送 main 分支自动部署
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: AMAP_KEY
+        sync: false        # 需在 Render Dashboard 手动设置
+      - key: DEEPSEEK_KEY
+        sync: false        # 需在 Render Dashboard 手动设置
+      # 如启用 dotenvx 加密,需额外配置:
+      # - key: DOTENV_PRIVATE_KEY
+      #   sync: false
+
+    # 免费套餐 15 分钟无访问会休眠,首次访问需 ~30s 唤醒

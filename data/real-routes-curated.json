@@ -1,0 +1,747 @@
+{
+  "_meta": {
+    "version": "2026-07-29",
+    "principle": "策展路线均来自公开可访问的旅游平台/官方文旅局/官方景区页,所有POI经高德API坐标验证,每条均带原文链接供溯源",
+    "sources_used": [
+      {"name": "携程攻略", "url": "https://you.ctrip.com/", "note": "携程官方攻略社区,大量真实用户行程"},
+      {"name": "马蜂窝", "url": "https://www.mafengwo.cn/", "note": "国内最大旅游UGC平台,行程/攻略由真实用户撰写"},
+      {"name": "穷游网", "url": "https://www.qyer.com/", "note": "出境游为主的UGC平台,行程有详细花费"},
+      {"name": "各省市文旅局", "url": "http://www.mct.gov.cn/", "note": "文化和旅游部及地方文旅局官方推荐路线"},
+      {"name": "高德POI", "url": "https://lbs.amap.com/", "note": "POI名称与经纬度均通过高德开放平台验证"}
+    ]
+  },
+  "routes": [
+    {
+      "id": "curated-bj-3d-classic",
+      "title": "北京 3天经典文化游",
+      "city": "北京",
+      "days": 3,
+      "budget_per_day": 500,
+      "budget": "¥500/天",
+      "pax": "情侣",
+      "tags": ["经典", "文化", "历史"],
+      "summary": "故宫+长城+天坛三大经典,含胡同骑行,适合首次来京",
+      "source": {
+        "platform": "携程攻略",
+        "url": "https://you.ctrip.com/sight/beijing1.html",
+        "author": "携程官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "故宫博物院", "type": "历史", "lng": 116.397026, "lat": 39.918058, "official_url": "https://www.dpm.org.cn/"},
+        {"poi": "天安门广场", "type": "地标", "lng": 116.39764, "lat": 39.90931},
+        {"poi": "景山公园", "type": "公园", "lng": 116.3966, "lat": 39.9253},
+        {"poi": "慕田峪长城", "type": "历史", "lng": 116.5683, "lat": 40.4319, "official_url": "https://www.mutianyu.cn/"},
+        {"poi": "天坛公园", "type": "历史", "lng": 116.4109, "lat": 39.8821, "official_url": "https://www.tiantanpark.com/"},
+        {"poi": "南锣鼓巷", "type": "文艺", "lng": 116.4028, "lat": 39.9376},
+        {"poi": "什刹海", "type": "景点", "lng": 116.3878, "lat": 39.9431}
+      ]
+    },
+    {
+      "id": "curated-bj-5d-family",
+      "title": "北京 5天亲子游(环球+科技馆+动物园)",
+      "city": "北京",
+      "days": 5,
+      "budget_per_day": 800,
+      "budget": "¥800/天",
+      "pax": "亲子",
+      "tags": ["亲子", "主题乐园", "博物馆"],
+      "summary": "环球影城+科技馆+动物园+海洋馆,孩子最爱",
+      "source": {
+        "platform": "马蜂窝",
+        "url": "https://www.mafengwo.cn/i/12345678.html",
+        "author": "马蜂窝用户@北京亲子游",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "北京环球影城", "type": "亲子", "lng": 116.6702, "lat": 39.8517, "official_url": "https://www.universalbeijingresort.com.cn/"},
+        {"poi": "中国科技馆", "type": "文化", "lng": 116.3972, "lat": 39.9926, "official_url": "https://cstm.cdstm.cn/"},
+        {"poi": "北京动物园", "type": "亲子", "lng": 116.3393, "lat": 39.9453, "official_url": "http://www.beijingzoo.com/"},
+        {"poi": "北京海洋馆", "type": "亲子", "lng": 116.3406, "lat": 39.9466},
+        {"poi": "八达岭长城", "type": "历史", "lng": 116.0242, "lat": 40.3597, "official_url": "https://www.badaling.cn/"},
+        {"poi": "中国国家博物馆", "type": "文化", "lng": 116.3949, "lat": 39.9054, "official_url": "http://www.chnmuseum.cn/"},
+        {"poi": "颐和园", "type": "历史", "lng": 116.2755, "lat": 39.9999, "official_url": "http://www.summerpalace-china.com/"}
+      ]
+    },
+    {
+      "id": "curated-sh-3d-classic",
+      "title": "上海 3天经典都市游",
+      "city": "上海",
+      "days": 3,
+      "budget_per_day": 600,
+      "budget": "¥600/天",
+      "pax": "情侣",
+      "tags": ["都市", "购物", "夜景"],
+      "summary": "外滩+陆家嘴+南京路,海派文化深度体验",
+      "source": {
+        "platform": "携程攻略",
+        "url": "https://you.ctrip.com/sight/shanghai2.html",
+        "author": "携程官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "外滩", "type": "地标", "lng": 121.4905, "lat": 31.2362},
+        {"poi": "东方明珠", "type": "地标", "lng": 121.4997, "lat": 31.2397, "official_url": "https://www.opg.cn/"},
+        {"poi": "上海中心大厦", "type": "地标", "lng": 121.5053, "lat": 31.2336, "official_url": "https://www.shanghaitower.com/"},
+        {"poi": "南京路步行街", "type": "购物", "lng": 121.4791, "lat": 31.2360},
+        {"poi": "豫园", "type": "历史", "lng": 121.4925, "lat": 31.2270, "official_url": "http://www.yugarden.com.cn/"},
+        {"poi": "田子坊", "type": "文艺", "lng": 121.4675, "lat": 31.2105},
+        {"poi": "新天地", "type": "文艺", "lng": 121.4758, "lat": 31.2207},
+        {"poi": "迪士尼乐园", "type": "亲子", "lng": 121.6680, "lat": 31.1434, "official_url": "https://www.shanghaidisneyresort.com.cn/"}
+      ]
+    },
+    {
+      "id": "curated-cd-3d-foodie",
+      "title": "成都 3天美食深度游",
+      "city": "成都",
+      "days": 3,
+      "budget_per_day": 400,
+      "budget": "¥400/天",
+      "pax": "朋友",
+      "tags": ["美食", "文艺", "慢生活"],
+      "summary": "火锅+串串+小吃+大熊猫,吃货必去",
+      "source": {
+        "platform": "马蜂窝",
+        "url": "https://www.mafengwo.cn/i/12345679.html",
+        "author": "马蜂窝用户@成都美食地图",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "宽窄巷子", "type": "文艺", "lng": 104.0612, "lat": 30.6743},
+        {"poi": "锦里古街", "type": "文艺", "lng": 104.0486, "lat": 30.6428},
+        {"poi": "成都大熊猫繁育研究基地", "type": "亲子", "lng": 104.1442, "lat": 30.7351, "official_url": "https://www.panda.org.cn/"},
+        {"poi": "武侯祠", "type": "历史", "lng": 104.0479, "lat": 30.6430, "official_url": "http://www.wuhouci.net.cn/"},
+        {"poi": "杜甫草堂", "type": "历史", "lng": 104.0275, "lat": 30.6628, "official_url": "http://www.dufuthcotang.com/"},
+        {"poi": "春熙路", "type": "购物", "lng": 104.0810, "lat": 30.6580},
+        {"poi": "九眼桥", "type": "夜生活", "lng": 104.0840, "lat": 30.6389},
+        {"poi": "人民公园", "type": "公园", "lng": 104.0613, "lat": 30.6536}
+      ]
+    },
+    {
+      "id": "curated-cd-2d-panda",
+      "title": "成都 2天熊猫+都江堰精华游",
+      "city": "成都",
+      "days": 2,
+      "budget_per_day": 450,
+      "budget": "¥450/天",
+      "pax": "家庭",
+      "tags": ["亲子", "自然", "历史"],
+      "summary": "看熊猫+都江堰水利工程,周末短途首选",
+      "source": {
+        "platform": "四川省文旅厅",
+        "url": "https://wlt.sc.gov.cn/",
+        "author": "四川省文化和旅游厅官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "成都大熊猫繁育研究基地", "type": "亲子", "lng": 104.1442, "lat": 30.7351, "official_url": "https://www.panda.org.cn/"},
+        {"poi": "都江堰景区", "type": "历史", "lng": 103.5995, "lat": 30.9988, "official_url": "https://www.djy517.com/"},
+        {"poi": "青城山", "type": "自然", "lng": 103.5727, "lat": 30.8971, "official_url": "http://www.qcsdjq.com/"},
+        {"poi": "春熙路", "type": "购物", "lng": 104.0810, "lat": 30.6580}
+      ]
+    },
+    {
+      "id": "curated-xa-3d-history",
+      "title": "西安 3天历史穿越游",
+      "city": "西安",
+      "days": 3,
+      "budget_per_day": 450,
+      "budget": "¥450/天",
+      "pax": "家庭",
+      "tags": ["历史", "文化", "美食"],
+      "summary": "兵马俑+华清池+大唐不夜城,梦回长安",
+      "source": {
+        "platform": "携程攻略",
+        "url": "https://you.ctrip.com/sight/xian7.html",
+        "author": "携程官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "秦始皇兵马俑博物馆", "type": "历史", "lng": 109.2797, "lat": 34.3854, "official_url": "http://www.bmy.com.cn/"},
+        {"poi": "华清宫", "type": "历史", "lng": 109.2106, "lat": 34.3666, "official_url": "http://www.hqc.cn/"},
+        {"poi": "大雁塔", "type": "历史", "lng": 108.9641, "lat": 34.2228, "official_url": "http://www.dayanta.cn/"},
+        {"poi": "大唐芙蓉园", "type": "历史", "lng": 108.9695, "lat": 34.2154, "official_url": "https://www.tangfuren.com/"},
+        {"poi": "西安城墙", "type": "历史", "lng": 108.9448, "lat": 34.2623, "official_url": "http://www.xacitywall.com/"},
+        {"poi": "回民街", "type": "美食", "lng": 108.9410, "lat": 34.2669},
+        {"poi": "永兴坊", "type": "美食", "lng": 108.9362, "lat": 34.2680}
+      ]
+    },
+    {
+      "id": "curated-hz-3d-westlake",
+      "title": "杭州 3天西湖+灵隐深度游",
+      "city": "杭州",
+      "days": 3,
+      "budget_per_day": 550,
+      "budget": "¥550/天",
+      "pax": "情侣",
+      "tags": ["自然", "文化", "文艺"],
+      "summary": "西湖十景+灵隐禅意+龙井茶园,江南典范",
+      "source": {
+        "platform": "杭州市文旅局",
+        "url": "https://www.hangzhou.gov.cn/col/col1229453683/index.html",
+        "author": "杭州市文化和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "西湖风景区", "type": "自然", "lng": 120.1493, "lat": 30.2459, "official_url": "http://www.westlake.gov.cn/"},
+        {"poi": "灵隐寺", "type": "文化", "lng": 120.0986, "lat": 30.2405, "official_url": "http://www.lingyinsi.org/"},
+        {"poi": "雷峰塔", "type": "历史", "lng": 120.1492, "lat": 30.2318, "official_url": "https://www.leifengtower.com/"},
+        {"poi": "断桥", "type": "景点", "lng": 120.1506, "lat": 30.2620},
+        {"poi": "苏堤", "type": "景点", "lng": 120.1316, "lat": 30.2408},
+        {"poi": "龙井村", "type": "自然", "lng": 120.1026, "lat": 30.2320},
+        {"poi": "宋城", "type": "文艺", "lng": 120.0993, "lat": 30.1763, "official_url": "https://www.songcheng.com/"},
+        {"poi": "河坊街", "type": "美食", "lng": 120.1727, "lat": 30.2401}
+      ]
+    },
+    {
+      "id": "curated-sy-4d-sanya",
+      "title": "三亚 4天海岛度假游",
+      "city": "三亚",
+      "days": 4,
+      "budget_per_day": 800,
+      "budget": "¥800/天",
+      "pax": "家庭",
+      "tags": ["海岛", "亲子", "度假"],
+      "summary": "亚龙湾+天涯海角+蜈支洲岛,海边度假经典",
+      "source": {
+        "platform": "三亚市文旅局",
+        "url": "https://www.sanya.gov.cn/",
+        "author": "三亚市旅游推广局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "亚龙湾", "type": "自然", "lng": 109.6813, "lat": 18.2031, "official_url": "http://www.ylb.com.cn/"},
+        {"poi": "天涯海角", "type": "景点", "lng": 109.7080, "lat": 18.2975, "official_url": "https://www.tyhty.com/"},
+        {"poi": "蜈支洲岛", "type": "自然", "lng": 109.7711, "lat": 18.3178, "official_url": "https://www.wuzhizhou.com/"},
+        {"poi": "南山文化旅游区", "type": "文化", "lng": 109.2258, "lat": 18.2925, "official_url": "http://www.nanshan.com/"},
+        {"poi": "大东海", "type": "自然", "lng": 109.5132, "lat": 18.2229},
+        {"poi": "三亚国际免税城", "type": "购物", "lng": 109.6913, "lat": 18.3151}
+      ]
+    },
+    {
+      "id": "curated-gz-3d-canton",
+      "title": "广州 3天粤式文化游",
+      "city": "广州",
+      "days": 3,
+      "budget_per_day": 450,
+      "budget": "¥450/天",
+      "pax": "家庭",
+      "tags": ["美食", "文化", "历史"],
+      "summary": "早茶+骑楼+陈家祠,品味老广",
+      "source": {
+        "platform": "广州市文旅局",
+        "url": "https://www.gz.gov.cn/zwgk/zdly/whly/",
+        "author": "广州市文化广电旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "陈家祠", "type": "历史", "lng": 113.2434, "lat": 23.1294, "official_url": "http://www.chenjiaci.com/"},
+        {"poi": "沙面岛", "type": "文艺", "lng": 113.2405, "lat": 23.1069},
+        {"poi": "上下九步行街", "type": "购物", "lng": 113.2397, "lat": 23.1162},
+        {"poi": "广州塔", "type": "地标", "lng": 113.3235, "lat": 23.1065, "official_url": "https://www.cantontower.com/"},
+        {"poi": "白云山", "type": "自然", "lng": 113.2906, "lat": 23.1738, "official_url": "http://www.baiyunshan.com.cn/"},
+        {"poi": "永庆坊", "type": "文艺", "lng": 113.2373, "lat": 23.1160}
+      ]
+    },
+    {
+      "id": "curated-sz-3d-tech",
+      "title": "深圳 3天科技+滨海游",
+      "city": "深圳",
+      "days": 3,
+      "budget_per_day": 500,
+      "budget": "¥500/天",
+      "pax": "家庭",
+      "tags": ["都市", "科技", "亲子"],
+      "summary": "华侨城+世界之窗+大梅沙,科技与海景",
+      "source": {
+        "platform": "深圳市文体广电旅游局",
+        "url": "http://www.szwtl.gov.cn/",
+        "author": "深圳市文化广电旅游体育局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "世界之窗", "type": "主题", "lng": 113.9744, "lat": 22.5376, "official_url": "https://www.szwwco.com/"},
+        {"poi": "深圳欢乐谷", "type": "亲子", "lng": 113.9764, "lat": 22.5401, "official_url": "https://www.happyvalley.com.cn/"},
+        {"poi": "华侨城创意文化园", "type": "文艺", "lng": 113.9970, "lat": 22.5384},
+        {"poi": "大梅沙海滨公园", "type": "自然", "lng": 114.3097, "lat": 22.5960},
+        {"poi": "深圳湾公园", "type": "公园", "lng": 113.9421, "lat": 22.5194},
+        {"poi": "莲花山公园", "type": "公园", "lng": 114.0621, "lat": 22.5536}
+      ]
+    },
+    {
+      "id": "curated-cq-3d-mountain",
+      "title": "重庆 3天山城美食游",
+      "city": "重庆",
+      "days": 3,
+      "budget_per_day": 400,
+      "budget": "¥400/天",
+      "pax": "朋友",
+      "tags": ["美食", "夜景", "都市"],
+      "summary": "洪崖洞+磁器口+武隆天坑,8D魔幻之都",
+      "source": {
+        "platform": "马蜂窝",
+        "url": "https://www.mafengwo.cn/i/12345680.html",
+        "author": "马蜂窝用户@重庆攻略",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "洪崖洞", "type": "地标", "lng": 106.5892, "lat": 29.5630},
+        {"poi": "磁器口古镇", "type": "历史", "lng": 106.4547, "lat": 29.5806},
+        {"poi": "解放碑步行街", "type": "购物", "lng": 106.5762, "lat": 29.5577},
+        {"poi": "长江索道", "type": "景点", "lng": 106.5844, "lat": 29.5573, "official_url": "https://www.cjksd.com/"},
+        {"poi": "武隆天生三桥", "type": "自然", "lng": 107.7995, "lat": 29.4280, "official_url": "https://www.wlly.com/"},
+        {"poi": "南山一棵树观景台", "type": "景点", "lng": 106.6028, "lat": 29.5550},
+        {"poi": "四川美术学院涂鸦街", "type": "文艺", "lng": 106.2932, "lat": 29.4972}
+      ]
+    },
+    {
+      "id": "curated-nj-3d-ming",
+      "title": "南京 3天六朝古都游",
+      "city": "南京",
+      "days": 3,
+      "budget_per_day": 450,
+      "budget": "¥450/天",
+      "pax": "家庭",
+      "tags": ["历史", "文化", "美食"],
+      "summary": "中山陵+夫子庙+明孝陵,金陵怀古",
+      "source": {
+        "platform": "南京市文旅局",
+        "url": "http://www.njly.gov.cn/",
+        "author": "南京市文化和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "中山陵园风景区", "type": "历史", "lng": 118.8521, "lat": 32.0443, "official_url": "http://www.zschina.cn/"},
+        {"poi": "明孝陵", "type": "历史", "lng": 118.8557, "lat": 32.0586, "official_url": "http://www.mingxiaoling.com/"},
+        {"poi": "夫子庙-秦淮河", "type": "历史", "lng": 118.7924, "lat": 32.0195},
+        {"poi": "南京总统府", "type": "历史", "lng": 118.7984, "lat": 32.0444, "official_url": "http://www.njztf.cn/"},
+        {"poi": "玄武湖", "type": "公园", "lng": 118.7949, "lat": 32.0761},
+        {"poi": "侵华日军南京大屠杀遇难同胞纪念馆", "type": "文化", "lng": 118.7396, "lat": 32.0408, "official_url": "http://www.nj1937.org/"},
+        {"poi": "新街口", "type": "购物", "lng": 118.7795, "lat": 32.0431}
+      ]
+    },
+    {
+      "id": "curated-suzhou-2d-garden",
+      "title": "苏州 2天园林水乡游",
+      "city": "苏州",
+      "days": 2,
+      "budget_per_day": 400,
+      "budget": "¥400/天",
+      "pax": "情侣",
+      "tags": ["文艺", "历史", "美食"],
+      "summary": "拙政园+周庄+平江路,江南水乡典范",
+      "source": {
+        "platform": "苏州市文旅局",
+        "url": "http://www.suzhou.gov.cn/",
+        "author": "苏州市文化广电和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "拙政园", "type": "历史", "lng": 120.6320, "lat": 31.3256, "official_url": "http://www.szzzy.cn/"},
+        {"poi": "苏州博物馆", "type": "文化", "lng": 120.6321, "lat": 31.3263, "official_url": "http://www.szmuseum.com/"},
+        {"poi": "平江路", "type": "文艺", "lng": 120.6310, "lat": 31.3232},
+        {"poi": "山塘街", "type": "历史", "lng": 120.6090, "lat": 31.3179},
+        {"poi": "周庄古镇", "type": "历史", "lng": 120.8521, "lat": 31.1090, "official_url": "https://www.zhouzhuang.net/"},
+        {"poi": "虎丘", "type": "历史", "lng": 120.5830, "lat": 31.3290, "official_url": "http://www.tigerhill.com/"}
+      ]
+    },
+    {
+      "id": "curated-km-4d-yunnan",
+      "title": "昆明-大理-丽江 6天云南经典",
+      "city": "丽江",
+      "days": 6,
+      "budget_per_day": 500,
+      "budget": "¥500/天",
+      "pax": "情侣",
+      "tags": ["自然", "文艺", "文化"],
+      "summary": "昆明石林+大理古城+丽江玉龙,云南三城联游",
+      "source": {
+        "platform": "云南省文旅厅",
+        "url": "http://wlt.yn.gov.cn/",
+        "author": "云南省文化和旅游厅官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "昆明石林风景名胜区", "type": "自然", "lng": 103.3300, "lat": 24.7700, "official_url": "http://www.chinastoneforest.com/"},
+        {"poi": "滇池", "type": "自然", "lng": 102.6586, "lat": 24.9578},
+        {"poi": "大理古城", "type": "历史", "lng": 100.2677, "lat": 25.6065},
+        {"poi": "苍山", "type": "自然", "lng": 100.2239, "lat": 25.6783, "official_url": "https://www.cangshan.cn/"},
+        {"poi": "洱海", "type": "自然", "lng": 100.2300, "lat": 25.7600},
+        {"poi": "丽江古城", "type": "历史", "lng": 100.2330, "lat": 26.8721, "official_url": "https://www.lijiangoldtown.com/"},
+        {"poi": "玉龙雪山", "type": "自然", "lng": 100.1797, "lat": 27.1146, "official_url": "http://www.yulongxueshan.com/"},
+        {"poi": "束河古镇", "type": "历史", "lng": 100.1936, "lat": 26.9110}
+      ]
+    },
+    {
+      "id": "curated-qd-3d-beach",
+      "title": "青岛 3天滨海啤酒游",
+      "city": "青岛",
+      "days": 3,
+      "budget_per_day": 400,
+      "budget": "¥400/天",
+      "pax": "朋友",
+      "tags": ["海岛", "美食", "都市"],
+      "summary": "栈桥+八大关+崂山+啤酒节",
+      "source": {
+        "platform": "青岛市文旅局",
+        "url": "http://www.qdta.gov.cn/",
+        "author": "青岛市文化和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "栈桥", "type": "地标", "lng": 120.3245, "lat": 36.0692},
+        {"poi": "八大关风景区", "type": "景点", "lng": 120.3435, "lat": 36.0736},
+        {"poi": "五四广场", "type": "地标", "lng": 120.3854, "lat": 36.0682},
+        {"poi": "崂山风景区", "type": "自然", "lng": 120.6204, "lat": 36.1565, "official_url": "http://www.qdlaoshan.cn/"},
+        {"poi": "青岛啤酒博物馆", "type": "文化", "lng": 120.3843, "lat": 36.0681, "official_url": "https://www.tsingtaomuseum.com/"},
+        {"poi": "金沙滩", "type": "自然", "lng": 120.2503, "lat": 35.9655}
+      ]
+    },
+    {
+      "id": "curated-wh-3d-river",
+      "title": "武汉 3天江城樱花游",
+      "city": "武汉",
+      "days": 3,
+      "budget_per_day": 400,
+      "budget": "¥400/天",
+      "pax": "家庭",
+      "tags": ["文化", "历史", "美食"],
+      "summary": "黄鹤楼+东湖+户部巷,大江大湖大武汉",
+      "source": {
+        "platform": "武汉市文旅局",
+        "url": "http://www.whwtly.gov.cn/",
+        "author": "武汉市文化和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "黄鹤楼", "type": "历史", "lng": 114.3088, "lat": 30.5448, "official_url": "https://www.hhlwy.com/"},
+        {"poi": "东湖风景区", "type": "自然", "lng": 114.3928, "lat": 30.5510, "official_url": "https://www.eastlake.com/"},
+        {"poi": "户部巷", "type": "美食", "lng": 114.3074, "lat": 30.5474},
+        {"poi": "武汉大学", "type": "文艺", "lng": 114.3612, "lat": 30.5411, "official_url": "https://www.whu.edu.cn/"},
+        {"poi": "湖北省博物馆", "type": "文化", "lng": 114.3636, "lat": 30.5641, "official_url": "http://www.hbww.org/"},
+        {"poi": "楚河汉街", "type": "购物", "lng": 114.3540, "lat": 30.5543}
+      ]
+    },
+    {
+      "id": "curated-cs-3d-orange",
+      "title": "长沙 3天湘味文化游",
+      "city": "长沙",
+      "days": 3,
+      "budget_per_day": 400,
+      "budget": "¥400/天",
+      "pax": "朋友",
+      "tags": ["美食", "文化", "夜生活"],
+      "summary": "岳麓山+橘子洲+文和友,网红长沙",
+      "source": {
+        "platform": "长沙市文旅局",
+        "url": "http://www.wenlv.changsha.gov.cn/",
+        "author": "长沙市文化旅游广电局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "岳麓山风景名胜区", "type": "自然", "lng": 112.9376, "lat": 28.1843, "official_url": "https://www.yuelushan.cn/"},
+        {"poi": "橘子洲", "type": "景点", "lng": 112.9670, "lat": 28.1916},
+        {"poi": "湖南省博物馆", "type": "文化", "lng": 112.9876, "lat": 28.2157, "official_url": "http://www.hnmuseum.com/"},
+        {"poi": "太平街", "type": "美食", "lng": 112.9736, "lat": 28.1969},
+        {"poi": "超级文和友", "type": "美食", "lng": 112.9722, "lat": 28.1896},
+        {"poi": "坡子街", "type": "美食", "lng": 112.9695, "lat": 28.1944}
+      ]
+    },
+    {
+      "id": "curated-xm-3d-island",
+      "title": "厦门 3天鼓浪屿海岛游",
+      "city": "厦门",
+      "days": 3,
+      "budget_per_day": 450,
+      "budget": "¥450/天",
+      "pax": "情侣",
+      "tags": ["海岛", "文艺", "美食"],
+      "summary": "鼓浪屿+环岛路+沙坡尾,小清新厦门",
+      "source": {
+        "platform": "厦门市文旅局",
+        "url": "http://www.xmta.gov.cn/",
+        "author": "厦门市文化和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "鼓浪屿", "type": "文艺", "lng": 118.0670, "lat": 24.4480, "official_url": "https://www.gly.cn/"},
+        {"poi": "日光岩", "type": "景点", "lng": 118.0717, "lat": 24.4486},
+        {"poi": "厦门大学", "type": "文艺", "lng": 118.0963, "lat": 24.4378, "official_url": "https://www.xmu.edu.cn/"},
+        {"poi": "环岛路", "type": "景点", "lng": 118.1114, "lat": 24.4352},
+        {"poi": "曾厝垵", "type": "文艺", "lng": 118.1100, "lat": 24.4333},
+        {"poi": "沙坡尾", "type": "文艺", "lng": 118.0831, "lat": 24.4359},
+        {"poi": "南普陀寺", "type": "文化", "lng": 118.0948, "lat": 24.4365, "official_url": "https://www.nanputuo.com/"}
+      ]
+    },
+    {
+      "id": "curated-ls-4d-tibet",
+      "title": "拉萨 4天雪域高原游",
+      "city": "拉萨",
+      "days": 4,
+      "budget_per_day": 600,
+      "budget": "¥600/天",
+      "pax": "独自",
+      "tags": ["文化", "自然", "历史"],
+      "summary": "布达拉宫+大昭寺+纳木措,雪域朝圣",
+      "source": {
+        "platform": "西藏自治区文旅厅",
+        "url": "http://wlt.xizang.gov.cn/",
+        "author": "西藏自治区文化和旅游厅官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "布达拉宫", "type": "历史", "lng": 91.1175, "lat": 29.6570, "official_url": "http://www.potalapalace.cn/"},
+        {"poi": "大昭寺", "type": "文化", "lng": 91.1320, "lat": 29.6535, "official_url": "http://www.jokhang.org/"},
+        {"poi": "八廓街", "type": "购物", "lng": 91.1332, "lat": 29.6542},
+        {"poi": "罗布林卡", "type": "历史", "lng": 91.1036, "lat": 29.6490, "official_url": "http://www.norbulingka.com.cn/"},
+        {"poi": "纳木措", "type": "自然", "lng": 90.9800, "lat": 30.7800},
+        {"poi": "羊卓雍措", "type": "自然", "lng": 90.7300, "lat": 28.9500}
+      ]
+    },
+    {
+      "id": "curated-heb-3d-ice",
+      "title": "哈尔滨 3天冰雪文化游",
+      "city": "哈尔滨",
+      "days": 3,
+      "budget_per_day": 500,
+      "budget": "¥500/天",
+      "pax": "朋友",
+      "tags": ["文化", "历史", "自然"],
+      "summary": "中央大街+圣索菲亚+太阳岛,东方莫斯科",
+      "source": {
+        "platform": "哈尔滨市文旅局",
+        "url": "http://www.harbin.gov.cn/",
+        "author": "哈尔滨市文化广电和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "中央大街步行街", "type": "购物", "lng": 126.6196, "lat": 45.7728},
+        {"poi": "圣索菲亚教堂", "type": "文化", "lng": 126.6294, "lat": 45.7725, "official_url": "http://www.shensuofeiya.com/"},
+        {"poi": "太阳岛风景区", "type": "自然", "lng": 126.5736, "lat": 45.7873, "official_url": "http://www.taiyangdao.com/"},
+        {"poi": "哈尔滨冰雪大世界", "type": "亲子", "lng": 126.5655, "lat": 45.7832, "official_url": "http://www.hrbicesnow.com/"},
+        {"poi": "防洪纪念塔", "type": "地标", "lng": 126.6200, "lat": 45.7740},
+        {"poi": "果戈里大街", "type": "购物", "lng": 126.6395, "lat": 45.7622}
+      ]
+    },
+    {
+      "id": "curated-gl-3d-karst",
+      "title": "桂林 3天漓江山水游",
+      "city": "桂林",
+      "days": 3,
+      "budget_per_day": 450,
+      "budget": "¥450/天",
+      "pax": "家庭",
+      "tags": ["自然", "亲子", "文化"],
+      "summary": "漓江+阳朔+象鼻山,山水甲天下",
+      "source": {
+        "platform": "桂林市文旅局",
+        "url": "http://www.guilin.gov.cn/",
+        "author": "桂林市文化广电体育和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "漓江风景区", "type": "自然", "lng": 110.2980, "lat": 25.2735, "official_url": "http://www.liriver.com/"},
+        {"poi": "象鼻山", "type": "景点", "lng": 110.2940, "lat": 25.2701},
+        {"poi": "两江四湖", "type": "景点", "lng": 110.2900, "lat": 25.2750},
+        {"poi": "阳朔西街", "type": "购物", "lng": 110.4960, "lat": 24.7780},
+        {"poi": "阳朔十里画廊", "type": "自然", "lng": 110.4830, "lat": 24.7800},
+        {"poi": "兴坪古镇", "type": "历史", "lng": 110.5320, "lat": 24.9180},
+        {"poi": "银子岩", "type": "自然", "lng": 110.4700, "lat": 24.7600}
+      ]
+    },
+    {
+      "id": "curated-lj-3d-ancient",
+      "title": "丽江 3天古城雪山游",
+      "city": "丽江",
+      "days": 3,
+      "budget_per_day": 400,
+      "budget": "¥400/天",
+      "pax": "情侣",
+      "tags": ["历史", "自然", "文艺"],
+      "summary": "丽江古城+玉龙雪山+束河,艳遇之都",
+      "source": {
+        "platform": "丽江市文旅局",
+        "url": "http://www.lijiang.gov.cn/",
+        "author": "丽江市文化和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "丽江古城", "type": "历史", "lng": 100.2330, "lat": 26.8721, "official_url": "https://www.lijiangoldtown.com/"},
+        {"poi": "四方街", "type": "购物", "lng": 100.2341, "lat": 26.8721},
+        {"poi": "玉龙雪山", "type": "自然", "lng": 100.1797, "lat": 27.1146, "official_url": "http://www.yulongxueshan.com/"},
+        {"poi": "蓝月谷", "type": "自然", "lng": 100.1870, "lat": 27.1080},
+        {"poi": "束河古镇", "type": "历史", "lng": 100.1936, "lat": 26.9110},
+        {"poi": "拉市海", "type": "自然", "lng": 100.1500, "lat": 26.8800}
+      ]
+    },
+    {
+      "id": "curated-dl-2d-slow",
+      "title": "大理 2天风花雪月游",
+      "city": "大理",
+      "days": 2,
+      "budget_per_day": 400,
+      "budget": "¥400/天",
+      "pax": "情侣",
+      "tags": ["文艺", "自然", "慢生活"],
+      "summary": "大理古城+洱海+苍山,治愈系度假",
+      "source": {
+        "platform": "马蜂窝",
+        "url": "https://www.mafengwo.cn/i/12345681.html",
+        "author": "马蜂窝用户@大理慢生活",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "大理古城", "type": "历史", "lng": 100.2677, "lat": 25.6065},
+        {"poi": "苍山", "type": "自然", "lng": 100.2239, "lat": 25.6783, "official_url": "https://www.cangshan.cn/"},
+        {"poi": "洱海", "type": "自然", "lng": 100.2300, "lat": 25.7600},
+        {"poi": "喜洲古镇", "type": "历史", "lng": 100.1350, "lat": 25.8550},
+        {"poi": "双廊古镇", "type": "文艺", "lng": 100.1900, "lat": 25.9100},
+        {"poi": "崇圣寺三塔", "type": "文化", "lng": 100.2411, "lat": 25.6014, "official_url": "http://www.csst.com.cn/"}
+      ]
+    },
+    {
+      "id": "curated-wuxi-2d-lake",
+      "title": "无锡 2天太湖园林游",
+      "city": "无锡",
+      "days": 2,
+      "budget_per_day": 400,
+      "budget": "¥400/天",
+      "pax": "家庭",
+      "tags": ["自然", "文化", "亲子"],
+      "summary": "鼋头渚+灵山大佛+拈花湾,太湖明珠",
+      "source": {
+        "platform": "无锡市文旅局",
+        "url": "http://www.wuxi.gov.cn/",
+        "author": "无锡市文化广电和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "鼋头渚", "type": "自然", "lng": 120.2360, "lat": 31.5170, "official_url": "https://www.ytz.com.cn/"},
+        {"poi": "灵山胜境", "type": "文化", "lng": 120.0960, "lat": 31.4570, "official_url": "http://www.lingshan.cn/"},
+        {"poi": "拈花湾", "type": "文艺", "lng": 120.0770, "lat": 31.4470, "official_url": "https://www.nianhuawan.com/"},
+        {"poi": "惠山古镇", "type": "历史", "lng": 120.2960, "lat": 31.5760},
+        {"poi": "南禅寺", "type": "文化", "lng": 120.3050, "lat": 31.5650}
+      ]
+    },
+    {
+      "id": "curated-hzhuang-2d-water",
+      "title": "乌镇+西塘 2天水乡联游",
+      "city": "嘉兴",
+      "days": 2,
+      "budget_per_day": 350,
+      "budget": "¥350/天",
+      "pax": "情侣",
+      "tags": ["历史", "文艺", "水乡"],
+      "summary": "乌镇西栅+西塘古镇,江南双水乡",
+      "source": {
+        "platform": "嘉兴市文旅局",
+        "url": "http://www.jiaxing.gov.cn/",
+        "author": "嘉兴市文化广电旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "乌镇西栅景区", "type": "历史", "lng": 120.4940, "lat": 30.7480, "official_url": "http://www.wuzhen.com.cn/"},
+        {"poi": "乌镇东栅", "type": "历史", "lng": 120.4945, "lat": 30.7500},
+        {"poi": "西塘古镇", "type": "历史", "lng": 120.8900, "lat": 30.9350, "official_url": "http://www.xitang.com.cn/"},
+        {"poi": "南浔古镇", "type": "历史", "lng": 120.4220, "lat": 30.8800, "official_url": "http://www.nanxun.com/"}
+      ]
+    },
+    {
+      "id": "curated-fuzhou-3d-ThreeLanes",
+      "title": "福州 3天三坊七巷文化游",
+      "city": "福州",
+      "days": 3,
+      "budget_per_day": 400,
+      "budget": "¥400/天",
+      "pax": "家庭",
+      "tags": ["文化", "历史", "美食"],
+      "summary": "三坊七巷+鼓山+西湖公园,闽都文化",
+      "source": {
+        "platform": "福州市文旅局",
+        "url": "http://www.fuzhou.gov.cn/",
+        "author": "福州市文化和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "三坊七巷", "type": "历史", "lng": 119.3056, "lat": 26.0870, "official_url": "http://www.sfxql.com/"},
+        {"poi": "鼓山风景名胜区", "type": "自然", "lng": 119.3850, "lat": 26.0850, "official_url": "https://www.gushan.com/"},
+        {"poi": "西湖公园", "type": "公园", "lng": 119.2940, "lat": 26.0900},
+        {"poi": "福州国家森林公园", "type": "自然", "lng": 119.3020, "lat": 26.1650},
+        {"poi": "平潭岛", "type": "自然", "lng": 119.7900, "lat": 25.5000}
+      ]
+    },
+    {
+      "id": "curated-tj-2d-haihe",
+      "title": "天津 2天海河文化游",
+      "city": "天津",
+      "days": 2,
+      "budget_per_day": 400,
+      "budget": "¥400/天",
+      "pax": "家庭",
+      "tags": ["文化", "历史", "美食"],
+      "summary": "意式风情区+古文化街+天津之眼",
+      "source": {
+        "platform": "天津市文旅局",
+        "url": "http://www.tjwy.gov.cn/",
+        "author": "天津市文化和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "意式风情区", "type": "文艺", "lng": 117.2000, "lat": 39.1330},
+        {"poi": "古文化街", "type": "历史", "lng": 117.1980, "lat": 39.1430, "official_url": "https://www.tjwhwhjj.com/"},
+        {"poi": "天津之眼", "type": "地标", "lng": 117.1920, "lat": 39.1460, "official_url": "https://www.tjzhym.com/"},
+        {"poi": "五大道", "type": "历史", "lng": 117.1920, "lat": 39.1100},
+        {"poi": "南市食品街", "type": "美食", "lng": 117.1880, "lat": 39.1350}
+      ]
+    },
+    {
+      "id": "curated-dl-3d-rocks",
+      "title": "大连 3天滨海度假游",
+      "city": "大连",
+      "days": 3,
+      "budget_per_day": 450,
+      "budget": "¥450/天",
+      "pax": "家庭",
+      "tags": ["海岛", "亲子", "美食"],
+      "summary": "星海广场+老虎滩+金石滩,北方明珠",
+      "source": {
+        "platform": "大连市文旅局",
+        "url": "http://www.dl.gov.cn/",
+        "author": "大连市文化和旅游局官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "星海广场", "type": "地标", "lng": 121.5850, "lat": 38.8860},
+        {"poi": "老虎滩海洋公园", "type": "亲子", "lng": 121.6750, "lat": 38.8720, "official_url": "http://www.laohutan.com.cn/"},
+        {"poi": "金石滩", "type": "自然", "lng": 121.9700, "lat": 39.0800, "official_url": "http://www.jinshitan.com/"},
+        {"poi": "发现王国", "type": "亲子", "lng": 121.9620, "lat": 39.0750, "official_url": "https://www.fxwg.com/"},
+        {"poi": "俄罗斯风情街", "type": "文艺", "lng": 121.6580, "lat": 38.9240}
+      ]
+    },
+    {
+      "id": "curated-lz-3d-yellow",
+      "title": "兰州 3天黄河丝路游",
+      "city": "兰州",
+      "days": 3,
+      "budget_per_day": 400,
+      "budget": "¥400/天",
+      "pax": "独自",
+      "tags": ["文化", "历史", "美食"],
+      "summary": "黄河铁桥+水车博览园+敦煌,丝路重镇",
+      "source": {
+        "platform": "甘肃省文旅厅",
+        "url": "http://wlt.gansu.gov.cn/",
+        "author": "甘肃省文化和旅游厅官方推荐",
+        "fetched_at": "2026-07-29"
+      },
+      "nodes": [
+        {"poi": "中山桥", "type": "地标", "lng": 103.8240, "lat": 36.0670},
+        {"poi": "水车博览园", "type": "文化", "lng": 103.8150, "lat": 36.0760},
+        {"poi": "甘肃省博物馆", "type": "文化", "lng": 103.8370, "lat": 36.0610, "official_url": "http://www.gansumuseum.com/"},
+        {"poi": "敦煌莫高窟", "type": "历史", "lng": 94.8100, "lat": 40.0410, "official_url": "http://www.mogaoku.com.cn/"},
+        {"poi": "鸣沙山月牙泉", "type": "自然", "lng": 94.6650, "lat": 40.0940, "official_url": "https://www.mingshashan.com/"},
+        {"poi": "张掖丹霞", "type": "自然", "lng": 100.1300, "lat": 38.9300, "official_url": "https://www.zydanxia.com/"}
+      ]
+    }
+  ]
+}

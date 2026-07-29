@@ -1,5 +1,78 @@
+# =============================================================
+# 123 就出发 — .gitignore
+# =============================================================
+
+# 依赖
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json.bak
+
+# ---- 环境变量 / 密钥 ----
+# 真实明文密钥:本地用 + Render 后台环境变量,绝不入仓
 .env
+.env.local
+.env.development
+.env.production
+# 主密钥文件 (.env.keys 包含解密密文的密钥,绝不入仓)
+.env.keys
+# 这些是允许入仓的例外 (密文/模板/官方 vault 格式)
+!.env.example
+!.env.enc
+!.env.vault
+!.env.production.example
+
+# 日志
 *.log
+logs/
+server.log
+server.err.log
+
+# 系统
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- 缓存 / 临时 ----
+.cache/
+.tmp/
+.turbo/
+dist/
+build/
+out/
+
+# 备份文件(本地保留,不入仓)
+*.bak
+*.bak.*
+*.orig
+*.rej
+*.tmp
+
+# 测试相关
+test_out.json
+test_*.js
+coverage/
+.nyc_output/
+
+# ---- 数据 ----
+# 社区路线库已入仓(种子数据);本地缓存不入仓
+.cache/maps/
+.cache/weather/
+.cache/routes/
+
+# 报告(本地用,不入仓)
+REPORT.md
+
+# 风险:不在本仓的 secret 文件
+secrets/
+*.pem
+*.key
