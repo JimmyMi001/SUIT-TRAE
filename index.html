@@ -8,6 +8,9 @@
 <script src="https://webapi.amap.com/maps?v=2.0&key=9690b060d4968c418fed6c293f35d1ba"></script>
 <!-- 农历转换（lunar-javascript） -->
 <script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.6.12/lunar.js"></script>
+<!-- 行程导出为 PDF/图片（html2canvas + jsPDF） -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <!-- 字体：DM Serif Display（标题）+ DM Sans（界面）+ JetBrains Mono（数字） -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -998,6 +1001,10 @@
     font-family:var(--mono);letter-spacing:.04em;display:flex;align-items:center;gap:8px}
   .com__card-author::before{content:"";width:20px;height:20px;border-radius:50%;
     background:var(--grad-aurora);box-shadow:var(--glow-amber)}
+  .com__hint{padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--text-2);
+    background:linear-gradient(135deg,rgba(240,183,131,.08),rgba(99,102,241,.06));
+    border:1px solid rgba(240,183,131,.2);border-radius:10px;letter-spacing:.02em}
+  .com__hint b{color:var(--accent);font-family:var(--mono);font-weight:600}
 
   /* ========================================================= Modal
      ========================================================= */
@@ -2756,8 +2763,9 @@ async function renderItinerary(data, params){
     <div style="display:flex;gap:8px;margin:20px 0;flex-wrap:wrap">
       <button class="btn btn--ghost" id="exportTxtBtn">📄 导出文本</button>
       <button class="btn btn--ghost" id="exportJsonBtn">{ } 导出 JSON</button>
-      <button class="btn btn--ghost" id="printBtn">🖨 打印 / PDF</button>
-      <button class="btn btn--ghost" id="shareRouteBtn">🔗 分享行程</button>
+      <button class="btn btn--pri" id="exportPdfBtn">📑 导出 PDF（核心内容）</button>
+      <button class="btn btn--pri" id="exportImgBtn">🖼 导出图片（可分享）</button>
+      <button class="btn btn--ghost" id="shareRouteBtn">🔗 分享链接</button>
     </div>
 
     <h3 style="margin:24px 0 12px">📅 每日安排 <span style="font-size:12px;color:var(--muted);font-weight:normal">（含 早/午/下午/晚 4 时段，含推荐理由 + 实用建议）</span></h3>
@@ -3126,15 +3134,170 @@ function renderAmapRoute(containerId, city, nodes, days){
 function bindExportButtons(data, params){
   const txt = document.getElementById('exportTxtBtn');
   const json = document.getElementById('exportJsonBtn');
-  const pr = document.getElementById('printBtn');
+  const pdf = document.getElementById('exportPdfBtn');
+  const img = document.getElementById('exportImgBtn');
   const sh = document.getElementById('shareRouteBtn');
   if(txt) txt.onclick = () => exportTxt(data, params);
   if(json) json.onclick = () => exportJson(data, params);
-  if(pr) pr.onclick = () => window.print();
+  if(pdf) pdf.onclick = () => exportPdf(data, params);
+  if(img) img.onclick = () => exportImage(data, params);
   if(sh) sh.onclick = () => {
     const url = location.origin + location.pathname + '?route=' + encodeURIComponent(JSON.stringify({city: data.city, days: data.days, budget: data.budget, pax: data.pax, itinerary: data.itinerary, tips: data.tips}));
-    navigator.clipboard?.writeText(url).then(()=>alert('已复制分享链接（粘贴到聊天/邮件）')).catch(()=>prompt('复制此链接：', url));
+    navigator.clipboard?.writeText(url).then(()=>showToast('✅ 已复制分享链接（粘贴到聊天/邮件）', 'success')).catch(()=>prompt('复制此链接：', url));
   };
+}
+
+// ========== 干净打印模板（PDF/图片共用） ==========
+function buildExportTemplate(data, params){
+  // 构造一个"打印友好"的 DOM 节点（不依赖原有 UI 的暗色主题，避免出现文字看不清 / 排版乱的问题）
+  const wrap = document.createElement('div');
+  wrap.id = 'exportTemplate';
+  wrap.style.cssText = `
+    position:fixed;left:-99999px;top:0;width:760px;background:#fff;color:#1a1a1a;
+    font-family:'PingFang SC','Microsoft YaHei',sans-serif;padding:32px 40px;line-height:1.7;
+    box-sizing:border-box;z-index:-1;
+  `;
+  // 顶部标题
+  const days = (data.itinerary || []).length || data.days || 3;
+  let html = `
+    <div style="border-bottom:3px solid #d4a574;padding-bottom:18px;margin-bottom:20px">
+      <div style="font-size:13px;color:#888;letter-spacing:.15em">123 就出发 · 专属行程单</div>
+      <h1 style="font-size:30px;margin:8px 0 4px;color:#1a1a1a;font-family:Georgia,serif">${esc(data.city)} · ${days} 天 · ${esc(params.pax||'')}</h1>
+      <div style="color:#666;font-size:14px">人均预算 <b style="color:#d4a574">¥${esc(String(params.budget||''))}</b>/天 ${params.tags?.length ? '· 主题：' + esc(params.tags.join(' / ')) : ''}</div>
+      ${data.summary ? `<div style="margin-top:10px;padding:10px;background:#fdf6ec;border-left:3px solid #d4a574;border-radius:4px;font-size:14px;color:#444">${esc(data.summary)}</div>` : ''}
+    </div>
+  `;
+  // 每日行程
+  (data.itinerary || []).forEach(d => {
+    html += `<div style="margin:22px 0 18px;page-break-inside:avoid">
+      <div style="font-size:18px;font-weight:600;color:#d4a574;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+        <span style="background:#d4a574;color:#fff;border-radius:50%;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:13px">${d.day}</span>
+        Day ${d.day} · ${esc(d.theme || '')}
+      </div>`;
+    (d.nodes || []).forEach((n, i) => {
+      const slotIcon = n.timeSlot === 'morning' ? '🌅 早' : n.timeSlot === 'lunch' ? '🍱 午' : n.timeSlot === 'afternoon' ? '☕ 下午' : n.timeSlot === 'evening' ? '🌃 晚' : '⏱';
+      html += `<div style="margin:8px 0 12px 36px;border-left:2px solid #eee;padding:4px 0 4px 14px">
+        <div style="font-size:11px;color:#888;letter-spacing:.05em">${slotIcon} · ${esc(n.time || '—')}</div>
+        <div style="font-size:15px;font-weight:600;color:#222;margin-top:2px">📍 ${esc(n.poi || '—')}</div>
+        ${n.tip ? `<div style="font-size:13px;color:#555;margin-top:2px">${esc(n.tip)}</div>` : ''}
+        ${n.why ? `<div style="font-size:12px;color:#777;margin-top:4px;padding-left:10px;border-left:2px solid #d4a574;background:#fdf6ec;padding:4px 8px;border-radius:2px">💡 ${esc(n.why)}</div>` : ''}
+        ${n.suggest ? `<div style="font-size:12px;color:#777;margin-top:4px;padding-left:10px;border-left:2px solid #6ec1d4;background:#eef9fb;padding:4px 8px;border-radius:2px">🎯 ${esc(n.suggest)}</div>` : ''}
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  // 旅行贴士
+  if (data.tips?.length) {
+    html += `<div style="margin-top:24px;padding:14px 18px;background:#fafafa;border-radius:6px;border:1px solid #eee;page-break-inside:avoid">
+      <div style="font-size:15px;font-weight:600;margin-bottom:6px">💡 旅行贴士</div>
+      <ul style="margin:0;padding-left:20px;font-size:13px;color:#555">
+        ${data.tips.map(t => `<li style="margin:2px 0">${esc(t)}</li>`).join('')}
+      </ul>
+    </div>`;
+  }
+  // 数据来源（专业感）
+  html += `<div style="margin-top:20px;padding-top:14px;border-top:1px dashed #ddd;display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:#999">
+    <span>📡 数据源：</span>
+    <span style="background:#d4a57422;color:#a37434;padding:1px 8px;border-radius:8px">DeepSeek AI</span>
+    <span style="background:#6ec1d422;color:#2c7d8a;padding:1px 8px;border-radius:8px">高德地图</span>
+    <span style="background:#9b8be022;color:#5b4a8a;padding:1px 8px;border-radius:8px">Open-Meteo</span>
+    <span style="background:#e0729b22;color:#a13c66;padding:1px 8px;border-radius:8px">12306/携程</span>
+    <span style="background:#7bbf7b22;color:#3a7a3a;padding:1px 8px;border-radius:8px">POI 知识库</span>
+    <span style="background:#c89b6a22;color:#7d5c30;padding:1px 8px;border-radius:8px">社区路线</span>
+  </div>
+  <div style="margin-top:10px;font-size:10px;color:#bbb;text-align:right">由 123 就出发 智能生成 · 仅供参考</div>`;
+  wrap.innerHTML = html;
+  return wrap;
+}
+
+async function exportPdf(data, params){
+  if (typeof window.html2canvas === 'undefined' || !window.jspdf) {
+    showToast('⚠️ PDF 导出库未加载，请检查网络后重试', 'error');
+    return;
+  }
+  const btn = document.getElementById('exportPdfBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在生成...'; }
+  showToast('📑 正在生成 PDF（仅核心内容，排版清爽）...', 'info');
+  try {
+    const template = buildExportTemplate(data, params);
+    document.body.appendChild(template);
+    // 等图片资源加载完
+    await new Promise(r => setTimeout(r, 100));
+    const canvas = await window.html2canvas(template, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      logging: false
+    });
+    document.body.removeChild(template);
+    // 构造 PDF
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 8;
+    const imgW = pageW - margin * 2;
+    const imgH = (canvas.height * imgW) / canvas.width;
+    // 多页支持
+    let heightLeft = imgH;
+    let position = margin;
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    pdf.addImage(imgData, 'JPEG', margin, position, imgW, imgH, undefined, 'FAST');
+    heightLeft -= (pageH - margin * 2);
+    while (heightLeft > 0) {
+      position = margin - (imgH - heightLeft);
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', margin, position, imgW, imgH, undefined, 'FAST');
+      heightLeft -= (pageH - margin * 2);
+    }
+    const filename = `${data.city}_${data.days}天行程_${new Date().toISOString().slice(0,10)}.pdf`;
+    pdf.save(filename);
+    showToast(`✅ PDF 已保存：${filename}`, 'success');
+  } catch (e) {
+    console.error('exportPdf error:', e);
+    showToast('❌ PDF 导出失败：' + esc(e.message), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📑 导出 PDF（核心内容）'; }
+  }
+}
+
+async function exportImage(data, params){
+  if (typeof window.html2canvas === 'undefined') {
+    showToast('⚠️ 图片导出库未加载，请检查网络', 'error');
+    return;
+  }
+  const btn = document.getElementById('exportImgBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 正在生成...'; }
+  showToast('🖼 正在生成图片（可直接分享给朋友）...', 'info');
+  try {
+    const template = buildExportTemplate(data, params);
+    document.body.appendChild(template);
+    await new Promise(r => setTimeout(r, 100));
+    const canvas = await window.html2canvas(template, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      logging: false
+    });
+    document.body.removeChild(template);
+    const filename = `${data.city}_${data.days}天行程_${new Date().toISOString().slice(0,10)}.png`;
+    // 转为 Blob → 触发下载
+    canvas.toBlob(blob => {
+      if (!blob) { showToast('❌ 图片生成失败', 'error'); return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`✅ 图片已保存：${filename}（可发朋友圈/微信）`, 'success');
+    }, 'image/png', 0.95);
+  } catch (e) {
+    console.error('exportImage error:', e);
+    showToast('❌ 图片导出失败：' + esc(e.message), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🖼 导出图片（可分享）'; }
+  }
 }
 function exportTxt(data, params){
   const lines = [];
@@ -3437,32 +3600,111 @@ async function sendPlanChat(){
   const input = document.getElementById('planChatInput');
   const msg = input.value.trim();
   if(!msg) return;
+  if(!currentItinerary){
+    appendChat('ai', '⚠️ 请先在上方点击「🚀 一键生成行程」生成首版行程，然后再告诉我需要调整什么。');
+    input.focus();
+    return;
+  }
   input.value = '';
   appendChat('user', msg);
-  // 实时进度：让用户看到 AI 在重新设计
-  showLiveProgress(['读懂反馈', 'AI 重新设计', '调整后验证']);
+  // 1) 立即识别用户意图 → 给出"我们即将做什么"反馈
+  const intent = recognizeUserIntent(msg);
+  if (intent) appendChat('ai', `💡 收到：${intent.preview}`);
+  // 2) 实时进度：11 步思考链逐个高亮
+  showLiveProgress([
+    '读懂需求', '分析当前行程', 'AI 重新设计', '景点增减',
+    '餐厅调整', '酒店复核', '路线验证', '数据源对照',
+    '渲染行程卡片', '更新地图', '社区对照'
+  ]);
   appendChat('ai', '🔄 正在分析反馈 + AI 重新设计…');
   const t0 = Date.now();
   try {
     const data = await API.agentRefine({ ...getPlanParams(), previous: currentItinerary, message: msg, history: chatHistory });
     const dt = ((Date.now()-t0)/1000).toFixed(1);
     currentItinerary = data;
+    chatHistory.push({ role: 'user', text: msg });
+    chatHistory.push({ role: 'assistant', text: data.summary || '已调整' });
     completeLiveProgress();
-    renderItinerary(data, getPlanParams());
-    // 移除"正在调整"那条消息，改为总结 + 思考链
+    // 3) 重新渲染行程（关键：用户提了"景点多一点"会立即看到 Day1/2/3 的列表变化）
+    await renderItinerary(data, getPlanParams());
+    // 4) 智能摘要：对比"前后变化点"并附到对话
+    const diff = summarizeItineraryDiff(previousItinerary, data);
+    previousItinerary = data;
+    // 5) 移除"正在分析"那条消息，改为总结 + 思考链
     const msgs = document.getElementById('planChatMsgs');
     if (msgs.lastChild && msgs.lastChild.textContent.includes('正在分析')) msgs.removeChild(msgs.lastChild);
     if (data.thinking && data.thinking.length) {
       appendThinkingChain(data.thinking);
       const usedAi = data.ai_used ? '· DeepSeek 重新设计' : '· 关键词规则调整';
-      appendChat('ai', `✅ 已修改（${dt}s，${data.thinking.length} 步思考）${usedAi}`);
+      appendChat('ai', `✅ 已修改（${dt}s）${usedAi}\n${diff}`);
     } else {
-      appendChat('ai', `✅ 已修改（${dt}s）`);
+      appendChat('ai', `✅ 已修改（${dt}s）\n${diff}`);
     }
   } catch(e){
     const msgs = document.getElementById('planChatMsgs');
     if (msgs.lastChild) msgs.lastChild.textContent = `❌ ${e.message}`;
   }
+}
+
+// 识别用户修改意图
+function recognizeUserIntent(msg){
+  const m = String(msg || '').toLowerCase();
+  if (/多一点|多来点|多来一些|多一些|加多/.test(msg)) {
+    return { kind: 'add', preview: '正在为你增加更多景点/餐厅...' };
+  }
+  if (/少一点|减少|去掉|别去|不需要|不要/.test(msg)) {
+    return { kind: 'remove', preview: '正在精简你的行程，移除不必要景点...' };
+  }
+  if (/换.*主题|换主题|换风格|换.*类型|换.*玩法/.test(msg)) {
+    return { kind: 'theme', preview: '正在重新设计主题风格...' };
+  }
+  if (/加.*景点|添加|多一个|加一个|加个/.test(msg)) {
+    return { kind: 'addPOI', preview: '正在为每一天追加景点...' };
+  }
+  if (/酒店|住宿|住哪|睡觉/.test(msg)) {
+    return { kind: 'hotel', preview: '正在复核酒店推荐...' };
+  }
+  if (/餐|吃|美食|餐厅|饭店/.test(msg)) {
+    return { kind: 'food', preview: '正在调整餐厅推荐...' };
+  }
+  if (/预算|便宜|省钱|贵|降一降/.test(msg)) {
+    return { kind: 'budget', preview: '正在重新优化预算分配...' };
+  }
+  if (/时间|几点|时刻|早|晚|提前|推迟|起床|出发/.test(msg)) {
+    return { kind: 'time', preview: '正在调整每日时间安排...' };
+  }
+  if (/交通|打车|地铁|公交|自驾|开车/.test(msg)) {
+    return { kind: 'transport', preview: '正在调整交通方式...' };
+  }
+  return null;
+}
+
+// 智能对比行程变化点
+let previousItinerary = null;
+function summarizeItineraryDiff(oldData, newData){
+  if (!oldData || !newData) return '';
+  const diffs = [];
+  try {
+    const oldNodes = (oldData.itinerary || []).flatMap(d => d.nodes || []);
+    const newNodes = (newData.itinerary || []).flatMap(d => d.nodes || []);
+    const oldPois = new Set(oldNodes.map(n => n.poi).filter(Boolean));
+    const newPois = new Set(newNodes.map(n => n.poi).filter(Boolean));
+    // 新增
+    const added = [...newPois].filter(p => !oldPois.has(p));
+    if (added.length) diffs.push(`➕ 新增 ${added.length} 个景点：${added.slice(0,3).join('、')}${added.length>3?'...':''}`);
+    // 移除
+    const removed = [...oldPois].filter(p => !newPois.has(p));
+    if (removed.length) diffs.push(`➖ 移除 ${removed.length} 个景点：${removed.slice(0,3).join('、')}${removed.length>3?'...':''}`);
+    // 主题变化
+    if (oldData.summary !== newData.summary) {
+      diffs.push(`📝 摘要已更新`);
+    }
+    // 天数变化
+    if ((oldData.itinerary||[]).length !== (newData.itinerary||[]).length) {
+      diffs.push(`📅 天数从 ${(oldData.itinerary||[]).length} → ${(newData.itinerary||[]).length}`);
+    }
+  } catch(e) { /* ignore */ }
+  return diffs.length ? '\n' + diffs.join('\n') : '\n📊 行程细节已重新计算';
 }
 
 document.getElementById('planBtn').onclick = loadPlan;
@@ -3926,14 +4168,41 @@ async function compSend(){
 
 /* ========== 10. 社区 ========== */
 async function loadCommunity(q){
-  const query = q !== undefined ? q : (document.getElementById('comQuery').value.trim());
-  loading('comResult','拉取社区路线…');
-  const r = query ? await API.routeSearch(query) : await API.routes();
+  // q: undefined → 默认显示全部（去重）；字符串 → 搜索
+  const query = q !== undefined ? q : '';  // 空字符串 = 全部
+  const isAll = !query;
+  loading('comResult', isAll ? '📚 正在拉取全部社区路线（含去重）…' : '🔍 搜索中…');
+  let r = query ? await API.routeSearch(query) : await API.routes();
   if(r.__error){ errorEl('comResult','后端不可达'); return; }
-  const list = r?.routes || [];
+  let list = r?.routes || [];
   if(!list.length){ empty('comResult', query?`没搜到"${query}"相关路线`:'社区暂无路线'); return; }
+  // 去重：按 id 优先；没有 id 则按 (title+city) 组合
+  const seen = new Set();
+  const deduped = [];
+  for (const rt of list) {
+    const key = rt.id ? `id:${rt.id}` : `tc:${(rt.title||'').trim()}|${(rt.city||'').trim()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    // 同时对 nodes 做内部去重（同 POI 同时间不重复出现）
+    if (Array.isArray(rt.nodes)) {
+      const nodeSeen = new Set();
+      rt.nodes = rt.nodes.filter(n => {
+        const nk = `${n.time||''}|${n.poi||''}`;
+        if (nodeSeen.has(nk)) return false;
+        nodeSeen.add(nk);
+        return true;
+      });
+    }
+    deduped.push(rt);
+  }
+  if (!deduped.length) { empty('comResult', '社区暂无路线'); return; }
+  list = deduped;
+  // "显示全部"头部提示
+  const totalHint = isAll
+    ? `<div class="com__hint">共 <b>${list.length}</b> 条独立路线（已去重）· 按贡献者评分排序</div>`
+    : `<div class="com__hint">搜索结果 <b>${list.length}</b> 条 · 已去重</div>`;
   const el = document.getElementById('comResult');
-  el.innerHTML = list.map(rt=>`<div class="card com__card" data-id="${esc(rt.id)}">
+  el.innerHTML = totalHint + list.map(rt=>`<div class="card com__card" data-id="${esc(rt.id||'')}">
     <div class="card__title">🗺️ ${esc(rt.title)}</div>
     <div class="com__card-author">${esc(rt.contributor?.name||'匿名')} · ${esc(rt.contributor?.level||'Lv.?')}</div>
     <div class="card__body">${esc(rt.summary || (rt.nodes||[]).slice(0,2).map(n=>n.poi).join(' · '))}</div>
@@ -3944,13 +4213,18 @@ async function loadCommunity(q){
     </div>
   </div>`).join('');
   el.querySelectorAll('.com__card').forEach(c=>{
-    c.onclick = ()=>showRouteDetail(c.dataset.id);
+    c.onclick = ()=>showRouteDetail(c.dataset.id, list);
   });
 }
-async function showRouteDetail(id){
-  const r = await API.route(id);
-  if(r.__error || !r?.route){ showModal('<p>详情加载失败</p>'); return; }
-  const rt = r.route;
+async function showRouteDetail(id, fullList){
+  let rt = null;
+  // 优先用本地缓存（避免额外请求）
+  if (Array.isArray(fullList)) rt = fullList.find(r => r.id === id);
+  if (!rt) {
+    const r = await API.route(id);
+    if(r.__error || !r?.route){ showModal('<p>详情加载失败</p>'); return; }
+    rt = r.route;
+  }
   const c = rt.contributor || {};
   const stats = rt.stats || {};
   const html = `
@@ -3969,11 +4243,72 @@ async function showRouteDetail(id){
         <div class="itin__poi-info">${esc(n.tip||'')}</div>
       </div>
     </div>`).join('') || '<p style="color:var(--muted)">暂无详细行程</p>'}
-    <div style="margin-top:20px;display:flex;gap:8px">
-      <button class="btn btn--pri" onclick="document.getElementById('planCity').value='${esc(rt.city)}';document.getElementById('planDays').value='${esc(String(rt.days||3))}';closeModal();navigate('plan')">用此生成行程</button>
+    <div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn--pri" id="useRoutePlanBtn" data-city="${esc(rt.city)}" data-days="${esc(String(rt.days||3))}">用此生成行程</button>
       <button class="btn btn--ghost" onclick="closeModal()">关闭</button>
     </div>`;
   showModal(html);
+  // 绑定"用此生成行程"按钮：先填表 → 切换到 plan 标签 → 触发 loadPlan
+  const btn = document.getElementById('useRoutePlanBtn');
+  if (btn) {
+    btn.onclick = async () => {
+      const city = btn.dataset.city;
+      const days = btn.dataset.days;
+      // 1) 同步到表单（级联 + 文本 双写）
+      syncCityToAllInputs(city);
+      const daysInput = document.getElementById('planDays');
+      if (daysInput) daysInput.value = days;
+      // 2) 关闭弹窗
+      closeModal();
+      // 3) 切换到 plan 标签
+      switchTab('plan');
+      // 4) 滚动到结果区
+      document.getElementById('s-plan')?.scrollIntoView({behavior:'smooth'});
+      // 5) 显示 toast 提示
+      if (typeof showToast === 'function') showToast(`🎯 正在基于「${city} ${days}天」社区路线生成专属行程…`, 'info');
+      // 6) 立即触发 loadPlan
+      try { await loadPlan(); }
+      catch(e) { console.error('loadPlan error:', e); }
+    };
+  }
+}
+
+// 把城市同步到所有可能的输入控件（级联 + 文本 + 伴侣）
+function syncCityToAllInputs(city){
+  if (!city) return;
+  // 文本输入
+  const textInput = document.getElementById('planCity');
+  if (textInput) textInput.value = city;
+  // 级联模式（如已显示）
+  const provSel = document.getElementById('planProvince');
+  const citySel = document.getElementById('planCitySel');
+  if (provSel && citySel && typeof CASCADE_DATA !== 'undefined' && CASCADE_DATA) {
+    for (const p of CASCADE_DATA) {
+      if (p.cities.includes(city)) {
+        provSel.value = p.province;
+        provSel.dispatchEvent(new Event('change'));
+        setTimeout(() => {
+          citySel.value = city;
+          citySel.dispatchEvent(new Event('change'));
+        }, 0);
+        return;
+      }
+    }
+  }
+  // 找不到对应省份 → 切到文本模式
+  const cascadeToggle = document.getElementById('cascadeToggle');
+  if (cascadeToggle && typeof setupCascadeToggle === 'function') {
+    const cb = document.getElementById('cascadeBox');
+    if (cb && cb.style.display !== 'none') cascadeToggle.click();
+  }
+  if (textInput) textInput.value = city;
+  // 伴侣
+  const compCity = document.getElementById('compCity');
+  if (compCity) {
+    compCity.value = city;
+    compCity.dispatchEvent(new Event('change'));
+  }
+  if (typeof currentPlanCity !== 'undefined') currentPlanCity = city;
 }
 function showModal(html){ document.getElementById('modalContent').innerHTML = html; document.getElementById('modal').classList.add('open'); }
 function closeModal(){ document.getElementById('modal').classList.remove('open'); }
