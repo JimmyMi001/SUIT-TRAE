@@ -1189,8 +1189,8 @@ copies of the Software...
 
 ## 🙏 致谢
 
-- **[深圳信息职业技术大学](https://www.suit-sz.edu.cn/)** - 母校 / 校徽提供方
-- **[国家电网](https://www.sgcc.com.cn/)** - 比赛现场稳定供电
+- **[深圳信息职业技术大学](https://www.suit-sz.edu.cn/)** - 这是一所信息技术为特色的公办职业本科高校
+- **[南方电网](https://www.csg.cn/)** - 全天候保障比赛现场稳定供电
 - [高德开放平台](https://lbs.amap.com/) - POI / 天气 / 地图 API
 - [DeepSeek](https://platform.deepseek.com/) - 中文大模型
 - [Open-Meteo](https://open-meteo.com/) - 免费天气数据
