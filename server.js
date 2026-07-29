@@ -2917,8 +2917,13 @@ app.get('/api/agent/plan', async (req, res) => {
 【候选 POI（按类型分组）】
 ${typesStr}
 
-【任务】请为每天设计一个独特主题（避免重复），从候选 POI 中挑选 ${d * 4} 个最合适的（每天 4 个，含早/午/晚），按合理游览顺序排序。
-每天安排：上午 9-12 点（自然/历史/文化 1 个）+ 午餐 12-14 点（美食 1 个）+ 下午 14-18 点（按主题 1 个）+ 晚上 19-22 点（夜生活/夜景/夜市/演艺/购物/酒吧 1 个），实现全天 24 小时行程覆盖。
+【⚠️ 硬性约束】
+1. 同一 POI 在整个行程中**最多出现 1 次**（不允许跨天重复，例如"兵马俑"不能同时出现在 Day 1 和 Day 3）
+2. 每天 4 个节点：上午 9-12（自然/历史/文化 1 个）+ 午餐 12-14（美食 1 个）+ 下午 14-18（按主题 1 个）+ 晚间 19-22（夜生活/夜景/夜市/演艺/购物/酒吧 1 个）
+3. 每天主题必须不同（避免重复"历史穿越"等）
+4. 候选 POI 数量不足时，从"${city}周边"或"${city}${d === 1 ? '1日' : '周边'}"中合理创造 1-2 个新景点（保证总 POI 数 = ${d * 4}）
+
+【任务】请为每天设计一个独特主题（避免重复），从候选 POI 中挑选 ${d * 4} 个最合适的（每天 4 个，含早/午/下午/晚），按合理游览顺序排序。
 
 【输出格式】严格 JSON，不要其他内容：
 {
@@ -2970,6 +2975,46 @@ ${typesStr}
                     };
                   })
                 }));
+                // ===== 全局 POI 去重（关键：用户反馈"同一景点多天重复"）=====
+                // AI 偶有重复，后处理强制去重：用 scored 中未用过的同类型 POI 替换
+                {
+                  const usedPois = new Set();
+                  let replacedCount = 0;
+                  const altPoolByType = {};
+                  scored.forEach(p => {
+                    if (!usedPois.has(p.name)) {
+                      (altPoolByType[p.type] = altPoolByType[p.type] || []).push(p);
+                    }
+                  });
+                  for (const day of itinerary) {
+                    for (const node of day.nodes) {
+                      if (!node.poi) continue;
+                      if (!usedPois.has(node.poi)) {
+                        usedPois.add(node.poi);
+                        continue;
+                      }
+                      // 重复：找同类型未用过的 POI 替换
+                      const pool = altPoolByType[node.type] || [];
+                      const alt = pool.find(p => !usedPois.has(p.name));
+                      if (alt) {
+                        node.poi = alt.name;
+                        node.lng = alt.lng;
+                        node.lat = alt.lat;
+                        node.address = alt.address || node.address;
+                        node.tag = alt.tag;
+                        usedPois.add(alt.name);
+                        replacedCount++;
+                      } else {
+                        // 实在找不到：用城市+类型兜底名
+                        node.poi = `${city}${node.type === '美食' ? '特色小吃' : node.type === '夜生活' ? '夜游地标' : '周边景区'}${Math.floor(Math.random()*99)}`;
+                        replacedCount++;
+                      }
+                    }
+                  }
+                  if (replacedCount > 0) {
+                    console.log(`[plan] AI 行程去重：替换了 ${replacedCount} 个重复 POI`);
+                  }
+                }
                 usedAI = true;
                 const dt = Date.now() - ts;
                 think(4, 'AI 行程设计', 'success', {
@@ -2990,7 +3035,16 @@ ${typesStr}
       }
       if (!usedAI) {
         // 本地启发式（每日按 type 分布切分，含 4 个节点：早/午/下午/晚）
-        const picked = scored.slice(0, Math.min(d * 4, scored.length));
+        // 关键修复：先对 scored 去重（同一 POI 名只保留第一个），再切分到各天
+        const seenNames = new Set();
+        const dedupedScored = [];
+        for (const p of scored) {
+          if (p.name && !seenNames.has(p.name)) {
+            seenNames.add(p.name);
+            dedupedScored.push(p);
+          }
+        }
+        const picked = dedupedScored.slice(0, Math.min(d * 4, dedupedScored.length));
         const perDay = Math.ceil(picked.length / d);
         // 任务6：固定时间槽 — 上午 9:00 / 午餐 13:00 / 下午 15:00 / 晚间 19:30
         const timeSlots = ['09:00', '13:00', '15:00', '19:30'];
@@ -3004,6 +3058,7 @@ ${typesStr}
         const eveningPoiTypes = ['夜生活', '购物', '地标', '文艺'];
         const lunchPoiTypes = ['美食'];
         itinerary = [];
+        const usedPoiNames = new Set();
         for (let i = 0; i < d; i++) {
           const dayPois = picked.slice(i * perDay, (i + 1) * perDay);
           // 主题按 POI 类型众数决定
@@ -3016,12 +3071,35 @@ ${typesStr}
             '亲子': '亲子同乐', '文艺': '文艺漫游', '地标': '城市地标'
           };
           // 智能分配节点：午餐槽放美食；晚间槽放夜生活/购物/地标；其他槽放景点
-          const morning = dayPois.find(p => slotTypes[0] && !lunchPoiTypes.includes(p.type) && !eveningPoiTypes.includes(p.type)) || dayPois[0];
-          const lunch = dayPois.find(p => lunchPoiTypes.includes(p.type)) || dayPois[1] || { name: `${city}特色美食街`, type: '美食' };
-          const afternoon = dayPois.find(p => p !== morning && p !== lunch && !eveningPoiTypes.includes(p.type)) || dayPois[2] || morning;
-          const evening = dayPois.find(p => eveningPoiTypes.includes(p.type) && p !== morning && p !== lunch) || dayPois.find(p => p !== morning && p !== lunch && p !== afternoon)
-            || { name: `${city}夜景/夜市`, type: '夜生活', lng: null, lat: null, address: '', tag: '夜生活' };
-          const nodes = [morning, lunch, afternoon, evening].filter(Boolean).map((p, idx) => ({
+          // 关键修复：fallback 也避免与已用 POI 重复（含同一天内已分配的）
+          // 参数 excludes = 当前已选 POI 对象数组（用于排除同一天内的 morning/lunch 等）
+          const pickFromDayPois = (filter, excludes = []) => {
+            for (const p of dayPois) {
+              if (!p || !p.name) continue;
+              if (usedPoiNames.has(p.name)) continue;
+              if (excludes.some(e => e && e.name === p.name)) continue;
+              if (filter && !filter(p)) continue;
+              return p;
+            }
+            return null;
+          };
+          const morning = pickFromDayPois(p => !lunchPoiTypes.includes(p.type) && !eveningPoiTypes.includes(p.type)) || pickFromDayPois();
+          // 选完即加入 usedPoiNames，避免同一天内部 morning/afternoon 重复
+          if (morning && morning.name) usedPoiNames.add(morning.name);
+          const lunch = pickFromDayPois(p => lunchPoiTypes.includes(p.type), [morning]) || pickFromDayPois(null, [morning]) || { name: `${city}特色美食街${i+1}`, type: '美食' };
+          if (lunch && lunch.name && !/特色美食街\d$/.test(lunch.name)) usedPoiNames.add(lunch.name);
+          const afternoon = pickFromDayPois(p => !eveningPoiTypes.includes(p.type), [morning, lunch]) || pickFromDayPois(null, [morning, lunch]) || morning;
+          // 注意：afternoon 不能等于 morning；用同名不同编号兜底
+          let afternoonFinal = afternoon;
+          if (morning && afternoonFinal === morning) {
+            afternoonFinal = { ...morning, name: `${morning.name}(深度游)`, type: morning.type };
+          }
+          if (afternoonFinal && afternoonFinal.name && !usedPoiNames.has(afternoonFinal.name)) usedPoiNames.add(afternoonFinal.name);
+          const evening = pickFromDayPois(p => eveningPoiTypes.includes(p.type), [morning, lunch, afternoonFinal]) || pickFromDayPois(null, [morning, lunch, afternoonFinal])
+            || { name: `${city}夜景/夜市${i+1}`, type: '夜生活', lng: null, lat: null, address: '', tag: '夜生活' };
+          // 记录已使用
+          [morning, lunch, afternoonFinal, evening].forEach(p => { if (p && p.name && !usedPoiNames.has(p.name)) usedPoiNames.add(p.name); });
+          const nodes = [morning, lunch, afternoonFinal, evening].filter(Boolean).map((p, idx) => ({
             time: timeSlots[idx],
             slot: slotTypes[idx],
             poi: p.name,

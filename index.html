@@ -2892,13 +2892,17 @@ async function renderItinerary(data, params){
       <span style="font-size:12px;color:var(--muted);font-weight:normal">
         ${data.tips_meta.source === 'deepseek' ? '🤖 DeepSeek V4 预览版 AI · 4 维度' : data.tips_meta.source === 'local' ? '🧠 本地知识库 · 4 维度' : '🤖 AI+🧠 知识库 · 4 维度'}
       </span>
-      <span style="font-size:11px;color:var(--text-3);font-weight:normal;margin-left:auto">点击展开思考过程 ↓</span>
+      <span style="font-size:11px;color:var(--text-3);font-weight:normal;margin-left:auto">思考过程已公开 ↓</span>
     </h3>
-    <details class="tips-thinking" style="margin:0 0 14px 0;padding:10px 14px;background:rgba(155,139,224,.06);border:1px dashed rgba(155,139,224,.3);border-radius:8px;font-size:12px;color:var(--text-2)">
-      <summary style="cursor:pointer;font-weight:600;color:#9b8be0">🧠 思考过程：贴士是怎么生成的？</summary>
-      <div style="margin-top:8px;line-height:1.7">
+    <div class="tips-thinking" style="margin:0 0 14px 0;padding:12px 16px;background:linear-gradient(135deg,rgba(155,139,224,.08),rgba(212,165,116,.05));border:1px solid rgba(155,139,224,.25);border-left:3px solid #9b8be0;border-radius:8px;font-size:12px;color:var(--text-2);box-shadow:0 2px 8px rgba(0,0,0,.15)">
+      <div style="font-weight:700;color:#9b8be0;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+        <span style="display:inline-block;width:18px;height:18px;background:rgba(155,139,224,.2);border-radius:50%;text-align:center;line-height:18px">🧠</span>
+        思考过程：贴士是怎么生成的？
+        <span style="font-size:10px;color:var(--text-3);font-weight:normal;margin-left:auto;padding:1px 6px;background:rgba(155,139,224,.15);border-radius:3px">已公开</span>
+      </div>
+      <div style="line-height:1.7">
         <div>📌 <b>生成策略</b>：DeepSeek V4 预览版 AI 多维度提示词工程 + 本地知识库兜底（4 维度）</div>
-        <div>📌 <b>实际数据源</b>：<code style="background:rgba(0,0,0,.2);padding:1px 6px;border-radius:3px">${esc(data.tips_meta.source)}</code>
+        <div>📌 <b>实际数据源</b>：<code style="background:rgba(0,0,0,.25);padding:1px 6px;border-radius:3px">${esc(data.tips_meta.source)}</code>
           ${data.tips_meta.source === 'deepseek' ? '· DeepSeek 完整生成 4 维度' : data.tips_meta.source === 'local' ? '· 城市数据库 + 区域知识图谱' : '· DeepSeek 主生成 + 知识库补全'}
         </div>
         <div>📌 <b>覆盖维度</b>：${data.tips_meta.dimensions.map(d => `${d.icon}${d.label} ×${d.tips.length}（${d.source}）`).join(' · ')}</div>
@@ -2909,7 +2913,7 @@ async function renderItinerary(data, params){
           ${data.tips_meta.source === 'local' && data.tips_meta.ai_model.includes('未启用') ? '（建议配置 DEEPSEEK_KEY 启用 AI 增强）' : ''}
         </div>
       </div>
-    </details>
+    </div>
     <div class="tips-grid">
       ${data.tips_meta.dimensions.map(dim => `
         <div class="tip-card" style="--tip-color:${dim.color}">
@@ -3265,15 +3269,58 @@ function buildExportTemplate(data, params){
     });
     html += `</div>`;
   });
-  // 旅行贴士
-  if (data.tips?.length) {
-    html += `<div style="margin-top:24px;padding:14px 18px;background:#fafafa;border-radius:6px;border:1px solid #eee;page-break-inside:avoid">
-      <div style="font-size:15px;font-weight:600;margin-bottom:6px">💡 旅行贴士</div>
-      <ul style="margin:0;padding-left:20px;font-size:13px;color:#555">
-        ${data.tips.map(t => `<li style="margin:2px 0">${esc(t)}</li>`).join('')}
-      </ul>
-    </div>`;
-  }
+  // 旅行贴士 — 优先用多维度卡片；兜底用扁平列表
+  // 关键：t 可能是 {text,dim,dim_label,...} 对象，必须用 typeof 判断避免 [object Object]
+  const normalizeTip = (t) => (typeof t === 'string' ? t : (t && t.text) ? t.text : '');
+  const renderTipsSection = () => {
+    // 路径 1：多维度卡片（与主页面风格一致）
+    if (data.tips_meta?.dimensions?.length) {
+      let html = `<div style="margin-top:28px;padding:16px 20px;background:#fafafa;border:1px solid #eee;border-radius:8px;page-break-inside:avoid">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="font-size:16px;font-weight:700;color:#1a1a1a">💡 多维度旅行贴士</div>
+          <div style="font-size:11px;color:#888;font-weight:normal;padding:1px 8px;background:#eee;border-radius:8px">
+            ${data.tips_meta.source === 'deepseek' ? '🤖 DeepSeek AI' : data.tips_meta.source === 'local' ? '🧠 本地知识库' : '🤖🧠 AI+知识库'} · 4 维度 · ${data.tips_meta.dimensions.reduce((s,d)=>s+d.tips.length,0)} 条
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">`;
+      data.tips_meta.dimensions.forEach(dim => {
+        html += `<div style="background:#fff;border:1px solid #e5e5e5;border-left:3px solid ${dim.color};border-radius:6px;padding:10px 12px;page-break-inside:avoid">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <span style="font-size:18px">${dim.icon}</span>
+            <span style="font-size:13px;font-weight:700;color:#1a1a1a">${esc(dim.label)}</span>
+            <span style="font-size:9px;color:#999;padding:1px 5px;background:#f3f3f3;border-radius:3px;margin-left:auto">${dim.source === 'deepseek' ? 'AI' : dim.source === 'local' ? '知识库' : 'AI+知识库'}</span>
+          </div>
+          <ul style="margin:0;padding-left:18px;font-size:12px;color:#333;line-height:1.6">
+            ${(dim.tips||[]).map(t => `<li style="margin:2px 0">${esc(normalizeTip(t))}</li>`).join('')}
+          </ul>
+        </div>`;
+      });
+      html += `</div>
+        <div style="padding:10px 12px;background:linear-gradient(135deg,rgba(155,139,224,.08),rgba(212,165,116,.05));border:1px dashed rgba(155,139,224,.4);border-radius:6px;font-size:11px;color:#555;line-height:1.7">
+          <div style="font-weight:700;color:#7b6cb0;margin-bottom:4px">🧠 思考过程：贴士是怎么生成的？</div>
+          <div>📌 生成策略：DeepSeek V4 预览版 AI 多维度提示词工程 + 本地知识库兜底（4 维度）</div>
+          <div>📌 实际数据源：<b>${esc(data.tips_meta.source)}</b> ${data.tips_meta.source === 'deepseek' ? '· DeepSeek 完整生成 4 维度' : data.tips_meta.source === 'local' ? '· 城市数据库 + 区域知识图谱' : '· DeepSeek 主生成 + 知识库补全'}</div>
+          <div>📌 覆盖维度：${data.tips_meta.dimensions.map(d => `${d.icon}${d.label} ×${d.tips.length}（${d.source}）`).join(' · ')}</div>
+          <div>📌 总贴士数：${data.tips_meta.dimensions.reduce((s, d) => s + d.tips.length, 0)} 条 · 生成时间：${new Date(data.tips_meta.generated_at).toLocaleString('zh-CN', { hour12: false })}</div>
+          <div>📌 AI 模型：${esc(data.tips_meta.ai_model)}</div>
+        </div>
+      </div>`;
+      return html;
+    }
+    // 路径 2：扁平 tips 列表（兜底）
+    if (data.tips?.length) {
+      const flatTips = data.tips.map(normalizeTip).filter(Boolean);
+      if (!flatTips.length) return '';
+      return `<div style="margin-top:24px;padding:14px 18px;background:#fafafa;border-radius:6px;border:1px solid #eee;page-break-inside:avoid">
+        <div style="font-size:15px;font-weight:600;margin-bottom:6px">💡 旅行贴士</div>
+        <ul style="margin:0;padding-left:20px;font-size:13px;color:#555">
+          ${flatTips.map(t => `<li style="margin:2px 0">${esc(t)}</li>`).join('')}
+        </ul>
+      </div>`;
+    }
+    return '';
+  };
+  html += renderTipsSection();
   // 数据来源（专业感）
   html += `<div style="margin-top:20px;padding-top:14px;border-top:1px dashed #ddd;display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:#999">
     <span>📡 数据源：</span>
@@ -3394,7 +3441,21 @@ function exportTxt(data, params){
     });
     lines.push('');
   });
-  if(data.tips?.length){ lines.push('## 💡 旅行贴士'); data.tips.forEach(t=>lines.push(`  - ${t}`)); }
+  if(data.tips?.length){
+    lines.push('## 💡 旅行贴士');
+    // 关键：t 可能是 {text,dim,dim_label,...} 对象，必须 typeof 判断避免 [object Object]
+    const normTip = (t) => (typeof t === 'string' ? t : (t && t.text) ? t.text : '');
+    // 优先用多维度结构展示（与主页面、PDF 一致）
+    if (data.tips_meta?.dimensions?.length) {
+      lines.push(`  数据源：${data.tips_meta.source === 'deepseek' ? 'DeepSeek V4 预览版 AI' : '本地知识库'} · 4 维度 · ${data.tips_meta.dimensions.reduce((s,d)=>s+d.tips.length,0)} 条`);
+      data.tips_meta.dimensions.forEach(dim => {
+        lines.push(`  ${dim.icon} ${dim.label}（${dim.source === 'deepseek' ? 'AI' : '知识库'}）`);
+        (dim.tips||[]).forEach(t => lines.push(`    - ${normTip(t)}`));
+      });
+    } else {
+      data.tips.forEach(t => { const s = normTip(t); if (s) lines.push(`  - ${s}`); });
+    }
+  }
   const blob = new Blob([lines.join('\n')], {type:'text/plain;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
