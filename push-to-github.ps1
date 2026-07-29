@@ -10,7 +10,7 @@
 $ErrorActionPreference = 'Stop'
 
 $REPO_OWNER = 'JimmyMi001'  # 你的 GitHub 用户名
-$REPO_NAME  = '123-jiu-chu-fa'
+$REPO_NAME  = 'SUIT-TRAE-123Lets-GO'   # 仓库名
 $BRANCH     = 'main'
 
 Write-Host "`n[1/4] 配置 git 用户..." -ForegroundColor Cyan

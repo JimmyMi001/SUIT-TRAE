@@ -1,11 +1,12 @@
 {
-  "name": "123-jiu-chu-fa",
+  "name": "suit-trae-123-lets-go",
   "version": "1.0.0",
   "description": "123 就出发 — 旅行规划+AI 验证 平台的后端服务（高德 API 代理 + 社区路线 CRUD）",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "setup": "node scripts/setup.js"
   },
   "engines": {
     "node": ">=18.0.0"

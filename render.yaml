@@ -7,7 +7,7 @@
 
 services:
   - type: web
-    name: 123-jiu-chu-fa
+    name: suit-trae-123-lets-go
     runtime: node
     plan: free
     region: singapore      # 新加坡区域,亚洲访问快
