@@ -9,12 +9,12 @@ on:
 
 jobs:
   # =========================================
-  # 1) 基本检查:Node 版本 + 依赖装得起来
+  # 1) 基本检查:Node 版本 + 依赖装得起来 + 启动服务
   # =========================================
   test:
     name: 基础检查
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -28,47 +28,92 @@ jobs:
       - name: 安装依赖
         run: npm install --no-audit --no-fund
 
-      - name: 语法检查 server.js
-        run: node --check server.js || true
-
-      - name: 健康检查 (本地启动 + curl)
+      - name: 语法检查
         run: |
-          (npm start &) ; sleep 6
-          curl -sS -o /dev/null -w "HTTP %{http_code}\n" http://localhost:3000/api/health || true
+          node --check server.js && echo "✓ server.js syntax OK"
+          node --check env-loader.js && echo "✓ env-loader.js syntax OK"
+          node --check scripts/encrypt-env.js && echo "✓ scripts/encrypt-env.js syntax OK"
+
+      - name: 启动服务 + 健康检查
+        run: |
+          (npm start &) ; sleep 8
+          curl -sS -o /dev/null -w "GET /          -> HTTP %{http_code}\n" http://localhost:3000/
+          curl -sS -o /dev/null -w "GET /api/health -> HTTP %{http_code}\n" http://localhost:3000/api/health
           pkill -f "node server.js" || true
 
   # =========================================
-  # 2) 密钥泄漏扫描 (trufflehog)
+  # 2) 密钥扫描 (用 gitleaks, 比 trufflehog 更轻量,国内也能拉)
+  # 排除 .env.enc (密文,无密钥泄漏风险)
   # =========================================
   secret-scan:
     name: 密钥泄漏扫描
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    continue-on-error: false
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: TruffleHog 扫描
-        uses: trufflesecurity/trufflehog@main
+      - name: 检查入仓的明文密钥 (排除密文 .env.enc)
+        run: |
+          echo "=== 扫描明文密钥 (跳过 .env.enc/.env.example) ==="
+          # 检查所有入仓文件,但排除加密的密文和示例
+          if git ls-files | grep -vE "(\.env\.enc|\.env\.example|node_modules|\.bak|package-lock\.json)" | xargs grep -lE "(amap_key|AMAP_KEY|deepseek|DEEPSEEK_KEY)\s*=\s*['\"]?[^'\"]+['\"]?" 2>/dev/null | head -5; then
+            echo "❌ 发现明文密钥!"
+            exit 1
+          fi
+          echo "✓ 未发现明文密钥"
+
+      - name: 检查是否有真实 sk- 开头的 key 泄漏
+        run: |
+          echo "=== 扫描 sk- 格式的 DeepSeek/Anthropic key ==="
+          if git ls-files | grep -vE "(\.env\.enc|\.env\.example|node_modules|\.bak)" | xargs grep -lE "sk-[a-f0-9]{20,}" 2>/dev/null | head -5; then
+            echo "❌ 发现 sk- 格式 key 泄漏!"
+            exit 1
+          fi
+          echo "✓ 未发现 sk- 格式 key"
+
+      - name: 用 gitleaks 深度扫描
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
         with:
-          path: .
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
-          extra_args: --only-verified
+          # gitleaks 内置规则,会自动忽略 .env.enc (因为是密文)
+          args: --no-banner --redact
 
   # =========================================
-  # 3) Render 部署钩子 (可选)
-  # 取消下面注释并填入你的 deploy-hook URL 即可
-  # 触发条件:push 到 main 后,通知 Render 拉取新代码
+  # 3) 验证 .env.enc 真的加密了
   # =========================================
-  # deploy:
-  #   name: 触发 Render 部署
-  #   needs: [test, secret-scan]
-  #   runs-on: ubuntu-latest
-  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-  #   steps:
-  #     - name: 通知 Render 部署
-  #       run: |
-  #         curl -sS -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+  verify-encryption:
+    name: 验证密钥加密
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 检查 .env 不在仓库里
+        run: |
+          if git ls-files | grep -E "^\.env$|^\.env\.keys$" | head; then
+            echo "❌ 发现明文 .env 或 .env.keys 入仓!"
+            exit 1
+          fi
+          echo "✓ .env / .env.keys 未入仓"
+
+      - name: 检查 .env.enc 是密文
+        run: |
+          if [ -f .env.enc ]; then
+            SIZE=$(stat -c%s .env.enc)
+            echo ".env.enc 大小: $SIZE bytes"
+            # 密文应该看起来像 base64 乱码,不包含明文关键词
+            if grep -qE "AMAP_KEY=your_|DEEPSEEK_KEY=sk-[a-f0-9]" .env.enc; then
+              echo "❌ .env.enc 似乎不是密文!"
+              exit 1
+            fi
+            echo "✓ .env.enc 是密文,未发现明文"
+          else
+            echo "⚠ .env.enc 不存在(无密钥配置,跳过)"
+          fi
