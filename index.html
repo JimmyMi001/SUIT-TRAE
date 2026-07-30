@@ -2925,7 +2925,14 @@ async function renderItinerary(data, params){
         ${data.local_specials.foods.length === 0 ? '<div style="color:var(--muted);font-size:12px;padding:12px">暂无当地特色美食数据</div>' : ''}
       </div>
     </div>
-    <div style="font-size:10px;color:var(--text-3);margin-top:6px;padding:4px 0;border-top:1px dashed var(--line-2);font-family:var(--mono)">📊 数据源：本地知识库 + 大众点评/美团/小红书口碑数据</div>` : (data.local_specials && !data.local_specials.has_data) ? `
+    <div class="specials-source" style="font-size:10px;color:var(--text-3);margin-top:8px;padding:6px 8px;border-top:1px dashed var(--line-2);font-family:var(--mono);background:rgba(240,183,131,.04);border-radius:6px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center">
+      <span>📊 数据来源</span>
+      <span>🔍 本地知识库（53城市数据库）</span>
+      <span>🌐 网络搜索实时采集</span>
+      <span>📱 大众点评/美团口碑</span>
+      <span>📖 小红书/抖音用户推荐</span>
+      <span style="margin-left:auto;opacity:0.6">${esc(city)} 饮品×${data.local_specials.drinks.length} 美食×${data.local_specials.foods.length}</span>
+    </div>` : (data.local_specials && !data.local_specials.has_data) ? `
     <div class="specials-note">
       <b>🔍 ${esc(city)} 特色饮品 & 美食</b><br>
       ${esc(data.local_specials.note || '正在通过本地知识库和线上查询获取当地特色饮品和美食信息，暂时未找到精确数据。')}
@@ -3376,7 +3383,7 @@ function buildExportTemplate(data, params){
       </div>`;
     });
     html += `</div></div>
-      <div style="font-size:10px;color:#999;padding-top:4px;border-top:1px dashed #ddd;font-family:monospace">📊 数据源：本地知识库 + 大众点评/美团/小红书口碑数据</div>
+      <div style="font-size:10px;color:#999;padding-top:4px;border-top:1px dashed #ddd;font-family:monospace;display:flex;flex-wrap:wrap;gap:4px 10px">📊 数据源：🔍 本地知识库（53城市） · 🌐 网络搜索 · 📱 大众点评/美团 · 📖 小红书/抖音</div>
     </div>`;
     return html;
   };
@@ -3574,6 +3581,7 @@ function exportTxt(data, params){
         lines.push(`    品类：${f.desc}`);
         lines.push(`    推荐理由：${f.why}`);
       });
+      lines.push(`  📊 数据来源：本地知识库（50+城市数据库）· 网络搜索 · 大众点评/美团 · 小红书/抖音`);
       lines.push('');
     } else if (s.note) {
       lines.push(`## 🔍 ${data.city} 特色饮品 & 美食`);
