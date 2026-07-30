@@ -4691,6 +4691,9 @@ document.getElementById('compMapToggle')?.addEventListener('click', () => {
   btn.textContent = map.classList.contains('collapsed') ? '🔽 展开' : '🔼 收起';
 });
 
+// 共享地图实例
+let compMapInstance = null;
+
 /* 任务5：收集工具结果中的地点并渲染到地图上（仅标点，不画连线） */
 async function collectAndRenderMap(tool, city, data){
   const wrap = document.getElementById('compMapWrap');
@@ -4702,251 +4705,208 @@ async function collectAndRenderMap(tool, city, data){
   if (tool === 'ticket' && data.tickets?.length) {
     data.tickets.slice(0, 12).forEach(t => places.push({
       name: t.poi, type: 'poi', icon: '🎫', meta: `${t.type || '景点'} · ¥${(t.prices || []).join('/')}`,
-      address: t.address || ''
+      address: t.address || '', location: ''
     }));
   }
   // 2) 酒店
   if (tool === 'hotel' && data.hotels?.length) {
     data.hotels.slice(0, 12).forEach(h => places.push({
       name: h.name, type: 'hotel', icon: '🏨', meta: `${'★'.repeat(h.stars || 3)} · ¥${h.price}/晚 · 距市中心 ${h.distance_km}km`,
-      address: h.address || ''
+      address: h.address || '', location: ''
     }));
   }
   // 3) 餐厅（聊天查询"附近美食"等可能返回 restaurants 字段）
   if (data.restaurants && Array.isArray(data.restaurants)) {
     data.restaurants.slice(0, 12).forEach(r => places.push({
       name: r.name, type: 'rest', icon: '🍜', meta: `¥${r.price_per_person || r.price || '?'}/位 · ${r.district || ''}`,
-      address: r.address || ''
+      address: r.address || '', location: ''
     }));
   }
   if (places.length === 0) {
-    // 收起地图占位（保持空状态）
     wrap.style.display = '';
     container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:13px;letter-spacing:.02em;padding:40px;text-align:center;line-height:1.7">🗺 当前查询结果暂无地点坐标<br><small>如查询景点/酒店，将自动在地图上标记位置</small></div>';
     side.innerHTML = '<div class="comp__map-side-empty">📍 暂无地点数据<br><small>请先查询"🎫 景点门票"或"🏨 找酒店"</small></div>';
     return;
   }
   wrap.style.display = '';
-  // 拉取静态地图底图（带城市标签） + 每个 place 通过高德地理编码获取坐标
-  try {
-    const cityCoords = (typeof CITY_COORDS !== 'undefined' && CITY_COORDS[city]) || null;
-    let center = cityCoords;
-    if (!center) {
-      const r = await API.cityResolve(city);
-      if (r && r.lng && r.lat) center = { lat: r.lat, lon: r.lng };
-    }
-    if (center) {
-      const mapUrl = API.staticMap(city, 11, '800*520');
-      container.innerHTML = `
-        <img src="${mapUrl}" alt="${esc(city)}地图" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div style=&quot;display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:13px&quot;>🗺 ${esc(city)} 地图加载中…</div>')">
-        <div class="comp__map-overlay" id="compMapOverlay" style="position:absolute;inset:0;pointer-events:none"></div>
-      `;
-      // 计算每个 place 的像素位置（基于其坐标相对中心点的偏移）
-      const overlay = document.getElementById('compMapOverlay');
-      const bounds = 0.15; // 约 ±15km
-      const geocoded = await Promise.all(places.map(async (p, i) => {
-        // 优先用 i 顺序在中心周围排布（避免每个都远程调地理编码）
-        const ang = (i / places.length) * Math.PI * 2;
-        const r = 0.05 + (i % 3) * 0.04; // 5%-13% of bounds
-        const lat = center.lat + Math.sin(ang) * r;
-        const lon = center.lon + Math.cos(ang) * r;
-        // 如果有地址，尝试高德地理编码（best-effort，不阻塞）
-        let glng = lon, glat = lat;
-        if (p.address) {
-          try {
-            const r = await API.addressGeocode(p.address, city);
-            if (r && r.lng && r.lat) { glng = r.lng; glat = r.lat; }
-          } catch (_) {}
-        }
-        return { ...p, lng: glng, lat: glat };
-      }));
-      // 渲染标点
-      const minLat = Math.min(...geocoded.map(p => p.lat), center.lat - bounds);
-      const maxLat = Math.max(...geocoded.map(p => p.lat), center.lat + bounds);
-      const minLng = Math.min(...geocoded.map(p => p.lng), center.lon - bounds);
-      const maxLng = Math.max(...geocoded.map(p => p.lng), center.lon + bounds);
-      const w = container.clientWidth || 800;
-      const h = 380;
-      const projX = (lng) => ((lng - minLng) / Math.max(0.0001, maxLng - minLng)) * w;
-      const projY = (lat) => h - ((lat - minLat) / Math.max(0.0001, maxLat - minLat)) * h;
-      overlay.style.pointerEvents = 'auto';
-      overlay.innerHTML = geocoded.map((p, i) => {
-        const x = projX(p.lng);
-        const y = projY(p.lat);
-        return `<div class="cm-marker cm-marker--${p.type}" data-i="${i}" style="left:${x}px;top:${y}px;animation-delay:${i*60}ms" title="${esc(p.name)}">
-          <span class="cm-marker__icon">${p.icon}</span>
-        </div>`;
-      }).join('');
-      // 侧边栏
-      side.innerHTML = `<div class="comp__map-side-empty" style="padding:0 0 12px;text-align:left">
-        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">📍 ${esc(city)} 地点列表</div>
-        <div style="font-size:10px;color:var(--text-2);letter-spacing:.02em">共 ${geocoded.length} 个地点 · 点击高亮对应标点</div>
-      </div>` + geocoded.map((p, i) => `
-        <div class="comp__map-side-item" data-i="${i}">
-          <div class="comp__map-side-item__icon">${p.icon}</div>
-          <div class="comp__map-side-item__body">
-            <div class="comp__map-side-item__name">${esc(p.name)}</div>
-            <div class="comp__map-side-item__meta">${esc(p.meta || '')}</div>
-          </div>
-        </div>
-      `).join('');
-      // 联动：点击侧边栏项 → 高亮标点
-      side.querySelectorAll('.comp__map-side-item').forEach((el) => {
-        el.addEventListener('click', () => {
-          const i = el.dataset.i;
-          overlay.querySelectorAll('.cm-marker').forEach((m, j) => m.classList.toggle('cm-marker--sel', String(j) === i));
-          el.scrollIntoView({behavior:'smooth', block:'nearest'});
-        });
-        el.addEventListener('mouseenter', () => {
-          const i = el.dataset.i;
-          overlay.querySelectorAll('.cm-marker').forEach((m, j) => m.classList.toggle('cm-marker--sel', String(j) === i));
-        });
-      });
-      // 联动：点击标点 → 滚动到对应侧边栏项
-      overlay.querySelectorAll('.cm-marker').forEach((m) => {
-        m.addEventListener('click', () => {
-          const i = m.dataset.i;
-          side.querySelectorAll('.comp__map-side-item').forEach((it, j) => {
-            it.style.background = String(j) === i ? 'rgba(240,183,131,.10)' : '';
-            it.style.borderColor = String(j) === i ? 'rgba(240,183,131,.4)' : '';
-          });
-          side.querySelectorAll('.comp__map-side-item')[i]?.scrollIntoView({behavior:'smooth', block:'nearest'});
-        });
-      });
-    } else {
-      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:13px;padding:40px;text-align:center;line-height:1.7">⚠️ 暂无该城市坐标数据<br><small>' + esc(city) + ' 不在已知城市库</small></div>';
-      side.innerHTML = `<div class="comp__map-side-empty">📍 ${esc(city)} 暂无坐标<br><small>尝试查询其他城市</small></div>`;
-    }
-  } catch (e) {
-    container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:12px;padding:20px">地图加载失败：${esc(e.message)}</div>`;
-    side.innerHTML = '<div class="comp__map-side-empty">⚠️ 地图初始化失败</div>';
+  await renderCompanionAMap(city, places, side);
+}
+
+/* 共享：用 AMap.Map 渲染同伴地图 */
+async function renderCompanionAMap(city, places, side){
+  const container = document.getElementById('compMapContainer');
+  if (!container) return;
+  if (typeof AMap === 'undefined') {
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:13px;padding:40px;text-align:center">⚠️ 高德地图 SDK 未加载</div>';
+    side.innerHTML = '<div class="comp__map-side-empty">⚠️ 地图 SDK 不可用</div>';
+    return;
   }
+  // 销毁旧实例
+  if (compMapInstance) {
+    compMapInstance.destroy();
+    compMapInstance = null;
+  }
+  // 清空容器
+  container.innerHTML = '';
+  container.style.height = '380px';
+  container.style.width = '100%';
+  container.style.position = 'relative';
+
+  // 获取城市中心坐标
+  let lng, lat;
+  const cityCoords = (typeof CITY_COORDS !== 'undefined' && CITY_COORDS[city]) ? CITY_COORDS[city] : null;
+  if (cityCoords) {
+    lng = cityCoords[0]; lat = cityCoords[1];
+  } else {
+    const r = await API.cityResolve(city);
+    if (r && r.lng && r.lat) { lng = r.lng; lat = r.lat; }
+    else { lng = 116.4074; lat = 39.9042; } // fallback
+  }
+
+  // 创建地图
+  compMapInstance = new AMap.Map(container, {
+    zoom: 12,
+    center: [lng, lat],
+    viewMode: '2D',
+    mapStyle: 'amap://styles/darkblue'
+  });
+
+  // 批量地理编码
+  const batchGeocodePromises = places.filter(p => p.address).map(async (p) => {
+    if (p.location && p.location.includes(',')) {
+      const parts = p.location.split(',');
+      p._lng = parseFloat(parts[0]);
+      p._lat = parseFloat(parts[1]);
+      return;
+    }
+    try {
+      const r = await API.addressGeocode(p.address, city);
+      if (r && r.lng && r.lat) { p._lng = r.lng; p._lat = r.lat; }
+    } catch(_) {}
+  });
+  await Promise.all(batchGeocodePromises);
+
+  // 为每个 place 解析最终坐标
+  const markerPositions = [];
+  places.forEach((p, i) => {
+    if (p._lng != null && p._lat != null) {
+      p.lng = p._lng; p.lat = p._lat;
+    } else {
+      // 随机偏移中心点
+      const ang = (i / Math.max(places.length, 1)) * Math.PI * 2;
+      const r = 0.02 + (i % 4) * 0.015;
+      p.lng = lng + Math.cos(ang) * r;
+      p.lat = lat + Math.sin(ang) * r;
+    }
+    markerPositions.push([p.lng, p.lat]);
+  });
+
+  // SVG 渐变水滴标记
+  const COLORS = ['#ef4444','#f59e0b','#10b981','#3b82f6','#a855f7','#ec4899','#14b8a6','#f97316'];
+  markerPositions.forEach((pos, i) => {
+    const p = places[i];
+    const color = COLORS[i % COLORS.length];
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="52" viewBox="0 0 40 52" style="overflow:visible">
+  <defs>
+    <radialGradient id="cmpg${i}" cx="50%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="${color}" stop-opacity="1"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0.65"/>
+    </radialGradient>
+    <filter id="cmps${i}" x="-50%" y="-30%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1.5"/>
+      <feOffset dx="0" dy="1.5" result="off"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.4"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <path d="M20 50 C12 45 6 35 6 23 A14 14 0 1 1 34 23 C34 35 28 45 20 50 Z"
+        fill="rgba(0,0,0,0.3)" transform="translate(0,1.5)" filter="url(#cmps${i})"/>
+  <path d="M20 50 C12 45 6 35 6 23 A14 14 0 1 1 34 23 C34 35 28 45 20 50 Z"
+        fill="url(#cmpg${i})" stroke="#fff" stroke-width="2"/>
+  <circle cx="20" cy="22" r="11" fill="#fff" opacity="0.96"/>
+  <text x="20" y="26" text-anchor="middle" font-size="14">${p.icon || '📍'}</text>
+</svg>`;
+    const base64 = btoa(unescape(encodeURIComponent(svg)));
+    const marker = new AMap.Marker({
+      position: pos,
+      title: p.name,
+      content: `<div style="transform:translate(-20px,-52px);cursor:pointer">
+        <img src="data:image/svg+xml;base64,${base64}" width="40" height="52" style="display:block;transition:transform .2s" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+      </div>`,
+      offset: new AMap.Pixel(0, 0)
+    });
+    marker.setMap(compMapInstance);
+    // InfoWindow
+    marker.on('click', () => {
+      const infoContent = `<div style="padding:8px 12px;min-width:180px">
+        <div style="font-size:14px;font-weight:700;margin-bottom:4px">${p.icon} ${esc(p.name)}</div>
+        <div style="font-size:12px;color:#64748b">${esc(p.meta || p.address || '无更多信息')}</div>
+      </div>`;
+      compMapInstance.openInfoWindow(new AMap.InfoWindow({ content: infoContent, offset: new AMap.Pixel(0, -30) }, pos));
+    });
+  });
+
+  // 自适应视野
+  if (markerPositions.length > 0) {
+    compMapInstance.setBounds(markerPositions);
+  } else {
+    compMapInstance.setCenter([lng, lat]);
+    compMapInstance.setZoom(12);
+  }
+
+  // 控件
+  try { compMapInstance.addControl(new AMap.Scale()); } catch(e) {}
+  try { compMapInstance.addControl(new AMap.ToolBar({ position: 'RB' })); } catch(e) {}
+
+  // 构建侧边栏
+  side.innerHTML = `<div style="padding:0 0 8px;text-align:left;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px">
+    <div style="font-size:12px;font-weight:600;color:var(--text)">📍 ${esc(city)} 地点列表</div>
+    <div style="font-size:10px;color:var(--text-2);letter-spacing:.02em">共 ${places.length} 个地点 · 点击定位</div>
+  </div>` + places.map((p, i) => `
+    <div class="comp__map-side-item" data-i="${i}">
+      <div class="comp__map-side-item__icon">${p.icon}</div>
+      <div class="comp__map-side-item__body">
+        <div class="comp__map-side-item__name">${esc(p.name)}</div>
+        <div class="comp__map-side-item__meta">${esc(p.meta || p.address || '')}</div>
+      </div>
+    </div>
+  `).join('');
+
+  // 侧边栏 ↔ 地图联动
+  side.querySelectorAll('.comp__map-side-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      const i = parseInt(el.dataset.i);
+      const pos = markerPositions[i];
+      if (pos) {
+        compMapInstance.setCenter(pos);
+        compMapInstance.setZoom(15);
+      }
+      side.querySelectorAll('.comp__map-side-item').forEach((it, j) => {
+        it.style.background = j === i ? 'rgba(240,183,131,.10)' : '';
+        it.style.borderColor = j === i ? 'rgba(240,183,131,.4)' : '';
+      });
+    });
+  });
 }
 
 /* 从聊天 POI 搜索结果渲染到地图上 */
 async function renderCompanionMapFromPOIs(type, city, pois){
+  if (!pois || !pois.length) return;
+  const typeIconMap = {
+    '饮品': '🧋', '美食': '🍜', '甜品': '🍰', '景点': '🎫',
+    '购物': '🛍', '交通': '🚄', '酒店': '🏨', '生活服务': '🚻'
+  };
   const wrap = document.getElementById('compMapWrap');
   const container = document.getElementById('compMapContainer');
   const side = document.getElementById('compMapSide');
-  if (!wrap || !container || !side || !pois || !pois.length) return;
-  // 类型 → 图标/标记映射
-  const typeIconMap = {
-    '饮品': { icon: '🧋', cls: 'cm-marker--drink' },
-    '美食': { icon: '🍜', cls: 'cm-marker--rest' },
-    '甜品': { icon: '🍰', cls: 'cm-marker--drink' },
-    '景点': { icon: '🎫', cls: 'cm-marker--poi' },
-    '购物': { icon: '🛍', cls: 'cm-marker--poi' },
-    '交通': { icon: '🚄', cls: 'cm-marker--trans' },
-    '酒店': { icon: '🏨', cls: 'cm-marker--hotel' },
-    '生活服务': { icon: '🚻', cls: 'cm-marker--poi' }
-  };
-  const map = typeIconMap[type] || { icon: '📍', cls: 'cm-marker--poi' };
+  if (!wrap || !container || !side) return;
   const places = pois.filter(p => p.name).slice(0, 12).map(p => ({
-    name: p.name, type: type, icon: map.icon, cls: map.cls,
-    meta: p.type || '', address: p.address || '', lng: 0, lat: 0, location: p.location || ''
+    name: p.name, type: type, icon: typeIconMap[type] || '📍',
+    meta: p.type || '', address: p.address || '', location: p.location || ''
   }));
   wrap.style.display = '';
-  try {
-    const cityCoords = (typeof CITY_COORDS !== 'undefined' && CITY_COORDS[city]) || null;
-    let center = cityCoords;
-    if (!center) {
-      const r = await API.cityResolve(city);
-      if (r && r.lng && r.lat) center = { lat: r.lat, lon: r.lng };
-    }
-    if (center) {
-      const mapUrl = API.staticMap(city, 12, '800*520');
-      container.innerHTML = `
-        <img src="${mapUrl}" alt="${esc(city)}地图" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div style=&quot;display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:13px&quot;>🗺 ${esc(city)} 地图加载中…</div>')">
-        <div class="comp__map-overlay" id="compMapOverlay" style="position:absolute;inset:0;pointer-events:none"></div>
-      `;
-      const overlay = document.getElementById('compMapOverlay');
-      if (!overlay) return;
-      // 解析坐标：优先用 location 字段，否则用地址 geocode
-      const placeList = [];
-      for (let i = 0; i < places.length; i++) {
-        const p = places[i];
-        let lat, lng;
-        if (p.location && p.location.includes(',')) {
-          const parts = p.location.split(',');
-          lng = parseFloat(parts[0]);
-          lat = parseFloat(parts[1]);
-        }
-        if (!lat || !lng) {
-          const ang = (i / places.length) * Math.PI * 2;
-          const r = 0.03 + (i % 3) * 0.03;
-          lat = center.lat + Math.sin(ang) * r;
-          lng = center.lon + Math.cos(ang) * r;
-          // 尝试 geocode
-          if (p.address) {
-            try {
-              const r = await API.addressGeocode(p.address, city);
-              if (r && r.lng && r.lat) { lng = r.lng; lat = r.lat; }
-            } catch (_) {}
-          }
-        }
-        placeList.push({ ...p, lng, lat });
-      }
-      // 计算投影
-      const bounds = 0.08;
-      const minLat = Math.min(...placeList.map(p => p.lat), center.lat - bounds);
-      const maxLat = Math.max(...placeList.map(p => p.lat), center.lat + bounds);
-      const minLng = Math.min(...placeList.map(p => p.lng), center.lon - bounds);
-      const maxLng = Math.max(...placeList.map(p => p.lng), center.lon + bounds);
-      const w = container.clientWidth || 800;
-      const h = 380;
-      const projX = (lng) => ((lng - minLng) / Math.max(0.0001, maxLng - minLng)) * w;
-      const projY = (lat) => h - ((lat - minLat) / Math.max(0.0001, maxLat - minLat)) * h;
-      overlay.style.pointerEvents = 'auto';
-      overlay.innerHTML = placeList.map((p, i) => {
-        const x = projX(p.lng);
-        const y = projY(p.lat);
-        return `<div class="cm-marker ${p.cls}" data-i="${i}" style="left:${x}px;top:${y}px;animation-delay:${i*60}ms" title="${esc(p.name)}">
-          <span class="cm-marker__icon">${p.icon}</span>
-        </div>`;
-      }).join('');
-      // 侧边栏
-      side.innerHTML = `<div class="comp__map-side-empty" style="padding:0 0 12px;text-align:left">
-        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">${map.icon} ${esc(city)} · ${esc(type)}</div>
-        <div style="font-size:10px;color:var(--text-2);letter-spacing:.02em">共 ${placeList.length} 个地点 · 高德地图实时数据</div>
-      </div>` + placeList.map((p, i) => `
-        <div class="comp__map-side-item" data-i="${i}">
-          <div class="comp__map-side-item__icon">${p.icon}</div>
-          <div class="comp__map-side-item__body">
-            <div class="comp__map-side-item__name">${esc(p.name)}</div>
-            <div class="comp__map-side-item__meta">${esc(p.meta || p.address || '')}</div>
-          </div>
-        </div>
-      `).join('');
-      // 联动交互
-      side.querySelectorAll('.comp__map-side-item').forEach((el) => {
-        el.addEventListener('click', () => {
-          const i = el.dataset.i;
-          overlay.querySelectorAll('.cm-marker').forEach((m, j) => m.classList.toggle('cm-marker--sel', String(j) === i));
-          el.scrollIntoView({behavior:'smooth', block:'nearest'});
-        });
-        el.addEventListener('mouseenter', () => {
-          const i = el.dataset.i;
-          overlay.querySelectorAll('.cm-marker').forEach((m, j) => m.classList.toggle('cm-marker--sel', String(j) === i));
-        });
-      });
-      overlay.querySelectorAll('.cm-marker').forEach((m) => {
-        m.addEventListener('click', () => {
-          const i = m.dataset.i;
-          side.querySelectorAll('.comp__map-side-item').forEach((it, j) => {
-            it.style.background = String(j) === i ? 'rgba(240,183,131,.10)' : '';
-            it.style.borderColor = String(j) === i ? 'rgba(240,183,131,.4)' : '';
-          });
-          side.querySelectorAll('.comp__map-side-item')[i]?.scrollIntoView({behavior:'smooth', block:'nearest'});
-        });
-      });
-    } else {
-      container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:13px;padding:40px;text-align:center;line-height:1.7">⚠️ 暂无该城市坐标数据<br><small>${esc(city)} 不在已知城市库</small></div>`;
-      side.innerHTML = `<div class="comp__map-side-empty">📍 ${esc(city)} 暂无坐标<br><small>尝试查询其他城市</small></div>`;
-    }
-  } catch (e) {
-    container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:12px;padding:20px">地图加载失败：${esc(e.message)}</div>`;
-    side.innerHTML = '<div class="comp__map-side-empty">⚠️ 地图初始化失败</div>';
-  }
+  await renderCompanionAMap(city, places, side);
 }
 
 async function runCompTool(tool){
