@@ -212,6 +212,29 @@
 - 一句话快速入口（懒人模式：填表太麻烦？直接说）
 - 实时对话修改（生成后继续聊天改行程）
 
+**📸 智能规划截图：**
+
+<details>
+<summary>🖼️ 点击展开智能规划相关截图</summary>
+
+| 主页 - 填写信息 | 今日推荐 | AI 思考链 + 推理栈 |
+|:---:|:---:|:---:|
+| ![输入表单](./assets/screenshots/input-form.png) | ![今日推荐](./assets/screenshots/daily-recommendation.png) | ![AI思考链](./assets/screenshots/ai-thinking-chain.png) |
+
+| 智能规划页面 | 完整路线地图 | 路线验证 8 维评分 |
+|:---:|:---:|:---:|
+| ![智能规划](./assets/screenshots/smart-planning.png) | ![地图路线](./assets/screenshots/full-route-map.png) | ![路线验证](./assets/screenshots/route-validation.png) |
+
+| 每日安排 + 多方式导出 | 交通方式对比 & 票价 | 餐厅推荐（5 档价位） |
+|:---:|:---:|:---:|
+| ![每日安排](./assets/screenshots/daily-itinerary-export.png) | ![交通对比](./assets/screenshots/transport-comparison.png) | ![餐厅推荐](./assets/screenshots/restaurant-recommendation.png) |
+
+| 酒店推荐（4 档星级） | 目的地天气 | 多维度旅行贴士 | 当地特色体验 |
+|:---:|:---:|:---:|:---:|
+| ![酒店推荐](./assets/screenshots/hotel-recommendation.png) | ![天气](./assets/screenshots/destination-weather.png) | ![旅行贴士](./assets/screenshots/multi-dim-tips.png) | ![特色体验](./assets/screenshots/local-specials.png) |
+
+</details>
+
 ### 2️⃣ 旅途伴侣（主页 Tab 2 + 独立全屏页）
 
 **用途**：出行途中实时查询，**城市锁定为**智能规划选择的城市，不可切换。
@@ -236,6 +259,21 @@
 - 实时汇率（Frankfurter 永久免费 API）
 - 自由对话模式（支持非出行类话题的常规问答）
 
+**📸 旅途伴侣截图：**
+
+<details>
+<summary>🖼️ 点击展开旅途伴侣相关截图</summary>
+
+| 旅途伴侣页面 | NTP 授时服务器 | 日历 & 节假日倒计时 |
+|:---:|:---:|:---:|
+| ![旅途伴侣](./assets/screenshots/travel-companion.png) | ![NTP](./assets/screenshots/ntp-time-server.png) | ![日历](./assets/screenshots/calendar-display.png) |
+
+| 黄历显示 | 节假日倒计时 |
+|:---:|:---:|
+| ![黄历](./assets/screenshots/huangli-calendar.png) | ![倒计时](./assets/screenshots/holiday-countdown.png) |
+
+</details>
+
 ### 3️⃣ 社区路线（主页 Tab 3 + 独立全屏页 + 复盘沉淀）
 
 **用途**：用户众包路线库，以及旅途结束后的复盘沉淀。
@@ -251,6 +289,17 @@
 - 实际花费与计划预算的对比分析
 - AI 评估差异并生成改进建议
 - 一键沉淀为社区路线（+50 经验值）
+
+**📸 社区路线截图：**
+
+<details>
+<summary>🖼️ 点击展开社区路线相关截图</summary>
+
+| 社区路线页面 |
+|:---:|
+| ![社区路线](./assets/screenshots/community-routes.png) |
+
+</details>
 
 ---
 ## 🚀 快速启动（推荐）
