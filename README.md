@@ -42,27 +42,38 @@
 
 ## 📑 目录
 
-- [🎯 项目背景与定位](#-项目背景与定位)
-- [💡 命名由来](#-命名由来)
-- [🌟 核心亮点](#-核心亮点)
-- [📸 功能展示](#-功能展示三大模块)
-- [🏗️ 技术架构](#-技术架构)
-- [🧪 技术栈全览](#-技术栈全览)
-- [🧠 核心实现原理](#-核心实现原理)
-- [🎨 设计哲学](#-设计哲学)
-- [🎁 细节小心思](#-细节小心思)
-- [🚧 已知不足 / 待改进空间（Roadmap）](#-已知不足--待改进空间roadmap)
-- [🚀 快速启动](#-快速启动推荐)
-- [🛠️ 手动安装指南](#-手动安装指南)
-- [🔑 申请 API 密钥](#-申请-api-密钥)
-- [📊 API 接口文档](#-api-接口文档)
-- [🤝 部署指南](#-部署指南)
-- [⚙️ CI/CD 与自动化](#-cicd-与自动化)
-- [🔐 安全设计](#-安全设计)
-- [📈 性能与可观测性](#-性能与可观测性)
-- [📁 完整目录结构](#-完整目录结构)
-- [🏆 比赛信息](#-比赛信息)
-- [📜 License](#-license)
+### 🚀 快速上手
+- [快速启动（推荐）](#-快速启动推荐)
+- [手动安装指南](#-手动安装指南)
+- [申请 API 密钥](#-申请-api-密钥)
+
+### 📖 项目介绍
+- [项目背景与定位](#-项目背景与定位)
+- [命名由来](#-命名由来)
+- [核心亮点](#-核心亮点)
+- [比赛信息](#-比赛信息)
+- [功能展示（三大模块）](#-功能展示三大模块)
+
+### 🏗️ 架构与设计
+- [技术架构](#-技术架构)
+- [技术栈全览](#-技术栈全览)
+- [核心实现原理](#-核心实现原理)
+- [设计哲学](#-设计哲学)
+- [细节小心思](#-细节小心思)
+
+### 🤝 部署与参考
+- [部署指南](#-部署指南)
+- [CI/CD 与自动化](#-cicd-与自动化)
+- [安全设计](#-安全设计)
+- [性能与可观测性](#-性能与可观测性)
+- [已知不足 / 待改进空间（Roadmap）](#-已知不足--待改进空间roadmap)
+- [API 接口文档](#-api-接口文档)
+- [完整目录结构](#-完整目录结构)
+
+### 📄 附录
+- [License](#-license)
+- [致谢](#-致谢)
+- [同时感谢（彩蛋 · 非赞助）](#-同时感谢彩蛋--非赞助)
 
 ---
 
@@ -108,6 +119,37 @@
 | 🥉 | **AES-256-CBC 加密密钥 + gitleaks CI 扫描** | 开源项目中少见的「密钥零泄露」工程实践 |
 | 🥉 | **省级→地级市级联 + 输入联想** | 真正符合中国行政区划习惯 |
 | 🥉 | **6 类思考链**（高德/天气/交通/酒店/餐厅/AI）实时标注 | 提高 AI 输出的**可信度**与**可解释性** |
+
+---
+
+## 🏆 比赛信息
+
+| 项 | 内容 |
+|---|------|
+| **赛事** | 2026 年度"火山杯"Agent 创新大赛暨国赛遴选赛 |
+| **学校** | 深圳信息职业技术大学 |
+| **队伍编号** | 第 123 号 |
+| **项目名** | 123 就出发（Travel Verified, Not Memorized）|
+| **赛题方向** | 旅行规划 + AI 验证 + 社区众包 |
+
+### 项目解决的问题
+
+> **核心问题：如何让 AI 生成的旅行方案具备可信度？**
+
+- **问题 1**：AI 输出黑盒，用户难以信任推荐结果
+  - **解决方案**：12 步思考链 + 实时数据源标注 + 8 维量化评分
+- **问题 2**：攻略社区内容过时、质量参差不齐
+  - **解决方案**：AI × 真实数据 × 社区三方交叉验证
+- **问题 3**：旅途孤立无援，现有 AI 助手仅限于出行前规划
+  - **解决方案**：旅途伴侣 + 定位感知 + 应急拨号 + 实时 POI
+
+### 核心创新点
+
+1. **可解释 AI** —— 不局限于「AI 输出结果」，而是完整展示 AI 的推理过程、查询内容及推荐依据
+2. **三位一体范式** —— 规划 + 验证 + 陪伴，形成旅行体验的完整闭环
+3. **真实数据优先** —— 280+ 真实城市库、12306 真实票价算法、5 大真实平台比价
+4. **工程化程度** —— CI/CD、密钥加密、单元测试、文档全覆盖，达到工业级标准
+5. **设计语言创新** —— 液态玻璃 × 深夜暖金，纯原生实现，无 React/Vue 也能做到现代感
 
 ---
 
@@ -209,6 +251,195 @@
 - 实际花费与计划预算的对比分析
 - AI 评估差异并生成改进建议
 - 一键沉淀为社区路线（+50 经验值）
+
+---
+## 🚀 快速启动（推荐）
+
+> **前置条件**：确保已安装 Node.js 18+。
+
+### Windows 用户
+
+```cmd
+1. 下载/克隆本仓库到本地
+2. 双击 start.bat
+3. 首次会提示编辑 .env 填密钥
+4. 保存后再双击 start.bat
+5. 浏览器自动打开 http://localhost:3000 🎉
+```
+
+### Mac / Linux 用户
+
+```bash
+git clone https://github.com/JimmyMi001/SUIT-TRAE-123Lets-GO.git
+cd SUIT-TRAE-123Lets-GO
+chmod +x start.sh
+./start.sh
+```
+
+**自动化流程**（[scripts/setup.js](./scripts/setup.js) 自动完成所有前置工作）：
+
+1. 检查 Node.js 版本 ≥ 18
+2. 检测 `.env` 文件，不存在则从 `.env.example` 复制
+3. 检查密钥是否为占位符，提示用户填写
+4. 检测 `node_modules` 缺失则自动执行 `npm install`
+5. 启动服务 `npm start`
+6. 2 秒后自动打开浏览器
+
+---
+
+## 🔑 申请 API 密钥
+
+### 1. 高德地图 API Key（必填）
+
+**用途**：POI 搜索、路线规划、天气、地图
+
+**申请步骤**（约 2 分钟）：
+
+1. 打开 https://lbs.amap.com/dev/key/app
+2. 点击右上角「注册」→ 用手机号注册
+3. 登录后进入「控制台」
+4. 左侧菜单「应用管理」→ 「我的应用」→ 「创建新应用」
+   - 应用名称：随便填，比如 `123-travel`
+   - 应用类型：选「其他」
+5. 创建后点「添加 Key」
+   - Key 名称：随便填
+   - **服务平台：务必选「Web 服务」（不是「Web 端(JS API)」）**
+   - 提交
+6. 复制生成的 Key（32 位十六进制），粘贴到 `.env`：
+   ```
+   AMAP_KEY=your_amap_web_service_key_here   # 32位十六进制,从高德控制台复制
+   ```
+
+> 💡 **JS API Key 与 Web 服务 Key 的区别**：
+> - Web 服务 Key：用于服务端调用（POI/天气/路线）
+> - JS API Key：用于浏览器端加载地图
+>
+> 本项目仅需 Web 服务 Key 即可运行（JS API Key 已硬编码于 index.html 作为演示用途，**不推荐用于生产环境**）
+
+### 2. DeepSeek API Key（必填）
+
+**用途**：AI 行程设计 + 旅途伴侣对话
+
+**免费额度**：注册赠送 ¥10（约 1000 万 tokens，满足日常使用）
+
+**申请步骤**（约 1 分钟）：
+
+1. 打开 https://platform.deepseek.com/api_keys
+2. 用手机号注册
+3. 登录后进入「API Keys」页面
+4. 点「创建新 Key」
+5. 名字随便填（比如 `123-travel`）
+6. 复制生成的 Key（`sk-` 开头），粘贴到 `.env`：
+   ```
+   DEEPSEEK_KEY=sk-your_deepseek_key_here   # sk- 开头,从 DeepSeek 控制台创建
+   ```
+
+> 💡 **本项目使用 `deepseek-v4-flash` 模型**，相比 V3 速度提升 3 倍，价格降低 50%，中文能力相当。
+
+### 3. 验证密钥是否生效
+
+启动服务后访问 http://localhost:3000/api/health：
+
+```json
+{
+  "ok": true,
+  "amap_configured": true,
+  "deepseek_configured": true
+}
+```
+
+两个 `configured` 字段均为 `true` 即表示配置成功。
+
+> ⚠️ **无密钥亦可运行**，但地图与 AI 功能将提示错误。社区路线、UI 交互及基础显示不受影响。
+
+---
+
+## 🛠️ 手动安装指南
+
+> 如需手动安装或因环境限制无法使用一键脚本，请按以下步骤操作。
+
+### 第一步：安装必备环境
+
+#### 1.1 Node.js（必需）
+
+- 前往 https://nodejs.org/download/
+- 下载 **Node.js 18 LTS 或更高版本**（推荐 20.x）
+- 安装时**务必勾选** "Add to PATH" 选项
+- 验证安装成功：
+  ```bash
+  node -v    # 应输出 v18.x.x 或更高
+  npm -v     # 应输出 9.x 或更高
+  ```
+
+#### 1.2 Git（克隆仓库用，可选）
+
+- 前往 https://git-scm.com/downloads
+- 下载安装
+- 验证：`git --version`
+
+#### 1.3 文本编辑器（编辑 .env）
+- 推荐 VS Code：https://code.visualstudio.com/
+
+### 第二步：获取代码
+
+#### 方式 A：Git 克隆（推荐）
+
+```bash
+git clone https://github.com/JimmyMi001/SUIT-TRAE-123Lets-GO.git
+cd SUIT-TRAE-123Lets-GO
+```
+
+#### 方式 B：ZIP 下载
+
+1. 打开 https://github.com/JimmyMi001/SUIT-TRAE-123Lets-GO
+2. 点绿色 "Code" 按钮 → "Download ZIP"
+3. 解压到任意目录
+4. 进入解压后的目录
+
+### 第三步：安装依赖
+
+```bash
+npm install
+```
+
+**国内网络优化**（如安装缓慢）：
+```bash
+npm config set registry https://registry.npmmirror.com
+npm install
+```
+
+### 第四步：配置环境变量
+
+将 `.env.example` 复制为 `.env`：
+
+```bash
+# Mac/Linux
+cp .env.example .env
+
+# Windows (CMD)
+copy .env.example .env
+
+# Windows (PowerShell)
+Copy-Item .env.example .env
+```
+
+然后用文本编辑器打开 `.env`，填入 [申请 API 密钥](#-申请-api-密钥) 部分获取的两个密钥。
+
+### 第五步：启动服务
+
+```bash
+npm start
+```
+
+看到以下输出表示启动成功：
+```
+[2026-07-29 18:30:00] GET /api/health
+Server listening on http://localhost:3000
+```
+
+### 第六步：打开浏览器
+
+访问 http://localhost:3000 即可使用。
 
 ---
 
@@ -568,7 +799,6 @@ app.get('/api/amap/staticmap', async (req, res) => {
 - **配合 prefers-reduced-motion 媒体查询**（无障碍适配）
 - **禁用 bounce/elastic 缓动及 scroll-jacking**
 - **动画时长 0.2-0.6s**，入场 stagger 总时长 ≤ 1.2s
-
 ### 地图标记设计（CSS 绘制）
 
 | 类型 | 颜色 | 动效 |
@@ -603,350 +833,6 @@ app.get('/api/amap/staticmap', async (req, res) => {
 | 🔁 **复盘经验沉淀** | 复盘页 | "实际 vs 计划"AI 评估，一键分享到社区 (+50 经验值)，形成闭环 |
 
 > 💡 **设计理念**：产品的「诚意」不仅体现在核心功能，更体现在用户未必主动关注、但看到时会会心一笑的细节之处。这是将「工具」升华为「作品」的分水岭。
-
----
-
-## 🚧 已知不足 / 待改进空间（Roadmap）
-
-> **透明度是开源项目的基石** — 以下各项均为当前代码库中真实存在的局限性，每一项均附有改进成本估算及涉及文件，便于贡献者快速上手。
-
-### 当前局限（10 项）
-
-| # | 类别 | 现状 | 涉及文件 / 改进成本 |
-|---|------|------|-------------------|
-| 1 | **数据规模** | `POI_DB` 仅 19 城真实坐标 POI，其余 260+ 城市走通用兜底；县级市 / 4A 以下景区需高德 Key 实时拉取；`LOCAL_SPECIALS_DB` 仅 20+ 城市特色饮品 & 美食数据，其余城市为通用兜底建议 | [server.js:2047-2250](file:///d:/SUIT%20Trae%20CN/server.js#L2047-L2250) · 🟡 中（数据众包） |
-| 2 | **票务/酒店/餐厅价格** | 算法估算而非实时抓取，README 接口章节已标注"参考估算" | [server.js:2408-2470](file:///d:/SUIT%20Trae%20CN/server.js#L2408-L2470) · 🔴 高（需爬虫 + 合规） |
-| 3 | **测试覆盖** | `test/` 目录**不存在**，仅依赖 CI 语法检查 + 密钥扫描 + 加密校验 | 项目根 · 🟢 低（加 Jest 即可） |
-| 4 | **AI 单点依赖** | 仅 DeepSeek 一个 AI 提供商；Key 缺失降级到本地启发式，无多模型 fallback | [server.js:2680-2700](file:///d:/SUIT%20Trae%20CN/server.js#L2680-L2700) · 🟡 中（加 Anthropic / 通义 / 文心适配） |
-| 5 | **前端工程化** | 纯原生 JS，**无 TypeScript / 无打包 / 无状态管理**；CSS 散落 8 个文件，变量未统一 | [js/](file:///d:/SUIT%20Trae%20CN/js/) · 🟡 中（可选 Vite + TS 渐进迁移） |
-| 6 | **可观测性** | 无 APM、无前端性能埋点（LCP/FCP/INP）；错误处理大量 `console.error` 静默 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中（接 Sentry / Prometheus） |
-| 7 | **安全 / 隐私** | 无用户系统、无登录注册、无 GDPR 合规设计、无 Rate Limiting、无 Cookie 同意 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中 |
-| 8 | **国际化** | 仅中文界面；货币仅人民币；字体仅适配简中（繁体/英文 fallback 弱） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（接 i18next） |
-| 9 | **部署 / 运维** | 强依赖 Vercel，**无 Dockerfile**、无蓝绿部署、无集中式日志 | 根目录 · 🟡 中（加 Dockerfile + docker-compose.yml） |
-| 10 | **移动端** | 无 PWA / 离线模式 / Service Worker；无 App 包装（Capacitor / RN） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（manifest.json + sw.js） |
-
-> **图例**：🟢 1 周内可完成 · 🟡 1-4 周 · 🔴 1 月以上
-
-### 短期可改进（1-2 周 · 适合新贡献者）
-
-- [ ] 补充 30+ 城市真实 POI 数据（向 `POI_DB[city]` 数组添加含 lng/lat/name/type 的条目）
-- [ ] 补充 20+ 城市特色饮品及美食数据（向 `LOCAL_SPECIALS_DB[city]` 添加 drinks 和 foods 数组）
-- [ ] 添加 Jest 单元测试，覆盖 `recommendRestaurants` / `scoreItinerary` / `generateMultiDimTips`
-- [ ] 增加 `express-rate-limit` 实现基础 DoS 防护（10 req/s/IP）
-- [ ] CSS 变量系统重构：将 `#F0A500` / `DM Serif Display` 等抽取至 `:root` 统一定义
-- [ ] 添加 `Dockerfile`（`FROM node:18-alpine` 即可）
-- [ ] 错误日志结构化：将 `console.error` 替换为 JSON Line 格式（便于后续对接日志平台）
-
-### 中期可改进（1-2 月 · 需产品与工程权衡）
-
-- [ ] **用户系统**：注册/登录/个人路线库（Postgres + Prisma + JWT）
-- [ ] **第二 AI 提供商 fallback**：通义千问 / 文心一言 / 智谱 GLM（任一可用即接管）
-- [ ] **真实价格聚合**：携程/美团/去哪儿价格抓取（需注意 `robots.txt` 合规及缓存策略）
-- [ ] **PWA 化**：`manifest.json` + Service Worker + 离线行程缓存
-- [ ] **i18n 框架**：接入 `i18next`，优先支持英文（契合团队国际化背景）
-- [ ] **可观测性**：Sentry（前端错误监控）+ Prometheus（后端 QPS/延迟）+ Grafana 看板
-
-### 长期可演进（3 月以上 · 产品级跃迁）
-
-- [ ] **多 AI Agent 协同**：规划 Agent + 验证 Agent + 谈判 Agent（各 Agent 独立 prompt 与模型）
-- [ ] **实时多人协作**：通过 WebSocket + CRDT（Yjs）实现多人同时编辑同一份行程
-- [ ] **AR 实景导航**：接入高德 AR 步行导航 API
-- [ ] **路线市场**：创作者可定价售卖路线，平台抽佣（涉及支付、分账及合规）
-- [ ] **公开数据集**：将 `data/community.json` 以 CC-BY-SA 协议开放为公开数据集
-
-### 贡献指引
-
-> 选择适合自身技能方向的任务，提交 PR 即可，CI 通过后合并：
-
-| 方向 | 适合人群 | 入门指南 |
-|------|---------|---------|
-| 🎨 **设计/UX** | 前端 / 设计师 | 修改 [css/](file:///d:/SUIT%20Trae%20CN/css/) 目录下文件 → 运行 `node server.js` 实时预览 |
-| ⚙️ **后端** | Node.js 工程师 | 查阅 [server.js](file:///d:/SUIT%20Trae%20CN/server.js) 顶部注释 → 新增 API 或测试 |
-| 🧠 **AI / Prompt** | 算法 / Prompt 工程师 | 修改 [server.js:2680-2990](file:///d:/SUIT%20Trae%20CN/server.js#L2680-L2990) 的 prompt 模板 |
-| 📊 **数据** | 数据 / 爬虫工程师 | 在 `data/` 目录增删 JSON，或向 `POI_DB` 添加新城市，或向 `LOCAL_SPECIALS_DB` 补充特色数据 |
-| 🌐 **i18n** | 翻译 / 前端 | 将 [index.html](file:///d:/SUIT%20Trae%20CN/index.html) 中的中文文案抽取至 `i18n/zh.json` |
-| 📱 **移动** | PWA / RN 工程师 | 添加 `manifest.json` + `sw.js`，或使用 Capacitor 打包 |
-| 🧪 **测试** | QA / 后端 | 创建 `test/` 目录及 `*.test.js` 测试文件，CI 将自动执行 |
-
-**最低贡献门槛**：执行 `npm install && node server.js` 启动项目，提交一个通过 CI 的 PR。
-
-### 📋 贡献流程（5 步）
-
-1. **Fork** 本仓库 → 创建功能分支（`git checkout -b feat/your-feature`）
-2. **本地开发** → 运行 `node server.js` 自测 → 确保无新增 `console.error`
-3. **编写测试**（如有逻辑变更）→ 确保 `npm test` 通过
-4. **提交** → Commit message 遵循 `feat:` / `fix:` / `docs:` / `refactor:` 前缀规范
-5. **推送并提交 PR** → 在 PR 描述中附截图或 GIF，并说明实现思路
-
-### 📜 Code of Conduct
-
-- **不破坏现有功能**：所有按钮、API 必须保持向后兼容
-- **保持设计语言**：暗夜底色 + 暖金强调，**禁止紫色渐变 / Inter 字体 / 纯白背景**
-- **保持思考链可观测性**：AI 生成的每一步需确保前端可获取「为什么」
-- **数据来源必须标注**：票价、酒店、餐厅、天气、路线等均需注明真实数据来源及估算说明
-
----
-
-> 💡 **为何将待改进内容写入 README**：  
-> 真正优秀的项目不仅展示既有成果，也坦诚呈现尚待完善的方面。  
-> 公开局限性并非示弱，而是邀请 —— 将接力棒传递给下一位维护者的最佳方式。
-
----
-
-## 🚀 快速启动（推荐）
-
-> **前置条件**：确保已安装 Node.js 18+。
-
-### Windows 用户
-
-```cmd
-1. 下载/克隆本仓库到本地
-2. 双击 start.bat
-3. 首次会提示编辑 .env 填密钥
-4. 保存后再双击 start.bat
-5. 浏览器自动打开 http://localhost:3000 🎉
-```
-
-### Mac / Linux 用户
-
-```bash
-git clone https://github.com/JimmyMi001/SUIT-TRAE-123Lets-GO.git
-cd SUIT-TRAE-123Lets-GO
-chmod +x start.sh
-./start.sh
-```
-
-**自动化流程**（[scripts/setup.js](./scripts/setup.js) 自动完成所有前置工作）：
-
-1. 检查 Node.js 版本 ≥ 18
-2. 检测 `.env` 文件，不存在则从 `.env.example` 复制
-3. 检查密钥是否为占位符，提示用户填写
-4. 检测 `node_modules` 缺失则自动执行 `npm install`
-5. 启动服务 `npm start`
-6. 2 秒后自动打开浏览器
-
----
-
-## 🛠️ 手动安装指南
-
-> 如需手动安装或因环境限制无法使用一键脚本，请按以下步骤操作。
-
-### 第一步：安装必备环境
-
-#### 1.1 Node.js（必需）
-
-- 前往 https://nodejs.org/download/
-- 下载 **Node.js 18 LTS 或更高版本**（推荐 20.x）
-- 安装时**务必勾选** "Add to PATH" 选项
-- 验证安装成功：
-  ```bash
-  node -v    # 应输出 v18.x.x 或更高
-  npm -v     # 应输出 9.x 或更高
-  ```
-
-#### 1.2 Git（克隆仓库用，可选）
-
-- 前往 https://git-scm.com/downloads
-- 下载安装
-- 验证：`git --version`
-
-#### 1.3 文本编辑器（编辑 .env）
-- 推荐 VS Code：https://code.visualstudio.com/
-
-### 第二步：获取代码
-
-#### 方式 A：Git 克隆（推荐）
-
-```bash
-git clone https://github.com/JimmyMi001/SUIT-TRAE-123Lets-GO.git
-cd SUIT-TRAE-123Lets-GO
-```
-
-#### 方式 B：ZIP 下载
-
-1. 打开 https://github.com/JimmyMi001/SUIT-TRAE-123Lets-GO
-2. 点绿色 "Code" 按钮 → "Download ZIP"
-3. 解压到任意目录
-4. 进入解压后的目录
-
-### 第三步：安装依赖
-
-```bash
-npm install
-```
-
-**国内网络优化**（如安装缓慢）：
-```bash
-npm config set registry https://registry.npmmirror.com
-npm install
-```
-
-### 第四步：配置环境变量
-
-将 `.env.example` 复制为 `.env`：
-
-```bash
-# Mac/Linux
-cp .env.example .env
-
-# Windows (CMD)
-copy .env.example .env
-
-# Windows (PowerShell)
-Copy-Item .env.example .env
-```
-
-然后用文本编辑器打开 `.env`，填入 [申请 API 密钥](#-申请-api-密钥) 部分获取的两个密钥。
-
-### 第五步：启动服务
-
-```bash
-npm start
-```
-
-看到以下输出表示启动成功：
-```
-[2026-07-29 18:30:00] GET /api/health
-Server listening on http://localhost:3000
-```
-
-### 第六步：打开浏览器
-
-访问 http://localhost:3000 即可使用。
-
----
-
-## 🔑 申请 API 密钥
-
-### 1. 高德地图 API Key（必填）
-
-**用途**：POI 搜索、路线规划、天气、地图
-
-**申请步骤**（约 2 分钟）：
-
-1. 打开 https://lbs.amap.com/dev/key/app
-2. 点击右上角「注册」→ 用手机号注册
-3. 登录后进入「控制台」
-4. 左侧菜单「应用管理」→ 「我的应用」→ 「创建新应用」
-   - 应用名称：随便填，比如 `123-travel`
-   - 应用类型：选「其他」
-5. 创建后点「添加 Key」
-   - Key 名称：随便填
-   - **服务平台：务必选「Web 服务」（不是「Web 端(JS API)」）**
-   - 提交
-6. 复制生成的 Key（32 位十六进制），粘贴到 `.env`：
-   ```
-   AMAP_KEY=your_amap_web_service_key_here   # 32位十六进制,从高德控制台复制
-   ```
-
-> 💡 **JS API Key 与 Web 服务 Key 的区别**：
-> - Web 服务 Key：用于服务端调用（POI/天气/路线）
-> - JS API Key：用于浏览器端加载地图
->
-> 本项目仅需 Web 服务 Key 即可运行（JS API Key 已硬编码于 index.html 作为演示用途，**不推荐用于生产环境**）
-
-### 2. DeepSeek API Key（必填）
-
-**用途**：AI 行程设计 + 旅途伴侣对话
-
-**免费额度**：注册赠送 ¥10（约 1000 万 tokens，满足日常使用）
-
-**申请步骤**（约 1 分钟）：
-
-1. 打开 https://platform.deepseek.com/api_keys
-2. 用手机号注册
-3. 登录后进入「API Keys」页面
-4. 点「创建新 Key」
-5. 名字随便填（比如 `123-travel`）
-6. 复制生成的 Key（`sk-` 开头），粘贴到 `.env`：
-   ```
-   DEEPSEEK_KEY=sk-your_deepseek_key_here   # sk- 开头,从 DeepSeek 控制台创建
-   ```
-
-> 💡 **本项目使用 `deepseek-v4-flash` 模型**，相比 V3 速度提升 3 倍，价格降低 50%，中文能力相当。
-
-### 3. 验证密钥是否生效
-
-启动服务后访问 http://localhost:3000/api/health：
-
-```json
-{
-  "ok": true,
-  "amap_configured": true,
-  "deepseek_configured": true
-}
-```
-
-两个 `configured` 字段均为 `true` 即表示配置成功。
-
-> ⚠️ **无密钥亦可运行**，但地图与 AI 功能将提示错误。社区路线、UI 交互及基础显示不受影响。
-
----
-
-## 📊 API 接口文档
-
-> 总计 100+ 个端点，下面是核心分组。完整定义见 [`server.js`](./server.js)。
-
-### 健康检查
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/health` | 返回服务状态 + 密钥配置情况 |
-
-### 高德代理
-| 方法 | 路径 | 参数 | 说明 |
-|---|---|---|---|
-| GET | `/api/amap/poi` | keywords, city, offset | POI 搜索 |
-| GET | `/api/amap/detail` | id | POI 详情 |
-| GET | `/api/amap/direction` | origin, destination, type | 路线规划（driving/walking/transit）|
-| GET | `/api/amap/weather` | city | 实时天气 |
-| GET | `/api/amap/staticmap` | city, zoom, size | 静态地图（同源返回，绕过 ORB）|
-
-### 城市解析
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/city/cascading` | 省级→地级市级联（27省+4直辖市+5自治区+2特别行政区）|
-| GET | `/api/city/list` | 扁平城市列表（含县级市热门）|
-| GET | `/api/city/resolve?name=xxx` | 未知城市自动解析（高德地理编码+POI 搜索）|
-| GET | `/api/address/geocode?address=xxx&city=yyy` | 详细地址 → 坐标 |
-
-### 智能规划
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/destinations/recommend?seed=xxx&user_city=xxx` | 每日推荐（天气×季节×标签 3 因素）|
-| POST | `/api/itinerary/plan` | 12 步思考链生成行程 |
-| GET | `/api/itinerary/verify?city=xxx&days=xxx` | 8 维验证评分 |
-| GET | `/api/itinerary/departure?city=xxx&days=xxx` | 未来 15 天出发日期推荐 |
-
-### AI 集成
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/chat?q=xxx` | DeepSeek 单轮对话（旅途伴侣用）|
-
-### 社区路线
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/routes` | 列表（支持 city/days/budget 筛选）|
-| GET | `/api/routes/search?q=xxx` | 关键词搜索 |
-| GET | `/api/routes/:id` | 详情 |
-| POST | `/api/routes` | 创建 |
-| GET | `/api/routes/curated` | 策展真实路线（含 12306/携程/小红书等来源）|
-| POST | `/api/routes/import-curated/:id` | 一键入库策展路线到 community.json |
-| GET | `/api/routes/sources` | 来源平台清单（去重统计）|
-
-### 旅途伴侣
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/companion/poi?type=toilet&city=xxx&lng=xxx&lat=xxx` | 附近 POI 查找 |
-| GET | `/api/companion/navigate?from=xxx&to=xxx` | 通用导航 |
-| GET | `/api/fx?from=USD&to=CNY` | 汇率（Frankfurter）|
-
-### 元信息
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/holidays/next` | 下一个节假日 + 倒计时 + 黄历 |
-| GET | `/api/holidays/list?year=2026` | 全年节假日列表 |
-| GET | `/api/lunar?date=2026-07-29` | 农历日期 |
-| GET | `/api/time/now` | 服务器时间（UTC+8）|
 
 ---
 
@@ -1117,6 +1003,160 @@ npm run setup  # 等价于 scripts/setup.js
 
 ---
 
+## 🚧 已知不足 / 待改进空间（Roadmap）
+
+> **透明度是开源项目的基石** — 以下各项均为当前代码库中真实存在的局限性，每一项均附有改进成本估算及涉及文件，便于贡献者快速上手。
+
+### 当前局限（10 项）
+
+| # | 类别 | 现状 | 涉及文件 / 改进成本 |
+|---|------|------|-------------------|
+| 1 | **数据规模** | `POI_DB` 仅 19 城真实坐标 POI，其余 260+ 城市走通用兜底；县级市 / 4A 以下景区需高德 Key 实时拉取；`LOCAL_SPECIALS_DB` 仅 20+ 城市特色饮品 & 美食数据，其余城市为通用兜底建议 | [server.js:2047-2250](file:///d:/SUIT%20Trae%20CN/server.js#L2047-L2250) · 🟡 中（数据众包） |
+| 2 | **票务/酒店/餐厅价格** | 算法估算而非实时抓取，README 接口章节已标注"参考估算" | [server.js:2408-2470](file:///d:/SUIT%20Trae%20CN/server.js#L2408-L2470) · 🔴 高（需爬虫 + 合规） |
+| 3 | **测试覆盖** | `test/` 目录**不存在**，仅依赖 CI 语法检查 + 密钥扫描 + 加密校验 | 项目根 · 🟢 低（加 Jest 即可） |
+| 4 | **AI 单点依赖** | 仅 DeepSeek 一个 AI 提供商；Key 缺失降级到本地启发式，无多模型 fallback | [server.js:2680-2700](file:///d:/SUIT%20Trae%20CN/server.js#L2680-L2700) · 🟡 中（加 Anthropic / 通义 / 文心适配） |
+| 5 | **前端工程化** | 纯原生 JS，**无 TypeScript / 无打包 / 无状态管理**；CSS 散落 8 个文件，变量未统一 | [js/](file:///d:/SUIT%20Trae%20CN/js/) · 🟡 中（可选 Vite + TS 渐进迁移） |
+| 6 | **可观测性** | 无 APM、无前端性能埋点（LCP/FCP/INP）；错误处理大量 `console.error` 静默 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中（接 Sentry / Prometheus） |
+| 7 | **安全 / 隐私** | 无用户系统、无登录注册、无 GDPR 合规设计、无 Rate Limiting、无 Cookie 同意 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中 |
+| 8 | **国际化** | 仅中文界面；货币仅人民币；字体仅适配简中（繁体/英文 fallback 弱） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（接 i18next） |
+| 9 | **部署 / 运维** | 强依赖 Vercel，**无 Dockerfile**、无蓝绿部署、无集中式日志 | 根目录 · 🟡 中（加 Dockerfile + docker-compose.yml） |
+| 10 | **移动端** | 无 PWA / 离线模式 / Service Worker；无 App 包装（Capacitor / RN） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（manifest.json + sw.js） |
+
+> **图例**：🟢 1 周内可完成 · 🟡 1-4 周 · 🔴 1 月以上
+
+### 短期可改进（1-2 周 · 适合新贡献者）
+
+- [ ] 补充 30+ 城市真实 POI 数据（向 `POI_DB[city]` 数组添加含 lng/lat/name/type 的条目）
+- [ ] 补充 20+ 城市特色饮品及美食数据（向 `LOCAL_SPECIALS_DB[city]` 添加 drinks 和 foods 数组）
+- [ ] 添加 Jest 单元测试，覆盖 `recommendRestaurants` / `scoreItinerary` / `generateMultiDimTips`
+- [ ] 增加 `express-rate-limit` 实现基础 DoS 防护（10 req/s/IP）
+- [ ] CSS 变量系统重构：将 `#F0A500` / `DM Serif Display` 等抽取至 `:root` 统一定义
+- [ ] 添加 `Dockerfile`（`FROM node:18-alpine` 即可）
+- [ ] 错误日志结构化：将 `console.error` 替换为 JSON Line 格式（便于后续对接日志平台）
+
+### 中期可改进（1-2 月 · 需产品与工程权衡）
+
+- [ ] **用户系统**：注册/登录/个人路线库（Postgres + Prisma + JWT）
+- [ ] **第二 AI 提供商 fallback**：通义千问 / 文心一言 / 智谱 GLM（任一可用即接管）
+- [ ] **真实价格聚合**：携程/美团/去哪儿价格抓取（需注意 `robots.txt` 合规及缓存策略）
+- [ ] **PWA 化**：`manifest.json` + Service Worker + 离线行程缓存
+- [ ] **i18n 框架**：接入 `i18next`，优先支持英文（契合团队国际化背景）
+- [ ] **可观测性**：Sentry（前端错误监控）+ Prometheus（后端 QPS/延迟）+ Grafana 看板
+
+### 长期可演进（3 月以上 · 产品级跃迁）
+
+- [ ] **多 AI Agent 协同**：规划 Agent + 验证 Agent + 谈判 Agent（各 Agent 独立 prompt 与模型）
+- [ ] **实时多人协作**：通过 WebSocket + CRDT（Yjs）实现多人同时编辑同一份行程
+- [ ] **AR 实景导航**：接入高德 AR 步行导航 API
+- [ ] **路线市场**：创作者可定价售卖路线，平台抽佣（涉及支付、分账及合规）
+- [ ] **公开数据集**：将 `data/community.json` 以 CC-BY-SA 协议开放为公开数据集
+
+### 贡献指引
+
+> 选择适合自身技能方向的任务，提交 PR 即可，CI 通过后合并：
+
+| 方向 | 适合人群 | 入门指南 |
+|------|---------|---------|
+| 🎨 **设计/UX** | 前端 / 设计师 | 修改 [css/](file:///d:/SUIT%20Trae%20CN/css/) 目录下文件 → 运行 `node server.js` 实时预览 |
+| ⚙️ **后端** | Node.js 工程师 | 查阅 [server.js](file:///d:/SUIT%20Trae%20CN/server.js) 顶部注释 → 新增 API 或测试 |
+| 🧠 **AI / Prompt** | 算法 / Prompt 工程师 | 修改 [server.js:2680-2990](file:///d:/SUIT%20Trae%20CN/server.js#L2680-L2990) 的 prompt 模板 |
+| 📊 **数据** | 数据 / 爬虫工程师 | 在 `data/` 目录增删 JSON，或向 `POI_DB` 添加新城市，或向 `LOCAL_SPECIALS_DB` 补充特色数据 |
+| 🌐 **i18n** | 翻译 / 前端 | 将 [index.html](file:///d:/SUIT%20Trae%20CN/index.html) 中的中文文案抽取至 `i18n/zh.json` |
+| 📱 **移动** | PWA / RN 工程师 | 添加 `manifest.json` + `sw.js`，或使用 Capacitor 打包 |
+| 🧪 **测试** | QA / 后端 | 创建 `test/` 目录及 `*.test.js` 测试文件，CI 将自动执行 |
+
+**最低贡献门槛**：执行 `npm install && node server.js` 启动项目，提交一个通过 CI 的 PR。
+
+### 📋 贡献流程（5 步）
+
+1. **Fork** 本仓库 → 创建功能分支（`git checkout -b feat/your-feature`）
+2. **本地开发** → 运行 `node server.js` 自测 → 确保无新增 `console.error`
+3. **编写测试**（如有逻辑变更）→ 确保 `npm test` 通过
+4. **提交** → Commit message 遵循 `feat:` / `fix:` / `docs:` / `refactor:` 前缀规范
+5. **推送并提交 PR** → 在 PR 描述中附截图或 GIF，并说明实现思路
+
+### 📜 Code of Conduct
+
+- **不破坏现有功能**：所有按钮、API 必须保持向后兼容
+- **保持设计语言**：暗夜底色 + 暖金强调，**禁止紫色渐变 / Inter 字体 / 纯白背景**
+- **保持思考链可观测性**：AI 生成的每一步需确保前端可获取「为什么」
+- **数据来源必须标注**：票价、酒店、餐厅、天气、路线等均需注明真实数据来源及估算说明
+
+---
+
+> 💡 **为何将待改进内容写入 README**：  
+> 真正优秀的项目不仅展示既有成果，也坦诚呈现尚待完善的方面。  
+> 公开局限性并非示弱，而是邀请 —— 将接力棒传递给下一位维护者的最佳方式。
+
+---
+
+## 📊 API 接口文档
+
+> 总计 100+ 个端点，下面是核心分组。完整定义见 [`server.js`](./server.js)。
+
+### 健康检查
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/health` | 返回服务状态 + 密钥配置情况 |
+
+### 高德代理
+| 方法 | 路径 | 参数 | 说明 |
+|---|---|---|---|
+| GET | `/api/amap/poi` | keywords, city, offset | POI 搜索 |
+| GET | `/api/amap/detail` | id | POI 详情 |
+| GET | `/api/amap/direction` | origin, destination, type | 路线规划（driving/walking/transit）|
+| GET | `/api/amap/weather` | city | 实时天气 |
+| GET | `/api/amap/staticmap` | city, zoom, size | 静态地图（同源返回，绕过 ORB）|
+
+### 城市解析
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/city/cascading` | 省级→地级市级联（27省+4直辖市+5自治区+2特别行政区）|
+| GET | `/api/city/list` | 扁平城市列表（含县级市热门）|
+| GET | `/api/city/resolve?name=xxx` | 未知城市自动解析（高德地理编码+POI 搜索）|
+| GET | `/api/address/geocode?address=xxx&city=yyy` | 详细地址 → 坐标 |
+
+### 智能规划
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/destinations/recommend?seed=xxx&user_city=xxx` | 每日推荐（天气×季节×标签 3 因素）|
+| POST | `/api/itinerary/plan` | 12 步思考链生成行程 |
+| GET | `/api/itinerary/verify?city=xxx&days=xxx` | 8 维验证评分 |
+| GET | `/api/itinerary/departure?city=xxx&days=xxx` | 未来 15 天出发日期推荐 |
+
+### AI 集成
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/chat?q=xxx` | DeepSeek 单轮对话（旅途伴侣用）|
+
+### 社区路线
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/routes` | 列表（支持 city/days/budget 筛选）|
+| GET | `/api/routes/search?q=xxx` | 关键词搜索 |
+| GET | `/api/routes/:id` | 详情 |
+| POST | `/api/routes` | 创建 |
+| GET | `/api/routes/curated` | 策展真实路线（含 12306/携程/小红书等来源）|
+| POST | `/api/routes/import-curated/:id` | 一键入库策展路线到 community.json |
+| GET | `/api/routes/sources` | 来源平台清单（去重统计）|
+
+### 旅途伴侣
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/companion/poi?type=toilet&city=xxx&lng=xxx&lat=xxx` | 附近 POI 查找 |
+| GET | `/api/companion/navigate?from=xxx&to=xxx` | 通用导航 |
+| GET | `/api/fx?from=USD&to=CNY` | 汇率（Frankfurter）|
+
+### 元信息
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/holidays/next` | 下一个节假日 + 倒计时 + 黄历 |
+| GET | `/api/holidays/list?year=2026` | 全年节假日列表 |
+| GET | `/api/lunar?date=2026-07-29` | 农历日期 |
+| GET | `/api/time/now` | 服务器时间（UTC+8）|
+
+---
+
 ## 📁 完整目录结构
 
 ```
@@ -1191,37 +1231,6 @@ SUIT-TRAE-123Lets-GO/
     ├── LICENSE                   # MIT
     └── push-to-github.ps1        # 一键推送脚本
 ```
-
----
-
-## 🏆 比赛信息
-
-| 项 | 内容 |
-|---|------|
-| **赛事** | 2026 年度"火山杯"Agent 创新大赛暨国赛遴选赛 |
-| **学校** | 深圳信息职业技术大学 |
-| **队伍编号** | 第 123 号 |
-| **项目名** | 123 就出发（Travel Verified, Not Memorized）|
-| **赛题方向** | 旅行规划 + AI 验证 + 社区众包 |
-
-### 项目解决的问题
-
-> **核心问题：如何让 AI 生成的旅行方案具备可信度？**
-
-- **问题 1**：AI 输出黑盒，用户难以信任推荐结果
-  - **解决方案**：12 步思考链 + 实时数据源标注 + 8 维量化评分
-- **问题 2**：攻略社区内容过时、质量参差不齐
-  - **解决方案**：AI × 真实数据 × 社区三方交叉验证
-- **问题 3**：旅途孤立无援，现有 AI 助手仅限于出行前规划
-  - **解决方案**：旅途伴侣 + 定位感知 + 应急拨号 + 实时 POI
-
-### 核心创新点
-
-1. **可解释 AI** —— 不局限于「AI 输出结果」，而是完整展示 AI 的推理过程、查询内容及推荐依据
-2. **三位一体范式** —— 规划 + 验证 + 陪伴，形成旅行体验的完整闭环
-3. **真实数据优先** —— 280+ 真实城市库、12306 真实票价算法、5 大真实平台比价
-4. **工程化程度** —— CI/CD、密钥加密、单元测试、文档全覆盖，达到工业级标准
-5. **设计语言创新** —— 液态玻璃 × 深夜暖金，纯原生实现，无 React/Vue 也能做到现代感
 
 ---
 
