@@ -29,6 +29,7 @@ package-lock.json.bak
 logs/
 server.log
 server.err.log
+server.err
 
 # 系统
 .DS_Store
