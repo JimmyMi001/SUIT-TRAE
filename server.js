@@ -4743,29 +4743,48 @@ process.on('unhandledRejection', (reason) => {
   console.error(`\n  ⚠️  [未处理 Promise 拒绝] ${msg}\n`);
 });
 
+// 进程退出原因追踪（帮助排查静默死亡）
+process.on('beforeExit', (code) => { console.error(`\n  [beforeExit] code=${code}\n`); });
+process.on('exit', (code) => { console.error(`\n  [exit] code=${code}\n`); });
+
 /* ---------- 导出 + 启动 ---------- */
 module.exports = app;
 
 if (require.main === module) {
-  const server = app.listen(PORT, () => {
-    const keyStatus = AMAP_KEY && AMAP_KEY !== 'your_amap_key_here' ? '已配置' : '未配置（API 将返回空数据，前端走 Mock）';
-    console.log(`\n  123 就出发 · 后端服务已启动`);
-    console.log(`  ➜  http://localhost:${PORT}`);
-    console.log(`  ➜  健康检查    GET /api/health`);
-    console.log(`  ➜  社区路线    GET /api/routes`);
-    console.log(`  ➜  高德 Key   ${keyStatus}\n`);
-  });
-
-  // 优雅退出 - 捕获 SIGTERM/SIGINT 时先关服务器再退出
-  ['SIGTERM', 'SIGINT'].forEach(sig => {
-    process.on(sig, () => {
-      console.log(`\n  ⏳  收到 ${sig}，正在关闭服务...`);
-      server.close(() => {
-        console.log(`  ✅  服务已关闭\n`);
-        process.exit(0);
-      });
-      // 5 秒后强制退出
-      setTimeout(() => process.exit(1), 5000);
+  // 先杀掉可能占用端口的僵尸进程，避免 EADDRINUSE
+  const http = require('http');
+  const tryListen = () => {
+    const server = http.createServer(app);
+    server.once('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`\n  ⚠️  端口 ${PORT} 被占用，3 秒后重试...`);
+        setTimeout(() => { server.close(); tryListen(); }, 3000);
+        return;
+      }
+      console.error(`\n  ❌  服务器错误: ${err.message}`);
+      process.exit(1);
     });
-  });
+    server.listen(PORT, () => {
+      const keyStatus = AMAP_KEY && AMAP_KEY !== 'your_amap_key_here' ? '已配置' : '未配置（API 将返回空数据，前端走 Mock）';
+      console.log(`\n  123 就出发 · 后端服务已启动`);
+      console.log(`  ➜  http://localhost:${PORT}`);
+      console.log(`  ➜  健康检查    GET /api/health`);
+      console.log(`  ➜  社区路线    GET /api/routes`);
+      console.log(`  ➜  高德 Key   ${keyStatus}\n`);
+
+      // 优雅退出 - 捕获 SIGTERM/SIGINT 时先关服务器再退出
+      ['SIGTERM', 'SIGINT'].forEach(sig => {
+        process.on(sig, () => {
+          console.log(`\n  ⏳  收到 ${sig}，正在关闭服务...`);
+          server.close(() => {
+            console.log(`  ✅  服务已关闭\n`);
+            process.exit(0);
+          });
+          // 10 秒后才强制退出（给 server.close 足够时间）
+          setTimeout(() => { console.error(`  ⚠️  超时，强制退出`); process.exit(1); }, 10000);
+        });
+      });
+    });
+  };
+  tryListen();
 }
