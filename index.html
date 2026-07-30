@@ -3869,6 +3869,9 @@ async function loadPlan(){
       pax:params.pax||'情侣', tags:(params.tags||[]).join(','),
       depart_in_days: params.departDays || 0
     }));
+    if (data.__error) {
+      throw new Error(data.message || '服务器连接失败，请稍后重试');
+    }
     const dt = ((Date.now()-t0)/1000).toFixed(1);
     currentItinerary = data;
     // 标记 live progress 完成（真实数据已到达）
@@ -3922,6 +3925,9 @@ async function sendPlanChat(){
   const t0 = Date.now();
   try {
     const data = await API.agentRefine({ ...getPlanParams(), previous: currentItinerary, message: msg, history: chatHistory });
+    if (data.__error) {
+      throw new Error(data.message || '服务器连接失败，请稍后重试');
+    }
     const dt = ((Date.now()-t0)/1000).toFixed(1);
     currentItinerary = data;
     chatHistory.push({ role: 'user', text: msg });

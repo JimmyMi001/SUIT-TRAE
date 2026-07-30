@@ -65,7 +65,7 @@ async function callAmapRaw(pathname, qs) {
     return { status: '0', info: 'AMAP_KEY 未配置', count: '0' };
   }
   const url = `https://restapi.amap.com${pathname}?key=${AMAP_KEY}&${qs}`;
-  const r = await fetch(url, { headers: { 'User-Agent': '123-travel/1.0' } });
+  const r = await fetch(url, { headers: { 'User-Agent': '123-travel/1.0' }, signal: AbortSignal.timeout(5000) });
   if (!r.ok) throw new Error(`amap http ${r.status}`);
   return r.json();
 }
