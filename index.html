@@ -1703,9 +1703,7 @@
   /* 出发建议 */
   .depart-suggest{position:relative;background:rgba(15,17,22,.5);border:1px solid var(--line);
     border-radius:14px;padding:24px;margin:24px 0;backdrop-filter:blur(8px);overflow:hidden}
-  .depart-suggest::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
-    background:linear-gradient(90deg,var(--accent),transparent);background-size:200% 100%;
-    animation:aurora-shift 4s linear infinite}
+
   .depart-suggest__title{font-family:var(--mono);font-size:12px;color:var(--accent);
     margin-bottom:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:500;
     display:flex;align-items:center;gap:8px}
@@ -1816,6 +1814,7 @@
   .cm-marker--poi{background:linear-gradient(135deg,#10b981,#059669);border-color:rgba(16,185,129,.6)}
   .cm-marker--hotel{background:linear-gradient(135deg,#6366f1,#4f46e5);border-color:rgba(99,102,241,.6)}
   .cm-marker--rest{background:linear-gradient(135deg,#f59e0b,#ea580c);border-color:rgba(245,158,11,.6)}
+  .cm-marker--drink{background:linear-gradient(135deg,#ec4899,#db2777);border-color:rgba(236,72,153,.6)}
   .cm-marker--trans{background:linear-gradient(135deg,#06b6d4,#0891b2);border-color:rgba(6,182,212,.6)}
   .cm-marker--sel{animation:cm-marker-pulse 1.4s ease-in-out infinite;
     z-index:10;box-shadow:0 0 0 0 rgba(240,183,131,.7),0 8px 24px rgba(0,0,0,.5)}
@@ -2228,7 +2227,8 @@
         <div class="comp__map-legend">
           <span class="comp__map-legend-item"><span class="cm-marker cm-marker--poi"></span>景点</span>
           <span class="comp__map-legend-item"><span class="cm-marker cm-marker--hotel"></span>酒店</span>
-          <span class="comp__map-legend-item"><span class="cm-marker cm-marker--rest"></span>餐厅</span>
+          <span class="comp__map-legend-item"><span class="cm-marker cm-marker--rest"></span>餐饮</span>
+          <span class="comp__map-legend-item"><span class="cm-marker cm-marker--drink"></span>饮品</span>
           <span class="comp__map-legend-item"><span class="cm-marker cm-marker--trans"></span>交通</span>
         </div>
         <button class="comp__map-toggle" id="compMapToggle" title="收起/展开地图">🔼 收起</button>
@@ -4128,7 +4128,7 @@ function getBBox(city){
 /* ========== 8. 旅途伴侣 ========== */
 const COMP_QUICK = [
   { label:'📍 附近美食', msg:'附近美食' },
-  { label:'☕ 附近咖啡', msg:'附近咖啡' },
+  { label:'🧋 附近饮品', msg:'附近饮品' },
   { label:'🏨 找酒店', msg:'附近酒店' },
   { label:'🌤 明天天气', msg:'明天天气' },
   { label:'💱 当前汇率', msg:'当前汇率' },
@@ -4367,14 +4367,13 @@ async function compSend(){
     return;
   }
 
-  // 4) POI 搜索（附近/美食/酒店/景点/购物/厕所/咖啡）
-  if(/附近|美食|吃|餐厅|酒店|厕所|咖啡|找|逛|景点|购物|交通|玩|景区|夜市|洗手间|公厕|卫生间|商场|住宿|住哪|民宿|奶茶|甜品|甜点|蛋糕|面包/.test(msg)){
+  // 4) POI 搜索（附近/美食/酒店/景点/购物/厕所/饮品）
+  if(/附近|美食|吃|餐厅|酒店|厕所|饮品|咖啡|奶茶|找|逛|景点|购物|交通|玩|景区|夜市|洗手间|公厕|卫生间|商场|住宿|住哪|民宿|甜品|甜点|蛋糕|面包/.test(msg)){
     let type = '景点';
     let keywords = '';  // 自定义 Amap 关键字
     // 1) 特定 POI 类型 — 优先用精准关键字
-    if(/奶茶|喜茶|奈雪|一点点|蜜雪|茶百道|古茗/.test(msg)) { type = '奶茶'; keywords = '奶茶|奶茶店|喜茶|奈雪|一点点'; }
+    if(/奶茶|咖啡|饮品|星巴克|瑞幸|MANNER|Tims|皮爷|seesaw|喜茶|奈雪|一点点|蜜雪|茶百道|古茗|霸王茶姬|沪上阿姨|书亦|CoCo|都可/.test(msg)) { type = '饮品'; keywords = '奶茶|咖啡|饮品|星巴克|瑞幸|喜茶|奈雪|蜜雪冰城|茶百道|MANNER|一点点|CoCo都可|霸王茶姬|古茗'; }
     else if(/甜品|甜点|蛋糕|冰淇淋|糖水|烘焙|面包|下午茶/.test(msg)) { type = '甜品'; keywords = '甜品|甜点|蛋糕|冰淇淋|糖水|面包房'; }
-    else if(/咖啡|星巴克|瑞幸|MANNER|Tims|皮爷|seesaw|%arabica/.test(msg)) { type = '咖啡'; keywords = '咖啡|咖啡厅|咖啡店|星巴克|瑞幸|MANNER|Tims'; }
     else if(/酒店|住宿|民宿|青旅|客栈|住哪|宾馆/.test(msg)) { type = '酒店'; }
     else if(/厕所|卫生间|公厕|洗手间/.test(msg)) { type = '生活服务'; keywords = '厕所|洗手间|公厕|卫生间'; }
     else if(/美食|吃|餐厅|夜市|小吃|早茶|宵夜|特色菜|川菜|湘菜|粤菜|海鲜|烧烤|火锅|面馆/.test(msg)) { type = '美食'; keywords = '美食|餐厅|小吃|特色菜'; }
@@ -4432,8 +4431,10 @@ async function compSend(){
       </div>`).join('');
       compAddMsg('agent', `📍 <strong>${city} · ${type}</strong>（${pois.length} 条）：<br>${list}`,
         `🔍 数据源：${r?.source || '聚合'}`);
+      // 在地图上标点
+      renderCompanionMapFromPOIs(type, city, pois);
     } else {
-      compAddMsg('agent', `${city} 没搜到 ${type}，试试其他关键词（附近美食/附近酒店/附近厕所/附近咖啡）`, '⚠️');
+      compAddMsg('agent', `${city} 没搜到 ${type}，试试其他关键词（附近美食/附近酒店/附近厕所/附近饮品）`, '⚠️');
     }
     return;
   }
@@ -4814,6 +4815,132 @@ async function collectAndRenderMap(tool, city, data){
       });
     } else {
       container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:13px;padding:40px;text-align:center;line-height:1.7">⚠️ 暂无该城市坐标数据<br><small>' + esc(city) + ' 不在已知城市库</small></div>';
+      side.innerHTML = `<div class="comp__map-side-empty">📍 ${esc(city)} 暂无坐标<br><small>尝试查询其他城市</small></div>`;
+    }
+  } catch (e) {
+    container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:12px;padding:20px">地图加载失败：${esc(e.message)}</div>`;
+    side.innerHTML = '<div class="comp__map-side-empty">⚠️ 地图初始化失败</div>';
+  }
+}
+
+/* 从聊天 POI 搜索结果渲染到地图上 */
+async function renderCompanionMapFromPOIs(type, city, pois){
+  const wrap = document.getElementById('compMapWrap');
+  const container = document.getElementById('compMapContainer');
+  const side = document.getElementById('compMapSide');
+  if (!wrap || !container || !side || !pois || !pois.length) return;
+  // 类型 → 图标/标记映射
+  const typeIconMap = {
+    '饮品': { icon: '🧋', cls: 'cm-marker--drink' },
+    '美食': { icon: '🍜', cls: 'cm-marker--rest' },
+    '甜品': { icon: '🍰', cls: 'cm-marker--drink' },
+    '景点': { icon: '🎫', cls: 'cm-marker--poi' },
+    '购物': { icon: '🛍', cls: 'cm-marker--poi' },
+    '交通': { icon: '🚄', cls: 'cm-marker--trans' },
+    '酒店': { icon: '🏨', cls: 'cm-marker--hotel' },
+    '生活服务': { icon: '🚻', cls: 'cm-marker--poi' }
+  };
+  const map = typeIconMap[type] || { icon: '📍', cls: 'cm-marker--poi' };
+  const places = pois.filter(p => p.name).slice(0, 12).map(p => ({
+    name: p.name, type: type, icon: map.icon, cls: map.cls,
+    meta: p.type || '', address: p.address || '', lng: 0, lat: 0, location: p.location || ''
+  }));
+  wrap.style.display = '';
+  try {
+    const cityCoords = (typeof CITY_COORDS !== 'undefined' && CITY_COORDS[city]) || null;
+    let center = cityCoords;
+    if (!center) {
+      const r = await API.cityResolve(city);
+      if (r && r.lng && r.lat) center = { lat: r.lat, lon: r.lng };
+    }
+    if (center) {
+      const mapUrl = API.staticMap(city, 12, '800*520');
+      container.innerHTML = `
+        <img src="${mapUrl}" alt="${esc(city)}地图" onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<div style=&quot;display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:13px&quot;>🗺 ${esc(city)} 地图加载中…</div>')">
+        <div class="comp__map-overlay" id="compMapOverlay" style="position:absolute;inset:0;pointer-events:none"></div>
+      `;
+      const overlay = document.getElementById('compMapOverlay');
+      if (!overlay) return;
+      // 解析坐标：优先用 location 字段，否则用地址 geocode
+      const placeList = [];
+      for (let i = 0; i < places.length; i++) {
+        const p = places[i];
+        let lat, lng;
+        if (p.location && p.location.includes(',')) {
+          const parts = p.location.split(',');
+          lng = parseFloat(parts[0]);
+          lat = parseFloat(parts[1]);
+        }
+        if (!lat || !lng) {
+          const ang = (i / places.length) * Math.PI * 2;
+          const r = 0.03 + (i % 3) * 0.03;
+          lat = center.lat + Math.sin(ang) * r;
+          lng = center.lon + Math.cos(ang) * r;
+          // 尝试 geocode
+          if (p.address) {
+            try {
+              const r = await API.addressGeocode(p.address, city);
+              if (r && r.lng && r.lat) { lng = r.lng; lat = r.lat; }
+            } catch (_) {}
+          }
+        }
+        placeList.push({ ...p, lng, lat });
+      }
+      // 计算投影
+      const bounds = 0.08;
+      const minLat = Math.min(...placeList.map(p => p.lat), center.lat - bounds);
+      const maxLat = Math.max(...placeList.map(p => p.lat), center.lat + bounds);
+      const minLng = Math.min(...placeList.map(p => p.lng), center.lon - bounds);
+      const maxLng = Math.max(...placeList.map(p => p.lng), center.lon + bounds);
+      const w = container.clientWidth || 800;
+      const h = 380;
+      const projX = (lng) => ((lng - minLng) / Math.max(0.0001, maxLng - minLng)) * w;
+      const projY = (lat) => h - ((lat - minLat) / Math.max(0.0001, maxLat - minLat)) * h;
+      overlay.style.pointerEvents = 'auto';
+      overlay.innerHTML = placeList.map((p, i) => {
+        const x = projX(p.lng);
+        const y = projY(p.lat);
+        return `<div class="cm-marker ${p.cls}" data-i="${i}" style="left:${x}px;top:${y}px;animation-delay:${i*60}ms" title="${esc(p.name)}">
+          <span class="cm-marker__icon">${p.icon}</span>
+        </div>`;
+      }).join('');
+      // 侧边栏
+      side.innerHTML = `<div class="comp__map-side-empty" style="padding:0 0 12px;text-align:left">
+        <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">${map.icon} ${esc(city)} · ${esc(type)}</div>
+        <div style="font-size:10px;color:var(--text-2);letter-spacing:.02em">共 ${placeList.length} 个地点 · 高德地图实时数据</div>
+      </div>` + placeList.map((p, i) => `
+        <div class="comp__map-side-item" data-i="${i}">
+          <div class="comp__map-side-item__icon">${p.icon}</div>
+          <div class="comp__map-side-item__body">
+            <div class="comp__map-side-item__name">${esc(p.name)}</div>
+            <div class="comp__map-side-item__meta">${esc(p.meta || p.address || '')}</div>
+          </div>
+        </div>
+      `).join('');
+      // 联动交互
+      side.querySelectorAll('.comp__map-side-item').forEach((el) => {
+        el.addEventListener('click', () => {
+          const i = el.dataset.i;
+          overlay.querySelectorAll('.cm-marker').forEach((m, j) => m.classList.toggle('cm-marker--sel', String(j) === i));
+          el.scrollIntoView({behavior:'smooth', block:'nearest'});
+        });
+        el.addEventListener('mouseenter', () => {
+          const i = el.dataset.i;
+          overlay.querySelectorAll('.cm-marker').forEach((m, j) => m.classList.toggle('cm-marker--sel', String(j) === i));
+        });
+      });
+      overlay.querySelectorAll('.cm-marker').forEach((m) => {
+        m.addEventListener('click', () => {
+          const i = m.dataset.i;
+          side.querySelectorAll('.comp__map-side-item').forEach((it, j) => {
+            it.style.background = String(j) === i ? 'rgba(240,183,131,.10)' : '';
+            it.style.borderColor = String(j) === i ? 'rgba(240,183,131,.4)' : '';
+          });
+          side.querySelectorAll('.comp__map-side-item')[i]?.scrollIntoView({behavior:'smooth', block:'nearest'});
+        });
+      });
+    } else {
+      container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:13px;padding:40px;text-align:center;line-height:1.7">⚠️ 暂无该城市坐标数据<br><small>${esc(city)} 不在已知城市库</small></div>`;
       side.innerHTML = `<div class="comp__map-side-empty">📍 ${esc(city)} 暂无坐标<br><small>尝试查询其他城市</small></div>`;
     }
   } catch (e) {
