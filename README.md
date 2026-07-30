@@ -158,38 +158,19 @@
 > **3 个主模块 · 7 个 HTML 页面 · 8 个 CSS 文件 · 9 个 JS 模块**
 > 主页 `index.html` 以顶部 3 个 Tab 承载三大主模块；点击"生成行程"后跳转到独立 `verify.html` 验证页；每个主模块都有独立全屏子页（旅途伴侣/社区/复盘）。
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  index.html (主页 · 一站式)                               │
-│  ┌─ Tab 1 🎯 智能规划  ┌─ Tab 2 💬 旅途伴侣  ┌─ Tab 3 🌍 社区路线 │
-│  │  · 城市级联 + 标签   │  · 城市锁死        │  · 搜索/筛选  │
-│  │  · 一句话生成        │  · 详细地址解析    │  · 收藏/评分  │
-│  │  · AI 思考链        │  · 快捷工具        │  · 分享路线  │
-│  │  · 6 种交通比价      │  · 实时 POI        │  · 评论      │
-│  │  · 5 档餐厅 + 4 档酒店 + 特色饮品美食 │  · 应急拨号        │             │
-│  └────────────────────┴────────────────────┴─────────────┘
-│        │                       │                      │
-│        ▼                       ▼                      ▼
-│   verify.html            companion.html         community.html
-│   (路线验证·8维评分)      (旅途伴侣全屏)         (社区全屏)
-│        │
-│        ▼
-│   posttrip.html  ←  旅途结束后复盘
-└─────────────────────────────────────────────────────────┘
-```
+**页面结构概览**：
+
+- **index.html（主页）**：包含 3 个 Tab —— 智能规划（城市级联 + 标签选择 + 一句话生成 + AI 思考链 + 6 种交通比价 + 5 档餐厅 + 4 档酒店 + 特色饮品美食）、旅途伴侣（城市锁死 + 详细地址解析 + 快捷工具 + 实时 POI + 应急拨号）、社区路线（搜索/筛选 + 收藏/评分 + 分享路线 + 评论）
+- **verify.html**：路线验证页，8 维评分
+- **companion.html**：旅途伴侣全屏页
+- **community.html**：社区路线全屏页
+- **posttrip.html**：旅途结束后复盘，可沉淀为社区路线
 
 ### 1️⃣ 智能规划（主页 Tab 1 + 验证页 + 复盘页）
 
 **用户旅程**：输入城市、天数、预算及偏好 → 12 步思考链实时展开 → 8 维评分 → 一键成行
 
-```
-┌─ 智能规划 ──────────────┐    ┌─ 验证页 verify.html ─────┐
-│  目的地卡片磁吸效果      │    │  左侧:对话(打字机效果)    │
-│  每日推荐(按天气动态)    │ →  │  中央:高德地图 + 路线     │ →  posttrip.html
-│  省市级联 + 一句话输入    │    │  右侧:8 维评分 + 风险清单 │    复盘"实际 vs 计划"
-│  粒子背景 Three.js      │    │  5 套标记颜色             │    沉淀为社区路线
-└────────────────────────┘    └──────────────────────────┘
-```
+**页面流转**：智能规划页（目的地卡片磁吸效果 + 每日推荐按天气动态 + 省市级联 + 一句话输入 + Three.js 粒子背景）→ 验证页 verify.html（左侧对话打字机效果 + 中央高德地图路线 + 右侧 8 维评分风险清单 + 5 套标记颜色）→ posttrip.html（复盘实际 vs 计划，沉淀为社区路线）
 
 **12 步思考链**（展开后可查看每步推理过程与数据来源）：
 1. 城市解析（280+ 城市库 / 高德地理编码 fallback）
@@ -216,22 +197,23 @@
 
 <details>
 <summary>🖼️ 点击展开智能规划相关截图</summary>
+<br>
 
 | 主页 - 填写信息 | 今日推荐 | AI 思考链 + 推理栈 |
 |:---:|:---:|:---:|
-| ![输入表单](./assets/screenshots/input-form.png) | ![今日推荐](./assets/screenshots/daily-recommendation.png) | ![AI思考链](./assets/screenshots/ai-thinking-chain.png) |
+| <img src="assets/screenshots/input-form.png" alt="输入表单" width="280" /> | <img src="assets/screenshots/daily-recommendation.png" alt="今日推荐" width="280" /> | <img src="assets/screenshots/ai-thinking-chain.png" alt="AI思考链" width="280" /> |
 
 | 智能规划页面 | 完整路线地图 | 路线验证 8 维评分 |
 |:---:|:---:|:---:|
-| ![智能规划](./assets/screenshots/smart-planning.png) | ![地图路线](./assets/screenshots/full-route-map.png) | ![路线验证](./assets/screenshots/route-validation.png) |
+| <img src="assets/screenshots/smart-planning.png" alt="智能规划" width="280" /> | <img src="assets/screenshots/full-route-map.png" alt="地图路线" width="280" /> | <img src="assets/screenshots/route-validation.png" alt="路线验证" width="280" /> |
 
 | 每日安排 + 多方式导出 | 交通方式对比 & 票价 | 餐厅推荐（5 档价位） |
 |:---:|:---:|:---:|
-| ![每日安排](./assets/screenshots/daily-itinerary-export.png) | ![交通对比](./assets/screenshots/transport-comparison.png) | ![餐厅推荐](./assets/screenshots/restaurant-recommendation.png) |
+| <img src="assets/screenshots/daily-itinerary-export.png" alt="每日安排" width="280" /> | <img src="assets/screenshots/transport-comparison.png" alt="交通对比" width="280" /> | <img src="assets/screenshots/restaurant-recommendation.png" alt="餐厅推荐" width="280" /> |
 
 | 酒店推荐（4 档星级） | 目的地天气 | 多维度旅行贴士 | 当地特色体验 |
 |:---:|:---:|:---:|:---:|
-| ![酒店推荐](./assets/screenshots/hotel-recommendation.png) | ![天气](./assets/screenshots/destination-weather.png) | ![旅行贴士](./assets/screenshots/multi-dim-tips.png) | ![特色体验](./assets/screenshots/local-specials.png) |
+| <img src="assets/screenshots/hotel-recommendation.png" alt="酒店推荐" width="200" /> | <img src="assets/screenshots/destination-weather.png" alt="天气" width="200" /> | <img src="assets/screenshots/multi-dim-tips.png" alt="旅行贴士" width="200" /> | <img src="assets/screenshots/local-specials.png" alt="特色体验" width="200" /> |
 
 </details>
 
@@ -239,19 +221,7 @@
 
 **用途**：出行途中实时查询，**城市锁定为**智能规划选择的城市，不可切换。
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  当前城市:广州 (锁死) │ 农历:丙午年 六月十六 │ 距国庆节 67 天  │
-├────────────┬─────────────────────────────┬───────────────────┤
-│ 紧急拨号    │   AI 对话窗口                 │  快捷工具           │
-│ 🚨 110     │   [我迷路了怎么办?]            │  🎫 景点门票       │
-│ 🚑 120     │   [推荐附近好吃的]            │  🏨 找酒店        │
-│ 🔥 119     │   [现在几点?]                  │  ✈️ 机票          │
-│ ↗ 回酒店   │   [哪里换外汇?]                │  🚄 高铁          │
-│            │   ↳ 高德实时 POI 调用         │  💬 智能对话      │
-│            │   ↳ DeepSeek 多轮对话         │  找厕所/商场/ATM  │
-└────────────┴─────────────────────────────┴───────────────────┘
-```
+**功能分区**：顶部信息栏显示当前城市（锁死）、农历日期、节假日倒计时。左侧为紧急拨号区（110/120/119/回酒店）。中央为 AI 对话窗口，支持多轮对话并通过高德实时 POI 和 DeepSeek 提供回复。右侧为快捷工具区（景点门票/找酒店/机票/高铁/智能对话/找厕所/商场/ATM）。
 
 **实用功能**：
 - 详细地址解析（填入区/街道/酒店/景区 → 精确定位）
@@ -263,14 +233,15 @@
 
 <details>
 <summary>🖼️ 点击展开旅途伴侣相关截图</summary>
+<br>
 
 | 旅途伴侣页面 | NTP 授时服务器 | 日历 & 节假日倒计时 |
 |:---:|:---:|:---:|
-| ![旅途伴侣](./assets/screenshots/travel-companion.png) | ![NTP](./assets/screenshots/ntp-time-server.png) | ![日历](./assets/screenshots/calendar-display.png) |
+| <img src="assets/screenshots/travel-companion.png" alt="旅途伴侣" width="280" /> | <img src="assets/screenshots/ntp-time-server.png" alt="NTP" width="280" /> | <img src="assets/screenshots/calendar-display.png" alt="日历" width="280" /> |
 
 | 黄历显示 | 节假日倒计时 |
 |:---:|:---:|
-| ![黄历](./assets/screenshots/huangli-calendar.png) | ![倒计时](./assets/screenshots/holiday-countdown.png) |
+| <img src="assets/screenshots/huangli-calendar.png" alt="黄历" width="350" /> | <img src="assets/screenshots/holiday-countdown.png" alt="倒计时" width="350" /> |
 
 </details>
 
@@ -294,10 +265,11 @@
 
 <details>
 <summary>🖼️ 点击展开社区路线相关截图</summary>
+<br>
 
 | 社区路线页面 |
 |:---:|
-| ![社区路线](./assets/screenshots/community-routes.png) |
+| <img src="assets/screenshots/community-routes.png" alt="社区路线" width="500" /> |
 
 </details>
 
@@ -497,79 +469,27 @@ Server listening on http://localhost:3000
 
 ### 系统架构图
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                          用户浏览器 (Chrome/Edge)                       │
-│  ┌──────────────────────────────────────────────────────────────┐    │
-│  │ HTML (5441行) + CSS (设计系统) + Vanilla JS (模块化)          │    │
-│  │  · 液态玻璃 UI (backdrop-filter + filter:blur)                │    │
-│  │  · Three.js 粒子背景 (Hero区)                                 │    │
-│  │  · 高德 JS API v2.0 (地图渲染/标记/路线)                      │    │
-│  │  · lunar-javascript (农历/黄历)                              │    │
-│  └──────────────────────────────────────────────────────────────┘    │
-└──────────────────────────────┬───────────────────────────────────────┘
-                               │ HTTPS (CORS 允许所有源)
-                               ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│            Node.js 18+ 后端 (Express + 自研代理)                       │
-│  ┌──────────────────────────────────────────────────────────────┐    │
-│  │ server.js (4745 行) · 100+ API 端点 · 6 大路由组              │    │
-│  │  · 高德代理 (POI/detail/direction/weather/staticmap)         │    │
-│  │  · 城市解析 (省级→地级市级联 / 280+ 城市库 / 县级市 fallback) │    │
-│  │  · 智能推荐 (天气×季节×标签 3 因素评分)                       │    │
-│  │  · 路线验证 (8 维评分 + 数值动画)                             │    │
-│  │  · 社区路线 (CRUD + 策展路线)                                 │    │
-│  │  · DeepSeek AI (deepseek-v4-flash · JSON 严格输出)           │    │
-│  │  · 携程机票爬虫（基于 Suysker/Ctrip-Crawler · 可选）          │    │
-│  └──────────────────────────────────────────────────────────────┘    │
-│                                                                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                │
-│  │ env-loader   │  │ flight-      │  │ scripts/     │                │
-│  │ (.env/.enc)  │  │ crawler.js   │  │ encrypt-env  │                │
-│  └──────────────┘  └──────────────┘  └──────────────┘                │
-└──────┬──────────────┬──────────────┬──────────────┬─────────────────┘
-       │              │              │              │
-       ▼              ▼              ▼              ▼
-   ┌────────┐  ┌────────────┐ ┌────────────┐ ┌──────────────┐
-   │ 高德   │  │ Open-Meteo │ │ DeepSeek   │ │ Frankfurter  │
-   │ 开放平台│  │ (天气兜底) │ │ V4 Flash   │ │ (汇率 · 永久免费)│
-   └────────┘  └────────────┘ └────────────┘ └──────────────┘
-       │
-       ▼
-   ┌────────────────────────────┐
-   │ 本地缓存: .cache/maps/      │
-   │ 社区数据: data/community.json│
-   │ 策展数据: data/real-routes-curated.json│
-   └────────────────────────────┘
-```
+**三层架构**：
+
+- **前端（浏览器端）**：HTML（5441 行）+ CSS 设计系统 + Vanilla JS 模块化。核心技术：液态玻璃 UI（backdrop-filter + filter:blur）、Three.js 粒子背景（Hero 区）、高德 JS API v2.0（地图渲染/标记/路线）、lunar-javascript（农历/黄历）。
+- **后端（Node.js 18+）**：Express + 自研代理。server.js（4745 行）提供 100+ API 端点、6 大路由组，包含：高德代理（POI/detail/direction/weather/staticmap）、城市解析（省级→地级市级联 / 280+ 城市库 / 县级市 fallback）、智能推荐（天气×季节×标签 3 因素评分）、路线验证（8 维评分 + 数值动画）、社区路线（CRUD + 策展路线）、DeepSeek AI（deepseek-v4-flash · JSON 严格输出）、携程机票爬虫（可选）。辅助模块：env-loader（.env/.enc 密钥加载）、flight-crawler.js（机票爬虫）、scripts/encrypt-env（环境变量加密）。
+- **外部服务**：高德开放平台（POI/天气/路线）、Open-Meteo（天气兜底）、DeepSeek V4 Flash（AI）、Frankfurter（汇率，永久免费）。
+- **本地存储**：.cache/maps/（地图缓存）、data/community.json（社区数据）、data/real-routes-curated.json（策展数据）。
 
 ### 数据流向（生成一份行程）
 
-```
-用户输入 (城市+天数+预算+偏好)
-    ↓
-[1] city/resolve  → 命中城市库 OR 高德地理编码 OR 通用兜底
-    ↓
-[2] amap/poi  → 高德 POI 搜索 (景点/美食/酒店)
-    ↓
-[3] amap/detail  → POI 详情增强 (电话/营业时间/票种)
-    ↓
-[4] amap/weather  → 实时天气
-    ↓
-[5] DeepSeek AI  → 行程设计 (JSON Schema 严格输出)
-    ↓
-[6] amap/direction  → 真实驾车/步行/公交路线
-    ↓
-[7] 本地启发式算法  → 8 维验证评分
-    ↓
-[8] destinations/recommend  → 出发日期建议
-    ↓
-[9] DeepSeek AI  → 整体评价
-    ↓
-[10] 返回前端  → 思考链 12 步动画 + 数据源徽章
-    ↓
-前端地图渲染 (高德 JS API v2.0) + SVG 路径流动
-```
+用户输入城市、天数、预算及偏好后，经历以下 10 个处理步骤：
+
+1. city/resolve：命中城市库，或通过高德地理编码，或通用兜底
+2. amap/poi：高德 POI 搜索（景点/美食/酒店）
+3. amap/detail：POI 详情增强（电话/营业时间/票种）
+4. amap/weather：获取实时天气
+5. DeepSeek AI：行程设计（JSON Schema 严格输出）
+6. amap/direction：获取真实驾车/步行/公交路线
+7. 本地启发式算法：8 维验证评分
+8. destinations/recommend：出发日期建议
+9. DeepSeek AI：整体评价
+10. 返回前端：思考链 12 步动画 + 数据源徽章，最终由高德 JS API v2.0 完成前端地图渲染和 SVG 路径流动
 
 ---
 
@@ -970,21 +890,7 @@ npm run setup  # 等价于 scripts/setup.js
 
 ### 密钥生命周期
 
-```
-┌─ 本地开发 ─┐                            ┌─ 部署平台 ─┐
-│ .env 明文  │ ──── 加密 ────→ .env.enc  │ ENV_MASTER_KEY │
-│ (不入仓)   │                            │ (环境变量)     │
-└────────────┘                            └───────────────┘
-                                              │
-                                              │ 启动时
-                                              ▼
-                                     env-loader.js
-                                     AES-256-CBC 解密
-                                              │
-                                              ▼
-                                     process.env.AMAP_KEY
-                                     process.env.DEEPSEEK_KEY
-```
+本地开发阶段：`.env` 明文（不入仓）通过加密生成 `.env.enc` 密文。部署平台配置 `ENV_MASTER_KEY` 环境变量。启动时由 `env-loader.js` 使用 AES-256-CBC 解密 `.env.enc`，还原为 `process.env.AMAP_KEY` 和 `process.env.DEEPSEEK_KEY`。
 
 ### .gitignore 规则
 
@@ -1209,78 +1115,27 @@ npm run setup  # 等价于 scripts/setup.js
 
 ## 📁 完整目录结构
 
-```
-SUIT-TRAE-123Lets-GO/
-├── 📄 核心页面
-│   ├── index.html                # 主页 (5441 行,内嵌 CSS · 3 个 Tab:智能规划/伴侣/社区)
-│   ├── verify.html               # 验证页 (思考链 + 8 维评分)
-│   ├── companion.html            # 旅途伴侣全屏页
-│   ├── community.html            # 社区广场全屏页
-│   └── posttrip.html             # 复盘页
-│
-├── 📦 历史页面（保留兼容 · 主流程已不再跳转）
-│   ├── pretrip.html              # 行前准备页面（旧版）
-│   └── itinerary.html            # 行程详情页面（旧版）
-│
-├── 🎨 样式 (CSS 设计系统)
-│   ├── css/design-system.css     # 设计令牌 + 玻璃 + 字体
-│   ├── css/home.css              # 首页
-│   ├── css/verify.css            # 验证页
-│   ├── css/itinerary.css         # 行程页
-│   ├── css/community.css         # 社区页
-│   ├── css/companion.css         # 伴侣页
-│   └── css/posttrip.css          # 复盘页
-│
-├── ⚙️ 前端逻辑 (Vanilla JS,无构建)
-│   ├── js/home.js
-│   ├── js/verify.js
-│   ├── js/itinerary.js
-│   ├── js/community.js
-│   ├── js/companion.js
-│   ├── js/posttrip.js
-│   ├── js/curated-routes.js      # 策展路线数据
-│   └── js/particles.js           # Three.js 粒子
-│
-├── 🖥️ 后端 (Node.js + Express)
-│   ├── server.js                 # 4745 行 · 100+ API
-│   ├── env-loader.js             # .env.enc 加密加载器
-│   ├── flight-crawler.js         # 携程机票爬虫(可选)
-│   └── api/index.js              # Vercel Serverless 入口
-│
-├── 🛠️ 工具脚本
-│   ├── scripts/setup.js          # 首次启动引导(自动)
-│   ├── scripts/encrypt-env.js    # AES-256-CBC 加密 CLI
-│   └── scripts/discover-routes.js# 策展路线发现
-│
-├── 🚀 一键启动
-│   ├── start.bat                 # Windows 双击
-│   └── start.sh                  # Mac/Linux
-│
-├── 📦 数据
-│   ├── data/community.json       # 用户众包路线
-│   └── data/real-routes-curated.json # 策展真实路线(12306/携程等)
-│
-├── 🔧 配置
-│   ├── package.json              # npm 配置
-│   ├── package-lock.json
-│   ├── .env.example              # 环境变量模板
-│   ├── .env.enc                  # 加密后的环境变量(入仓)
-│   ├── .gitignore                # Git 忽略规则
-│   └── vercel.json               # Vercel 部署配置
-│
-├── 🤖 CI/CD
-│   └── .github/workflows/
-│       └── ci.yml                # 3 Job 流水线
-│
-├── 💾 运行时缓存 (不入仓)
-│   ├── node_modules/
-│   └── .cache/maps/
-│
-└── 📖 文档
-    ├── README.md                 # 本文件
-    ├── LICENSE                   # MIT
-    └── push-to-github.ps1        # 一键推送脚本
-```
+**核心页面**：index.html（主页，5441 行，内嵌 CSS，3 个 Tab：智能规划/伴侣/社区）、verify.html（验证页，思考链 + 8 维评分）、companion.html（旅途伴侣全屏页）、community.html（社区广场全屏页）、posttrip.html（复盘页）。历史保留页：pretrip.html（行前准备，旧版）、itinerary.html（行程详情，旧版）。
+
+**样式系统（CSS）**：css/ 目录包含 design-system.css（设计令牌 + 玻璃 + 字体）、home.css（首页）、verify.css（验证页）、itinerary.css（行程页）、community.css（社区页）、companion.css（伴侣页）、posttrip.css（复盘页）。
+
+**前端逻辑（Vanilla JS，无构建）**：js/ 目录包含 home.js、verify.js、itinerary.js、community.js、companion.js、posttrip.js、curated-routes.js（策展路线数据）、particles.js（Three.js 粒子）。
+
+**后端（Node.js + Express）**：server.js（4745 行，100+ API）、env-loader.js（.env.enc 加密加载器）、flight-crawler.js（携程机票爬虫，可选）、api/index.js（Vercel Serverless 入口）。
+
+**工具脚本**：scripts/setup.js（首次启动引导，自动）、scripts/encrypt-env.js（AES-256-CBC 加密 CLI）、scripts/discover-routes.js（策展路线发现）。
+
+**一键启动**：start.bat（Windows 双击）和 start.sh（Mac/Linux）。
+
+**数据文件**：data/community.json（用户众包路线）、data/real-routes-curated.json（策展真实路线，来自 12306/携程等）。
+
+**配置文件**：package.json、package-lock.json、.env.example（环境变量模板）、.env.enc（加密后的环境变量，入仓）、.gitignore、vercel.json（Vercel 部署配置）。
+
+**CI/CD**：.github/workflows/ci.yml（3 Job 流水线）。
+
+**运行时缓存（不入仓）**：node_modules/、.cache/maps/。
+
+**文档**：README.md、LICENSE（MIT）、push-to-github.ps1（一键推送脚本）。
 
 ---
 
