@@ -4728,16 +4728,41 @@ app.use(express.static(__dirname, { index: 'index.html', extensions: ['html'] })
 // 兜底 404
 app.use((_req, res) => res.status(404).json({ error: true, message: 'not found' }));
 
+/* ---------- 全局错误捕获（防止意外崩溃导致服务永久停止） ---------- */
+process.on('uncaughtException', (err) => {
+  console.error(`\n  ⚠️  [未捕获异常] ${err.message}`);
+  console.error(`  ${err.stack?.split('\n').slice(0, 4).join('\n  ')}`);
+  console.error(`  → 服务器将继续运行，但建议排查此错误\n`);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const msg = reason?.message || reason || 'unknown';
+  console.error(`\n  ⚠️  [未处理 Promise 拒绝] ${msg}\n`);
+});
+
 /* ---------- 导出 + 启动 ---------- */
 module.exports = app;
 
 if (require.main === module) {
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     const keyStatus = AMAP_KEY && AMAP_KEY !== 'your_amap_key_here' ? '已配置' : '未配置（API 将返回空数据，前端走 Mock）';
     console.log(`\n  123 就出发 · 后端服务已启动`);
     console.log(`  ➜  http://localhost:${PORT}`);
     console.log(`  ➜  健康检查    GET /api/health`);
     console.log(`  ➜  社区路线    GET /api/routes`);
     console.log(`  ➜  高德 Key   ${keyStatus}\n`);
+  });
+
+  // 优雅退出 - 捕获 SIGTERM/SIGINT 时先关服务器再退出
+  ['SIGTERM', 'SIGINT'].forEach(sig => {
+    process.on(sig, () => {
+      console.log(`\n  ⏳  收到 ${sig}，正在关闭服务...`);
+      server.close(() => {
+        console.log(`  ✅  服务已关闭\n`);
+        process.exit(0);
+      });
+      // 5 秒后强制退出
+      setTimeout(() => process.exit(1), 5000);
+    });
   });
 }

@@ -1,12 +1,12 @@
 @echo off
 chcp 65001 >nul
-title 123 就出发 — 一键启动
+title 123 就出发 — 一键启动（自动重启）
 
 cd /d "%~dp0"
 
 echo.
 echo ============================================================
-echo   123 就出发 — 本地一键启动
+echo   123 就出发 — 本地一键启动（自动重启）
 echo ============================================================
 echo.
 
@@ -24,7 +24,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-echo [信息] Node.js 已安装: 
+echo [信息] Node.js 已安装:
 node -v
 echo.
 
@@ -38,17 +38,26 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-REM 启动服务
+REM 延迟 2 秒后自动打开浏览器
+start /min cmd /c "timeout /t 2 >nul && start http://localhost:3000"
+
+:restart
 echo.
 echo ============================================================
 echo   启动服务中... 浏览器将自动打开 http://localhost:3000
 echo   按 Ctrl+C 可停止服务
+echo   服务异常退出后将自动重启
 echo ============================================================
 echo.
 
-REM 延迟 2 秒后自动打开浏览器
-start /min cmd /c "timeout /t 2 >nul && start http://localhost:3000"
-
 call npm start
+
+echo.
+echo [信息] 服务已停止，5 秒后自动重启...
+echo [信息] 如要完全退出，请按 Ctrl+C 多次
+echo.
+timeout /t 5 /nobreak >nul
+
+goto restart
 
 pause
