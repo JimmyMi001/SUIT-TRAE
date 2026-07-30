@@ -4131,7 +4131,7 @@ function getBBox(city){
 /* ========== 8. 旅途伴侣 ========== */
 const COMP_QUICK = [
   { label:'📍 附近美食', msg:'附近美食' },
-  { label:'🧋 附近饮品', msg:'附近饮品' },
+  { label:'☕ 附近饮品', msg:'附近饮品' },
   { label:'🏨 找酒店',   msg:'附近酒店' },
   { label:'🌤 明天天气', msg:'明天天气' },
   { label:'💱 当前汇率', msg:'当前汇率' },
@@ -4748,7 +4748,8 @@ async function renderCompanionAMap(city, places, side){
   if (compMapInstance) { try { compMapInstance.destroy(); } catch(e) {} compMapInstance = null; }
   container.innerHTML = '';
   container.style.display = 'block';
-  container.style.height = '380px';
+  container.style.height = '100%';
+  container.style.minHeight = '380px';
   container.style.width = '100%';
   container.style.position = 'relative';
   container.style.background = '#0f172a';
@@ -4784,6 +4785,7 @@ async function renderCompanionAMap(city, places, side){
   await Promise.all(gps);
 
   const markerPositions = [];
+  const markers = [];
   places.forEach((p, i) => {
     if (p._lng != null && p._lat != null) { p.lng = p._lng; p.lat = p._lat; }
     else {
@@ -4811,6 +4813,7 @@ async function renderCompanionAMap(city, places, side){
       offset: new AMap.Pixel(0, 0)
     });
     marker.setMap(compMapInstance);
+    markers.push(marker);
     marker.on('click', () => {
       const ic = '<div style="padding:8px 12px;min-width:180px"><div style="font-size:14px;font-weight:700;margin-bottom:4px">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#64748b">'+esc2(p.meta||p.address||'无更多信息')+'</div></div>';
       compMapInstance.openInfoWindow(new AMap.InfoWindow({ content: ic, offset: new AMap.Pixel(0, -30) }), pos);
@@ -4830,11 +4833,29 @@ async function renderCompanionAMap(city, places, side){
     el.addEventListener('click', () => {
       const i = parseInt(el.dataset.i);
       const pos = markerPositions[i];
-      if (pos) { compMapInstance.setCenter(pos); compMapInstance.setZoom(15); }
+      if (!pos) return;
+      // 关闭旧 InfoWindow
+      try { compMapInstance.clearInfoWindow(); } catch(e) {}
+      // 定位到标点
+      compMapInstance.setZoomAndCenter(16, pos);
+      // 高亮当前sidebar项
       side.querySelectorAll('.comp__map-side-item').forEach((it,j) => {
         it.style.background = j===i ? 'rgba(240,183,131,.10)' : '';
         it.style.borderColor = j===i ? 'rgba(240,183,131,.4)' : '';
       });
+      // 弹出 InfoWindow
+      const p = places[i];
+      const ic = '<div style="padding:8px 12px;min-width:180px"><div style="font-size:14px;font-weight:700;margin-bottom:4px">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#64748b">'+esc2(p.meta||p.address||'无更多信息')+'</div></div>';
+      compMapInstance.openInfoWindow(new AMap.InfoWindow({ content: ic, offset: new AMap.Pixel(0, -30) }), pos);
+      // 触达标点高亮动画（缩小再放大）
+      if (markers[i]) {
+        const el2 = markers[i].getContent();
+        if (el2) {
+          el2.style.transition = 'transform .15s ease-out';
+          el2.style.transform = 'scale(1.25)';
+          setTimeout(() => { el2.style.transform = 'scale(1)'; }, 150);
+        }
+      }
     });
   });
 }
