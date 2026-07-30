@@ -4773,6 +4773,7 @@ async function renderCompanionAMap(city, places, side){
   try { compMapInstance.resize(); } catch(e) {}
 
   // 对所有地点进行地理编码：优先用 address，无地址则用 POI 名称+城市
+  // 失败时重试不带城市名，再失败用确定性 hash 偏移
   const gps = places.map(async (p) => {
     if (p.location && p.location.includes(',')) {
       const parts = p.location.split(',');
@@ -4780,22 +4781,36 @@ async function renderCompanionAMap(city, places, side){
     }
     const query = p.address || p.name;
     if (!query) return;
+    // 第一次尝试：城市+名称
     try {
-      const r = await API.addressGeocode(query, city);
-      if (r && r.lng && r.lat) { p._lng = r.lng; p._lat = r.lat; }
+      let r = await API.addressGeocode(query, city);
+      if (r && r.lng && r.lat && r.source !== 'local-fallback') { p._lng = r.lng; p._lat = r.lat; p._geoSource = r.source; return; }
+      // 第二次尝试：纯名称（不带城市前缀）
+      const nameOnly = p.name.replace(/[（(].*?[）)]/g, '').trim();
+      if (nameOnly && nameOnly !== query) {
+        r = await API.addressGeocode(nameOnly, '');
+        if (r && r.lng && r.lat && r.source !== 'local-fallback') { p._lng = r.lng; p._lat = r.lat; p._geoSource = r.source; return; }
+      }
+      // 第三次尝试：只用城市+前4个字
+      const short = query.replace(/[（(].*?[）)]/g, '').replace(/[·•·\.\-,，、。！!？?\s]+/g, '').slice(0, 4);
+      if (short && short !== query && short !== nameOnly) {
+        r = await API.addressGeocode(short, city);
+        if (r && r.lng && r.lat) { p._lng = r.lng; p._lat = r.lat; p._geoSource = r.source; return; }
+      }
     } catch(e) {}
+    // 所有重试失败 → 用确定性 hash 偏移（比随机圆好）
+    let h = 0;
+    for (let j = 0; j < query.length; j++) h = ((h << 5) - h + query.charCodeAt(j)) | 0;
+    p._lng = lng + ((h % 200) - 100) * 0.0005;
+    p._lat = lat + ((h * 7 % 150) - 75) * 0.0004;
+    p._geoSource = 'fallback';
   });
   await Promise.all(gps);
 
   const markerPositions = [];
   const markers = [];
   places.forEach((p, i) => {
-    if (p._lng != null && p._lat != null) { p.lng = p._lng; p.lat = p._lat; }
-    else {
-      const ang = (i / Math.max(places.length,1)) * Math.PI * 2;
-      const r = 0.02 + (i%4)*0.015;
-      p.lng = lng + Math.cos(ang) * r; p.lat = lat + Math.sin(ang) * r;
-    }
+    p.lng = p._lng; p.lat = p._lat;
     markerPositions.push([p.lng, p.lat]);
   });
 
@@ -4829,8 +4844,8 @@ async function renderCompanionAMap(city, places, side){
   try { compMapInstance.addControl(new AMap.Scale()); } catch(e) {}
   try { compMapInstance.addControl(new AMap.ToolBar({ position: 'RB' })); } catch(e) {}
 
-  side.innerHTML = '<div style="padding:0 0 8px;text-align:left;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--text)">📍 '+esc2(city)+' 地点列表</div><div style="font-size:10px;color:var(--text-2);letter-spacing:.02em">共 '+places.length+' 个地点 · 点击定位</div></div>' + places.map((p,i) =>
-    '<div class="comp__map-side-item" data-i="'+i+'"><div class="comp__map-side-item__icon">'+(p.icon||'📍')+'</div><div class="comp__map-side-item__body"><div class="comp__map-side-item__name">'+esc2(p.name)+'</div><div class="comp__map-side-item__meta">'+esc2(p.meta||p.address||'')+'</div></div></div>'
+  side.innerHTML = '<div style="padding:0 0 8px;text-align:left;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--text)">📍 '+esc2(city)+' 地点列表</div><div style="font-size:10px;color:var(--text-2);letter-spacing:.02em">共 '+places.length+' 个地点 · <span style="color:#10b981">●</span> 精确定位 <span style="color:#f59e0b">●</span> 近似估算 · 点击定位</div></div>' + places.map((p,i) =>
+    '<div class="comp__map-side-item" data-i="'+i+'"><div class="comp__map-side-item__icon">'+(p.icon||'📍')+'</div><div class="comp__map-side-item__body"><div class="comp__map-side-item__name">'+esc2(p.name)+(p._geoSource==='fallback'?' <span style="font-size:9px;color:#f59e0b" title="坐标由hash估算，非精确位置">≈</span>':'')+'</div><div class="comp__map-side-item__meta">'+esc2(p.meta||p.address||'')+'</div></div></div>'
   ).join('');
   side.querySelectorAll('.comp__map-side-item').forEach((el) => {
     el.addEventListener('click', () => {
@@ -4848,15 +4863,19 @@ async function renderCompanionAMap(city, places, side){
       });
       // 弹出 InfoWindow
       const p = places[i];
-      const ic = '<div style="padding:8px 12px;min-width:180px"><div style="font-size:14px;font-weight:700;margin-bottom:4px">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#64748b">'+esc2(p.meta||p.address||'无更多信息')+'</div></div>';
+      const ic = '<div style="padding:8px 12px;min-width:180px"><div style="font-size:14px;font-weight:700;margin-bottom:4px">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#64748b">'+esc2(p.meta||p.address||'无更多信息')+'</div><div style="font-size:10px;color:'+(p._geoSource==='fallback'?'#f59e0b':'#10b981')+';margin-top:4px">'+(p._geoSource==='fallback'?'⚠️ 近似坐标（hash估算）':'✅ 高德精确坐标')+'</div></div>';
       compMapInstance.openInfoWindow(new AMap.InfoWindow({ content: ic, offset: new AMap.Pixel(0, -30) }), pos);
-      // 触达标点高亮动画（缩小再放大）
+      // 触达标点高亮动画（脉冲放大）
       if (markers[i]) {
         const el2 = markers[i].getContent();
         if (el2) {
-          el2.style.transition = 'transform .15s ease-out';
-          el2.style.transform = 'scale(1.25)';
-          setTimeout(() => { el2.style.transform = 'scale(1)'; }, 150);
+          el2.style.transition = 'transform .25s cubic-bezier(.34,1.56,.64,1)';
+          el2.style.transform = 'scale(1.4)';
+          el2.style.filter = 'drop-shadow(0 0 8px rgba(240,183,131,.8))';
+          setTimeout(() => {
+            el2.style.transform = 'scale(1)';
+            el2.style.filter = '';
+          }, 300);
         }
       }
     });
