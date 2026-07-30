@@ -223,6 +223,10 @@
 |:---:|:---:|
 | <img src="assets/screenshots/multi-dim-tips.png" alt="旅行贴士" width="520" /> | <img src="assets/screenshots/local-specials.png" alt="特色体验" width="520" /> |
 
+| 行程导出展示 |
+|:---:|
+| <img src="assets/screenshots/行程导出展示.png" alt="行程导出展示" width="900" /> |
+
 ### 2️⃣ 旅途伴侣（主页 Tab 2 + 独立全屏页）
 
 **用途**：出行途中实时查询，**城市锁定为**智能规划选择的城市，不可切换。
