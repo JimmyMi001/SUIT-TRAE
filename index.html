@@ -4772,13 +4772,16 @@ async function renderCompanionAMap(city, places, side){
   });
   try { compMapInstance.resize(); } catch(e) {}
 
-  const gps = places.filter(p => p.address).map(async (p) => {
+  // 对所有地点进行地理编码：优先用 address，无地址则用 POI 名称+城市
+  const gps = places.map(async (p) => {
     if (p.location && p.location.includes(',')) {
       const parts = p.location.split(',');
       p._lng = parseFloat(parts[0]); p._lat = parseFloat(parts[1]); return;
     }
+    const query = p.address || p.name;
+    if (!query) return;
     try {
-      const r = await API.addressGeocode(p.address, city);
+      const r = await API.addressGeocode(query, city);
       if (r && r.lng && r.lat) { p._lng = r.lng; p._lat = r.lat; }
     } catch(e) {}
   });
