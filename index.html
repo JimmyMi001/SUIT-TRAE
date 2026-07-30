@@ -4907,6 +4907,10 @@ async function renderCompanionMapFromPOIs(type, city, pois){
 async function runCompTool(tool){
   const cityEl = document.getElementById('compCity');
   const city = (cityEl && cityEl.value.trim()) || currentPlanCity || '成都';
+  // 获取用户出发城市：优先从文本输入，其次从级联下拉
+  const originText = document.getElementById('userOriginCity');
+  const originSel = document.getElementById('originCitySel');
+  const originCity = (originText && originText.value.trim()) || (originSel && originSel.value) || '';
   const out = document.getElementById('compToolResult');
   out.innerHTML = '<div class="state">查询中…</div>';
   try {
@@ -4945,9 +4949,16 @@ async function runCompTool(tool){
       // 任务5：渲染地图
       collectAndRenderMap(tool, city, r);
     } else if(tool === 'flight'){
-      const r = await API.flight('北京', city, '');
-      if(r.__error || !r.flights?.length){ out.innerHTML = '<div class="state">暂无数据</div>'; return; }
-      out.innerHTML = `<h3 style="margin:16px 0 8px">✈️ 北京→${esc(city)} 航班（${r.date}）</h3>
+      if(!originCity){ out.innerHTML = '<div class="state" style="color:#fbbf24">⚠️ 请先在智能规划页填写「你所在城市」作为出发地</div>'; return; }
+      if(originCity === city){ out.innerHTML = '<div class="state" style="color:#fbbf24">⚠️ 出发地与目的地相同，无需机票</div>'; return; }
+      const r = await API.flight(originCity, city, '');
+      if(r.__error || (!r.flights?.length)){
+        // 近距离可能没有航班，建议高铁
+        out.innerHTML = `<div class="state" style="color:#fbbf24">⚠️ ${esc(originCity)}→${esc(city)} 暂无直飞航班（可能距离较近无航线）</div>
+          <div style="margin-top:8px;padding:10px 14px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.25);border-radius:6px;font-size:13px;color:var(--text)">💡 短途出行建议选择<a href="javascript:void(0)" onclick="runCompTool('train')" style="color:var(--accent);text-decoration:underline">高铁/动车</a>，更便捷经济</div>`;
+        return;
+      }
+      out.innerHTML = `<h3 style="margin:16px 0 8px">✈️ ${esc(originCity)}→${esc(city)} 航班（${r.date}）</h3>
         <div style="display:flex;flex-direction:column;gap:8px">${r.flights.map(f=>`<div class="card" style="padding:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">
           <div style="flex:1">
             <div style="font-weight:600">${esc(f.airline)} ${esc(f.flight)} · ${esc(f.type)}</div>
@@ -4958,11 +4969,13 @@ async function runCompTool(tool){
             <div style="color:var(--muted);font-size:11px">含税</div>
           </div>
         </div>`).join('')}</div>
-        <div style="color:var(--muted);font-size:12px;margin-top:8px">💡 修改出发地：在下方输入"从XX到YY的机票"</div>`;
+        <div style="color:var(--muted);font-size:12px;margin-top:8px">💡 修改出发地：在智能规划页顶部修改「你所在城市」</div>`;
     } else if(tool === 'train'){
-      const r = await API.train('北京', city, '');
+      if(!originCity){ out.innerHTML = '<div class="state" style="color:#fbbf24">⚠️ 请先在智能规划页填写「你所在城市」作为出发地</div>'; return; }
+      if(originCity === city){ out.innerHTML = '<div class="state" style="color:#fbbf24">⚠️ 出发地与目的地相同，无需购票</div>'; return; }
+      const r = await API.train(originCity, city, '');
       if(r.__error || !r.trains?.length){ out.innerHTML = '<div class="state">暂无数据</div>'; return; }
-      out.innerHTML = `<h3 style="margin:16px 0 8px">🚄 北京→${esc(city)} 高铁动车（${r.date}）</h3>
+      out.innerHTML = `<h3 style="margin:16px 0 8px">🚄 ${esc(originCity)}→${esc(city)} 高铁动车（${r.date}）</h3>
         <div style="display:flex;flex-direction:column;gap:8px">${r.trains.map(t=>`<div class="card" style="padding:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">
           <div style="flex:1">
             <div style="font-weight:600">${esc(t.no)} · ${esc(t.type)} · ${esc(t.seat)}</div>
@@ -4972,7 +4985,8 @@ async function runCompTool(tool){
             <div style="font-size:20px;color:var(--accent);font-weight:700">¥${t.price}</div>
             <div style="color:var(--muted);font-size:11px">二等座</div>
           </div>
-        </div>`).join('')}</div>`;
+        </div>`).join('')}</div>
+        <div style="color:var(--muted);font-size:12px;margin-top:8px">💡 修改出发地：在智能规划页顶部修改「你所在城市」</div>`;
     }
   } catch(e){
     out.innerHTML = `<div class="state" style="color:#fca5a5">查询失败：${esc(e.message)}</div>`;

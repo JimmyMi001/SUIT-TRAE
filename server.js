@@ -4339,14 +4339,59 @@ app.get('/api/flight', async (req, res) => {
   } catch(e){ res.status(500).json({ error:true, message:e.message }); }
 });
 
+// 辅助：根据起飞时间和飞行时长计算到达时间
+function fmtArrive(depart, h, m) {
+  const [dh, dm] = depart.split(':').map(Number);
+  let ah = dh + h, am = dm + m;
+  if (am >= 60) { ah += Math.floor(am / 60); am = am % 60; }
+  let suffix = '';
+  if (ah >= 24) { ah -= 24; suffix = '+1'; }
+  return String(ah).padStart(2,'0') + ':' + String(am).padStart(2,'0') + suffix;
+}
+
 // 抽出来的参考价数据(失败/关闭爬虫时返回), 单独成函数便于复用
 function buildMockFlights(origin, dest, date, sourceTag) {
+  // 计算直线距离，短途不提供航班参考（<400km 通常无直飞航线）
+  const o = CITY_COORDS[origin];
+  const d = CITY_COORDS[dest];
+  let tooClose = false;
+  let straightKm = 0;
+  if (o && d) {
+    const R = 6371;
+    const rad = x => x * Math.PI / 180;
+    const dLat = rad(d.lat - o.lat), dLon = rad(d.lon - o.lon);
+    const a = Math.sin(dLat/2)**2 + Math.cos(rad(o.lat))*Math.cos(rad(d.lat))*Math.sin(dLon/2)**2;
+    straightKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    if (straightKm < 400) tooClose = true;
+  }
+  if (tooClose) {
+    return {
+      error: false,
+      source: sourceTag,
+      origin, dest, date,
+      flights: [],
+      distance_km: Math.round(straightKm),
+      message: `${origin}到${dest}直线距离约 ${Math.round(straightKm)} km，距离较近，通常无直飞航班。建议选择高铁/动车出行。`,
+      suggestion: 'train',
+      disclaimer: '短途出行（<400km）一般不设民航航线，请通过高铁/动车出行',
+      booking_links: {
+        train_12306: `https://kyfw.12306.cn/otn/leftTicket/init?linktypeid=dc&fs=${encodeURIComponent(origin)},,&ts=${encodeURIComponent(dest)},,&date=${date}&flag=N,N,Y`
+      }
+    };
+  }
+  // 根据距离调整航班时长
+  const flightHours = Math.max(1, Math.round(straightKm / 800 * 10) / 10); // ~800km/h 巡航
+  const h = Math.floor(flightHours);
+  const m = Math.round((flightHours - h) * 60);
+  const durStr = h + 'h' + (m > 0 ? m + 'm' : '');
+  // 根据距离估算票价（含基建燃油）
+  const basePrice = Math.round(straightKm * 0.65 + 100);
   const flights = [
-    { flight:'CA1234', airline:'国航', origin, dest, depart:'07:30', arrive:'10:25', duration:'2h55m', price:880, type:'经济舱' },
-    { flight:'3U8888', airline:'川航', origin, dest, depart:'09:50', arrive:'12:40', duration:'2h50m', price:650, type:'经济舱' },
-    { flight:'MU2345', airline:'东航', origin, dest, depart:'14:20', arrive:'17:15', duration:'2h55m', price:720, type:'经济舱' },
-    { flight:'CZ6789', airline:'南航', origin, dest, depart:'19:05', arrive:'22:00', duration:'2h55m', price:540, type:'特价' },
-    { flight:'CA4567', airline:'国航', origin, dest, depart:'21:30', arrive:'00:25+1', duration:'2h55m', price:1290, type:'商务舱' }
+    { flight:'CA1234', airline:'国航', origin, dest, depart:'07:30', arrive: fmtArrive('07:30', h, m), duration: durStr, price: Math.round(basePrice * 1.35), type:'经济舱' },
+    { flight:'3U8888', airline:'川航', origin, dest, depart:'09:50', arrive: fmtArrive('09:50', h, m), duration: durStr, price: Math.round(basePrice * 1.0), type:'经济舱' },
+    { flight:'MU2345', airline:'东航', origin, dest, depart:'14:20', arrive: fmtArrive('14:20', h, m), duration: durStr, price: Math.round(basePrice * 1.1), type:'经济舱' },
+    { flight:'CZ6789', airline:'南航', origin, dest, depart:'19:05', arrive: fmtArrive('19:05', h, m), duration: durStr, price: Math.round(basePrice * 0.83), type:'特价' },
+    { flight:'CA4567', airline:'国航', origin, dest, depart:'21:30', arrive: fmtArrive('21:30', h, m), duration: durStr, price: Math.round(basePrice * 1.98), type:'商务舱' }
   ];
   return {
     error: false,
@@ -4379,12 +4424,31 @@ app.get('/api/train', (req, res) => {
     const origin = req.query.origin || '北京';
     const dest = req.query.dest || '成都';
     const date = req.query.date || new Date().toISOString().slice(0,10);
+    // 根据距离动态计算车次时长和票价
+    const o = CITY_COORDS[origin];
+    const d = CITY_COORDS[dest];
+    let railKm = 1200; // 默认（北京→成都约 1800km 铁路里程）
+    if (o && d) {
+      const R = 6371;
+      const rad = x => x * Math.PI / 180;
+      const dLat = rad(d.lat - o.lat), dLon = rad(d.lon - o.lon);
+      const a = Math.sin(dLat/2)**2 + Math.cos(rad(o.lat))*Math.cos(rad(d.lat))*Math.sin(dLon/2)**2;
+      const straight = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      railKm = Math.max(100, Math.round(straight * 1.25)); // 铁路里程≈直线×1.25
+    }
+    // 高铁 ~300km/h，动车 ~200km/h
+    const gTime = railKm / 300; // 小时
+    const dTime = railKm / 200;
+    const fmtTime = (h) => { const hh = Math.floor(h); const mm = Math.round((h-hh)*60); return hh+'h'+(mm>0?mm+'m':''); };
+    // 票价：G字头二等座 0.46/km，D字头二等座 0.31/km
+    const gPrice = Math.round(railKm * 0.46);
+    const dPrice = Math.round(railKm * 0.31);
     const trains = [
-      { no:'G309', type:'高铁', origin, dest, depart:'08:00', arrive:'13:08', duration:'5h08m', price: 778, seat:'二等座' },
-      { no:'G571', type:'高铁', origin, dest, depart:'10:35', arrive:'15:48', duration:'5h13m', price: 862, seat:'二等座' },
-      { no:'G404', type:'高铁', origin, dest, depart:'13:18', arrive:'18:25', duration:'5h07m', price: 778, seat:'二等座' },
-      { no:'D1008', type:'动车', origin, dest, depart:'19:05', arrive:'00:38+1', duration:'5h33m', price: 522, seat:'二等座' },
-      { no:'G405', type:'高铁', origin, dest, depart:'21:00', arrive:'02:08+1', duration:'5h08m', price: 778, seat:'二等座' }
+      { no:'G309', type:'高铁', origin, dest, depart:'08:00', arrive: fmtArrive('08:00', Math.floor(gTime), Math.round((gTime-Math.floor(gTime))*60)), duration: fmtTime(gTime), price: Math.round(gPrice*0.9), seat:'二等座' },
+      { no:'G571', type:'高铁', origin, dest, depart:'10:35', arrive: fmtArrive('10:35', Math.floor(gTime), Math.round((gTime-Math.floor(gTime))*60)), duration: fmtTime(gTime), price: gPrice, seat:'二等座' },
+      { no:'G404', type:'高铁', origin, dest, depart:'13:18', arrive: fmtArrive('13:18', Math.floor(gTime), Math.round((gTime-Math.floor(gTime))*60)), duration: fmtTime(gTime), price: Math.round(gPrice*0.9), seat:'二等座' },
+      { no:'D1008', type:'动车', origin, dest, depart:'19:05', arrive: fmtArrive('19:05', Math.floor(dTime), Math.round((dTime-Math.floor(dTime))*60)), duration: fmtTime(dTime), price: dPrice, seat:'二等座' },
+      { no:'G405', type:'高铁', origin, dest, depart:'21:00', arrive: fmtArrive('21:00', Math.floor(gTime), Math.round((gTime-Math.floor(gTime))*60)), duration: fmtTime(gTime), price: Math.round(gPrice*0.9), seat:'二等座' }
     ];
     res.json({
       error: false,
