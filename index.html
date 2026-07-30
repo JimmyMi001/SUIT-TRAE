@@ -875,6 +875,7 @@
       linear-gradient(135deg,rgba(240,183,131,.45) 0%,rgba(240,183,131,.10) 25%,rgba(240,183,131,.06) 50%,rgba(240,183,131,.10) 75%,rgba(240,183,131,.35) 100%) border-box;
     transform:translateY(-1px)}
   .btn--sm{padding:7px 14px;font-size:12px;border-radius:8px}
+  .btn,.btn--ghost,.btn--sm{font-family:var(--body),"Segoe UI Emoji","Apple Color Emoji","Segoe UI Symbol","Microsoft YaHei",sans-serif}
 
   /* ========================================================= State
      ========================================================= */
@@ -1703,7 +1704,9 @@
   /* 出发建议 */
   .depart-suggest{position:relative;background:rgba(15,17,22,.5);border:1px solid var(--line);
     border-radius:14px;padding:24px;margin:24px 0;backdrop-filter:blur(8px);overflow:hidden}
-
+  .depart-suggest::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
+    background:linear-gradient(90deg,var(--accent),transparent);background-size:200% 100%;
+    animation:aurora-shift 4s linear infinite}
   .depart-suggest__title{font-family:var(--mono);font-size:12px;color:var(--accent);
     margin-bottom:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:500;
     display:flex;align-items:center;gap:8px}
@@ -1814,7 +1817,6 @@
   .cm-marker--poi{background:linear-gradient(135deg,#10b981,#059669);border-color:rgba(16,185,129,.6)}
   .cm-marker--hotel{background:linear-gradient(135deg,#6366f1,#4f46e5);border-color:rgba(99,102,241,.6)}
   .cm-marker--rest{background:linear-gradient(135deg,#f59e0b,#ea580c);border-color:rgba(245,158,11,.6)}
-  .cm-marker--drink{background:linear-gradient(135deg,#ec4899,#db2777);border-color:rgba(236,72,153,.6)}
   .cm-marker--trans{background:linear-gradient(135deg,#06b6d4,#0891b2);border-color:rgba(6,182,212,.6)}
   .cm-marker--sel{animation:cm-marker-pulse 1.4s ease-in-out infinite;
     z-index:10;box-shadow:0 0 0 0 rgba(240,183,131,.7),0 8px 24px rgba(0,0,0,.5)}
@@ -2225,12 +2227,13 @@
       <div class="comp__map-head">
         <div class="comp__map-title">🗺️ 地点地图（仅显示标点，不画连线）</div>
         <div class="comp__map-legend">
-          <span class="comp__map-legend-item"><span class="cm-marker cm-marker--poi"></span>景点</span>
-          <span class="comp__map-legend-item"><span class="cm-marker cm-marker--hotel"></span>酒店</span>
-          <span class="comp__map-legend-item"><span class="cm-marker cm-marker--rest"></span>餐饮</span>
-          <span class="comp__map-legend-item"><span class="cm-marker cm-marker--drink"></span>饮品</span>
-          <span class="comp__map-legend-item"><span class="cm-marker cm-marker--trans"></span>交通</span>
+          <span class="comp__map-legend-item"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#10b981;margin-right:4px;box-shadow:0 0 0 2px rgba(16,185,129,.18)"></i>景点</span>
+          <span class="comp__map-legend-item"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#6366f1;margin-right:4px;box-shadow:0 0 0 2px rgba(99,102,241,.18)"></i>酒店</span>
+          <span class="comp__map-legend-item"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#f59e0b;margin-right:4px;box-shadow:0 0 0 2px rgba(245,158,11,.18)"></i>餐饮</span>
+          <span class="comp__map-legend-item"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#ec4899;margin-right:4px;box-shadow:0 0 0 2px rgba(236,72,153,.18)"></i>饮品</span>
+          <span class="comp__map-legend-item"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#06b6d4;margin-right:4px;box-shadow:0 0 0 2px rgba(6,182,212,.18)"></i>交通</span>
         </div>
+        
         <button class="comp__map-toggle" id="compMapToggle" title="收起/展开地图">🔼 收起</button>
       </div>
       <div class="comp__map-body" id="compMapBody">
@@ -4129,14 +4132,14 @@ function getBBox(city){
 const COMP_QUICK = [
   { label:'📍 附近美食', msg:'附近美食' },
   { label:'🧋 附近饮品', msg:'附近饮品' },
-  { label:'🏨 找酒店', msg:'附近酒店' },
+  { label:'🏨 找酒店',   msg:'附近酒店' },
   { label:'🌤 明天天气', msg:'明天天气' },
   { label:'💱 当前汇率', msg:'当前汇率' },
   { label:'🚻 附近厕所', msg:'附近厕所' },
-  { label:'🧭 导航到 [填地址]', msg:'导航到这里' },
-  { label:'⛰ 找景点', msg:'附近景点' },
-  { label:'🛍 找商场', msg:'附近商场' },
-  { label:'🅿️ 停车场', msg:'附近停车场' }
+  { label:'🧭 导航到[填地址]', msg:'导航到这里' },
+  { label:'🎫 找景点',   msg:'附近景点' },
+  { label:'🛍 找商场',   msg:'附近商场' },
+  { label:'🅿️ 找停车场', msg:'附近停车场' }
 ];
 let compChatInited = false;
 // 常用城市快捷选择（与首页 datalist 联动，支持输入+点选）
@@ -4367,13 +4370,14 @@ async function compSend(){
     return;
   }
 
-  // 4) POI 搜索（附近/美食/酒店/景点/购物/厕所/饮品）
-  if(/附近|美食|吃|餐厅|酒店|厕所|饮品|咖啡|奶茶|找|逛|景点|购物|交通|玩|景区|夜市|洗手间|公厕|卫生间|商场|住宿|住哪|民宿|甜品|甜点|蛋糕|面包/.test(msg)){
+  // 4) POI 搜索（附近/美食/酒店/景点/购物/厕所/咖啡）
+  if(/附近|美食|吃|餐厅|酒店|厕所|咖啡|找|逛|景点|购物|交通|玩|景区|夜市|洗手间|公厕|卫生间|商场|住宿|住哪|民宿|奶茶|甜品|甜点|蛋糕|面包/.test(msg)){
     let type = '景点';
     let keywords = '';  // 自定义 Amap 关键字
     // 1) 特定 POI 类型 — 优先用精准关键字
-    if(/奶茶|咖啡|饮品|星巴克|瑞幸|MANNER|Tims|皮爷|seesaw|喜茶|奈雪|一点点|蜜雪|茶百道|古茗|霸王茶姬|沪上阿姨|书亦|CoCo|都可/.test(msg)) { type = '饮品'; keywords = '奶茶|咖啡|饮品|星巴克|瑞幸|喜茶|奈雪|蜜雪冰城|茶百道|MANNER|一点点|CoCo都可|霸王茶姬|古茗'; }
+    if(/奶茶|咖啡|饮品|星巴克|瑞幸|MANNER|Tims|皮爷|喜茶|奈雪|一点点|蜜雪|茶百道|古茗|霸王茶姬|沪上阿姨|书亦|CoCo|都可/.test(msg)) { type = '饮品'; keywords = '奶茶|咖啡|饮品|星巴克|瑞幸|喜茶|奈雪|蜜雪冰城|茶百道|MANNER|一点点|CoCo都可|霸王茶姬|古茗'; }
     else if(/甜品|甜点|蛋糕|冰淇淋|糖水|烘焙|面包|下午茶/.test(msg)) { type = '甜品'; keywords = '甜品|甜点|蛋糕|冰淇淋|糖水|面包房'; }
+    else if(/咖啡|星巴克|瑞幸|MANNER|Tims|皮爷|seesaw|%arabica/.test(msg)) { type = '咖啡'; keywords = '咖啡|咖啡厅|咖啡店|星巴克|瑞幸|MANNER|Tims'; }
     else if(/酒店|住宿|民宿|青旅|客栈|住哪|宾馆/.test(msg)) { type = '酒店'; }
     else if(/厕所|卫生间|公厕|洗手间/.test(msg)) { type = '生活服务'; keywords = '厕所|洗手间|公厕|卫生间'; }
     else if(/美食|吃|餐厅|夜市|小吃|早茶|宵夜|特色菜|川菜|湘菜|粤菜|海鲜|烧烤|火锅|面馆/.test(msg)) { type = '美食'; keywords = '美食|餐厅|小吃|特色菜'; }
@@ -4431,8 +4435,6 @@ async function compSend(){
       </div>`).join('');
       compAddMsg('agent', `📍 <strong>${city} · ${type}</strong>（${pois.length} 条）：<br>${list}`,
         `🔍 数据源：${r?.source || '聚合'}`);
-      // 在地图上标点
-      renderCompanionMapFromPOIs(type, city, pois);
     } else {
       compAddMsg('agent', `${city} 没搜到 ${type}，试试其他关键词（附近美食/附近酒店/附近厕所/附近饮品）`, '⚠️');
     }
@@ -4691,48 +4693,45 @@ document.getElementById('compMapToggle')?.addEventListener('click', () => {
   btn.textContent = map.classList.contains('collapsed') ? '🔽 展开' : '🔼 收起';
 });
 
-// 共享地图实例
+/* 任务5：收集工具结果中的地点并渲染到地图上（仅标点，不画连线）— 高德 JS API */
 let compMapInstance = null;
-
-/* 任务5：收集工具结果中的地点并渲染到地图上（仅标点，不画连线） */
 async function collectAndRenderMap(tool, city, data){
   const wrap = document.getElementById('compMapWrap');
   const container = document.getElementById('compMapContainer');
   const side = document.getElementById('compMapSide');
   if (!wrap || !container || !side) return;
   const places = [];
-  // 1) 景点门票
   if (tool === 'ticket' && data.tickets?.length) {
     data.tickets.slice(0, 12).forEach(t => places.push({
-      name: t.poi, type: 'poi', icon: '🎫', meta: `${t.type || '景点'} · ¥${(t.prices || []).join('/')}`,
-      address: t.address || '', location: ''
+      name: t.poi, type: 'poi', icon: '🎫',
+      meta: (t.type || '景点') + ' · ¥' + (t.prices || []).join('/'),
+      address: t.address || ''
     }));
   }
-  // 2) 酒店
   if (tool === 'hotel' && data.hotels?.length) {
     data.hotels.slice(0, 12).forEach(h => places.push({
-      name: h.name, type: 'hotel', icon: '🏨', meta: `${'★'.repeat(h.stars || 3)} · ¥${h.price}/晚 · 距市中心 ${h.distance_km}km`,
-      address: h.address || '', location: ''
+      name: h.name, type: 'hotel', icon: '🏨',
+      meta: '★'.repeat(h.stars || 3) + ' · ¥' + h.price + '/晚 · 距市中心 ' + h.distance_km + 'km',
+      address: h.address || ''
     }));
   }
-  // 3) 餐厅（聊天查询"附近美食"等可能返回 restaurants 字段）
   if (data.restaurants && Array.isArray(data.restaurants)) {
     data.restaurants.slice(0, 12).forEach(r => places.push({
-      name: r.name, type: 'rest', icon: '🍜', meta: `¥${r.price_per_person || r.price || '?'}/位 · ${r.district || ''}`,
-      address: r.address || '', location: ''
+      name: r.name, type: 'rest', icon: '🍜',
+      meta: '¥' + (r.price_per_person || r.price || '?') + '/位 · ' + (r.district || ''),
+      address: r.address || ''
     }));
   }
   if (places.length === 0) {
     wrap.style.display = '';
-    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:13px;letter-spacing:.02em;padding:40px;text-align:center;line-height:1.7">🗺 当前查询结果暂无地点坐标<br><small>如查询景点/酒店，将自动在地图上标记位置</small></div>';
-    side.innerHTML = '<div class="comp__map-side-empty">📍 暂无地点数据<br><small>请先查询"🎫 景点门票"或"🏨 找酒店"</small></div>';
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:380px;color:var(--text-2);font-size:13px;text-align:center;line-height:1.7">🗺 当前没有地点坐标<br><small>查询景点/酒店后将自动标点</small></div>';
+    side.innerHTML = '<div class="comp__map-side-empty">📍 暂无地点数据</div>';
     return;
   }
   wrap.style.display = '';
   await renderCompanionAMap(city, places, side);
 }
 
-/* 共享：用 AMap.Map 渲染同伴地图 */
 async function renderCompanionAMap(city, places, side){
   const container = document.getElementById('compMapContainer');
   if (!container) return;
@@ -4741,150 +4740,100 @@ async function renderCompanionAMap(city, places, side){
     side.innerHTML = '<div class="comp__map-side-empty">⚠️ 地图 SDK 不可用</div>';
     return;
   }
-  // 销毁旧实例
-  if (compMapInstance) {
-    compMapInstance.destroy();
-    compMapInstance = null;
-  }
-  // 清空容器
+  // Step A: 容器可见/尺寸强制
+  const mapWrap = document.getElementById('compMapWrap');
+  if (mapWrap) { mapWrap.style.display = 'block'; mapWrap.style.visibility = 'visible'; }
+  const mapBody = document.getElementById('compMapBody');
+  if (mapBody) { mapBody.style.display = 'grid'; mapBody.style.visibility = 'visible'; }
+  if (compMapInstance) { try { compMapInstance.destroy(); } catch(e) {} compMapInstance = null; }
   container.innerHTML = '';
+  container.style.display = 'block';
   container.style.height = '380px';
   container.style.width = '100%';
   container.style.position = 'relative';
+  container.style.background = '#0f172a';
+  container.style.overflow = 'hidden';
+  void container.offsetWidth;
 
-  // 获取城市中心坐标
   let lng, lat;
-  const cityCoords = (typeof CITY_COORDS !== 'undefined' && CITY_COORDS[city]) ? CITY_COORDS[city] : null;
-  if (cityCoords) {
-    lng = cityCoords[0]; lat = cityCoords[1];
-  } else {
+  const cc = (typeof CITY_COORDS !== 'undefined' && CITY_COORDS[city]) ? CITY_COORDS[city] : null;
+  if (cc) { lng = cc[0]; lat = cc[1]; }
+  else {
     const r = await API.cityResolve(city);
     if (r && r.lng && r.lat) { lng = r.lng; lat = r.lat; }
-    else { lng = 116.4074; lat = 39.9042; } // fallback
+    else { lng = 116.4074; lat = 39.9042; }
   }
 
-  // 创建地图
+  await new Promise(res => setTimeout(res, 80));
   compMapInstance = new AMap.Map(container, {
-    zoom: 12,
-    center: [lng, lat],
-    viewMode: '2D',
+    zoom: 12, center: [lng, lat], viewMode: '2D',
     mapStyle: 'amap://styles/darkblue'
   });
+  try { compMapInstance.resize(); } catch(e) {}
 
-  // 批量地理编码
-  const batchGeocodePromises = places.filter(p => p.address).map(async (p) => {
+  const gps = places.filter(p => p.address).map(async (p) => {
     if (p.location && p.location.includes(',')) {
       const parts = p.location.split(',');
-      p._lng = parseFloat(parts[0]);
-      p._lat = parseFloat(parts[1]);
-      return;
+      p._lng = parseFloat(parts[0]); p._lat = parseFloat(parts[1]); return;
     }
     try {
       const r = await API.addressGeocode(p.address, city);
       if (r && r.lng && r.lat) { p._lng = r.lng; p._lat = r.lat; }
-    } catch(_) {}
+    } catch(e) {}
   });
-  await Promise.all(batchGeocodePromises);
+  await Promise.all(gps);
 
-  // 为每个 place 解析最终坐标
   const markerPositions = [];
   places.forEach((p, i) => {
-    if (p._lng != null && p._lat != null) {
-      p.lng = p._lng; p.lat = p._lat;
-    } else {
-      // 随机偏移中心点
-      const ang = (i / Math.max(places.length, 1)) * Math.PI * 2;
-      const r = 0.02 + (i % 4) * 0.015;
-      p.lng = lng + Math.cos(ang) * r;
-      p.lat = lat + Math.sin(ang) * r;
+    if (p._lng != null && p._lat != null) { p.lng = p._lng; p.lat = p._lat; }
+    else {
+      const ang = (i / Math.max(places.length,1)) * Math.PI * 2;
+      const r = 0.02 + (i%4)*0.015;
+      p.lng = lng + Math.cos(ang) * r; p.lat = lat + Math.sin(ang) * r;
     }
     markerPositions.push([p.lng, p.lat]);
   });
 
-  // SVG 渐变水滴标记
-  const COLORS = ['#ef4444','#f59e0b','#10b981','#3b82f6','#a855f7','#ec4899','#14b8a6','#f97316'];
+  const TC = {poi:'#10b981',ticket:'#10b981','景点':'#10b981','购物':'#a855f7',shopping:'#a855f7',hotel:'#6366f1','酒店':'#6366f1',rest:'#f59e0b','美食':'#f59e0b','餐饮':'#f59e0b',drink:'#ec4899','饮品':'#ec4899','甜品':'#ec4899','交通':'#06b6d4',transport:'#06b6d4','生活服务':'#ef4444'};
+  const TI = {poi:'🎫',ticket:'🎫','景点':'🎫','购物':'🛍',shopping:'🛍',hotel:'🏨','酒店':'🏨',rest:'🍜','美食':'🍜','餐饮':'🍜',drink:'🧋','饮品':'🧋','甜品':'🍰','交通':'🚄',transport:'🚄','生活服务':'🚻'};
+  const esc2 = s => String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
   markerPositions.forEach((pos, i) => {
     const p = places[i];
-    const color = COLORS[i % COLORS.length];
-    const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="40" height="52" viewBox="0 0 40 52" style="overflow:visible">
-  <defs>
-    <radialGradient id="cmpg${i}" cx="50%" cy="35%" r="65%">
-      <stop offset="0%" stop-color="${color}" stop-opacity="1"/>
-      <stop offset="100%" stop-color="${color}" stop-opacity="0.65"/>
-    </radialGradient>
-    <filter id="cmps${i}" x="-50%" y="-30%" width="200%" height="200%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="1.5"/>
-      <feOffset dx="0" dy="1.5" result="off"/>
-      <feComponentTransfer><feFuncA type="linear" slope="0.4"/></feComponentTransfer>
-      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-  </defs>
-  <path d="M20 50 C12 45 6 35 6 23 A14 14 0 1 1 34 23 C34 35 28 45 20 50 Z"
-        fill="rgba(0,0,0,0.3)" transform="translate(0,1.5)" filter="url(#cmps${i})"/>
-  <path d="M20 50 C12 45 6 35 6 23 A14 14 0 1 1 34 23 C34 35 28 45 20 50 Z"
-        fill="url(#cmpg${i})" stroke="#fff" stroke-width="2"/>
-  <circle cx="20" cy="22" r="11" fill="#fff" opacity="0.96"/>
-  <text x="20" y="26" text-anchor="middle" font-size="14">${p.icon || '📍'}</text>
-</svg>`;
-    const base64 = btoa(unescape(encodeURIComponent(svg)));
+    const ptype = p.type || 'poi';
+    const color = TC[ptype] || '#10b981';
+    if (!p.icon) p.icon = TI[ptype] || '📍';
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="52" viewBox="0 0 40 52" style="overflow:visible"><defs><radialGradient id="cmpg'+i+'" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="'+color+'" stop-opacity="1"/><stop offset="100%" stop-color="'+color+'" stop-opacity="0.65"/></radialGradient></defs><path d="M20 50 C12 45 6 35 6 23 A14 14 0 1 1 34 23 C34 35 28 45 20 50 Z" fill="url(#cmpg'+i+')" stroke="#fff" stroke-width="2"/><circle cx="20" cy="22" r="11" fill="#fff" opacity="0.96"/><text x="20" y="26" text-anchor="middle" font-size="14">'+(p.icon||'📍')+'</text></svg>';
+    const b64 = btoa(unescape(encodeURIComponent(svg)));
     const marker = new AMap.Marker({
-      position: pos,
-      title: p.name,
-      content: `<div style="transform:translate(-20px,-52px);cursor:pointer">
-        <img src="data:image/svg+xml;base64,${base64}" width="40" height="52" style="display:block;transition:transform .2s" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
-      </div>`,
+      position: pos, title: p.name,
+      content: '<div style="transform:translate(-20px,-52px);cursor:pointer"><img src="data:image/svg+xml;base64,'+b64+'" width="40" height="52" style="display:block;transition:transform .2s" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'"></div>',
       offset: new AMap.Pixel(0, 0)
     });
     marker.setMap(compMapInstance);
-    // InfoWindow
     marker.on('click', () => {
-      const infoContent = `<div style="padding:8px 12px;min-width:180px">
-        <div style="font-size:14px;font-weight:700;margin-bottom:4px">${p.icon} ${esc(p.name)}</div>
-        <div style="font-size:12px;color:#64748b">${esc(p.meta || p.address || '无更多信息')}</div>
-      </div>`;
-      compMapInstance.openInfoWindow(new AMap.InfoWindow({ content: infoContent, offset: new AMap.Pixel(0, -30) }, pos));
+      const ic = '<div style="padding:8px 12px;min-width:180px"><div style="font-size:14px;font-weight:700;margin-bottom:4px">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#64748b">'+esc2(p.meta||p.address||'无更多信息')+'</div></div>';
+      compMapInstance.openInfoWindow(new AMap.InfoWindow({ content: ic, offset: new AMap.Pixel(0, -30) }), pos);
     });
   });
 
-  // 自适应视野
   if (markerPositions.length > 0) {
-    compMapInstance.setBounds(markerPositions);
-  } else {
-    compMapInstance.setCenter([lng, lat]);
-    compMapInstance.setZoom(12);
-  }
-
-  // 控件
+    try { compMapInstance.setBounds(new AMap.Bounds(markerPositions)); } catch(e) {}
+  } else { compMapInstance.setCenter([lng, lat]); compMapInstance.setZoom(12); }
   try { compMapInstance.addControl(new AMap.Scale()); } catch(e) {}
   try { compMapInstance.addControl(new AMap.ToolBar({ position: 'RB' })); } catch(e) {}
 
-  // 构建侧边栏
-  side.innerHTML = `<div style="padding:0 0 8px;text-align:left;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px">
-    <div style="font-size:12px;font-weight:600;color:var(--text)">📍 ${esc(city)} 地点列表</div>
-    <div style="font-size:10px;color:var(--text-2);letter-spacing:.02em">共 ${places.length} 个地点 · 点击定位</div>
-  </div>` + places.map((p, i) => `
-    <div class="comp__map-side-item" data-i="${i}">
-      <div class="comp__map-side-item__icon">${p.icon}</div>
-      <div class="comp__map-side-item__body">
-        <div class="comp__map-side-item__name">${esc(p.name)}</div>
-        <div class="comp__map-side-item__meta">${esc(p.meta || p.address || '')}</div>
-      </div>
-    </div>
-  `).join('');
-
-  // 侧边栏 ↔ 地图联动
+  side.innerHTML = '<div style="padding:0 0 8px;text-align:left;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--text)">📍 '+esc2(city)+' 地点列表</div><div style="font-size:10px;color:var(--text-2);letter-spacing:.02em">共 '+places.length+' 个地点 · 点击定位</div></div>' + places.map((p,i) =>
+    '<div class="comp__map-side-item" data-i="'+i+'"><div class="comp__map-side-item__icon">'+(p.icon||'📍')+'</div><div class="comp__map-side-item__body"><div class="comp__map-side-item__name">'+esc2(p.name)+'</div><div class="comp__map-side-item__meta">'+esc2(p.meta||p.address||'')+'</div></div></div>'
+  ).join('');
   side.querySelectorAll('.comp__map-side-item').forEach((el) => {
     el.addEventListener('click', () => {
       const i = parseInt(el.dataset.i);
       const pos = markerPositions[i];
-      if (pos) {
-        compMapInstance.setCenter(pos);
-        compMapInstance.setZoom(15);
-      }
-      side.querySelectorAll('.comp__map-side-item').forEach((it, j) => {
-        it.style.background = j === i ? 'rgba(240,183,131,.10)' : '';
-        it.style.borderColor = j === i ? 'rgba(240,183,131,.4)' : '';
+      if (pos) { compMapInstance.setCenter(pos); compMapInstance.setZoom(15); }
+      side.querySelectorAll('.comp__map-side-item').forEach((it,j) => {
+        it.style.background = j===i ? 'rgba(240,183,131,.10)' : '';
+        it.style.borderColor = j===i ? 'rgba(240,183,131,.4)' : '';
       });
     });
   });
@@ -4892,22 +4841,19 @@ async function renderCompanionAMap(city, places, side){
 
 /* 从聊天 POI 搜索结果渲染到地图上 */
 async function renderCompanionMapFromPOIs(type, city, pois){
-  if (!pois || !pois.length) return;
-  const typeIconMap = {
-    '饮品': '🧋', '美食': '🍜', '甜品': '🍰', '景点': '🎫',
-    '购物': '🛍', '交通': '🚄', '酒店': '🏨', '生活服务': '🚻'
-  };
   const wrap = document.getElementById('compMapWrap');
   const container = document.getElementById('compMapContainer');
   const side = document.getElementById('compMapSide');
-  if (!wrap || !container || !side) return;
+  if (!wrap || !container || !side || !pois || !pois.length) return;
+  const TI2 = {poi:'🎫',ticket:'🎫','景点':'🎫','购物':'🛍',shopping:'🛍',hotel:'🏨','酒店':'🏨',rest:'🍜','美食':'🍜','餐饮':'🍜',drink:'🧋','饮品':'🧋','甜品':'🍰','交通':'🚄',transport:'🚄','生活服务':'🚻'};
   const places = pois.filter(p => p.name).slice(0, 12).map(p => ({
-    name: p.name, type: type, icon: typeIconMap[type] || '📍',
+    name: p.name, type: type, icon: TI2[type] || TI2[p.type] || '📍',
     meta: p.type || '', address: p.address || '', location: p.location || ''
   }));
   wrap.style.display = '';
   await renderCompanionAMap(city, places, side);
 }
+
 
 async function runCompTool(tool){
   const cityEl = document.getElementById('compCity');
