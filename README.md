@@ -195,27 +195,33 @@
 
 **📸 智能规划截图：**
 
-<details>
-<summary>🖼️ 点击展开智能规划相关截图</summary>
-<br>
+| 主页表单 & 信息填写 | 每日推荐（按天气动态变化） |
+|:---:|:---:|
+| <img src="assets/screenshots/input-form.png" alt="输入表单" width="520" /> | <img src="assets/screenshots/daily-recommendation.png" alt="今日推荐" width="520" /> |
 
-| 主页 - 填写信息 | 今日推荐 | AI 思考链 + 推理栈 |
-|:---:|:---:|:---:|
-| <img src="assets/screenshots/input-form.png" alt="输入表单" width="280" /> | <img src="assets/screenshots/daily-recommendation.png" alt="今日推荐" width="280" /> | <img src="assets/screenshots/ai-thinking-chain.png" alt="AI思考链" width="280" /> |
+| AI 思考链 + 推理栈（12 步可观察化） |
+|:---:|
+| <img src="assets/screenshots/ai-thinking-chain.png" alt="AI思考链" width="900" /> |
 
-| 智能规划页面 | 完整路线地图 | 路线验证 8 维评分 |
-|:---:|:---:|:---:|
-| <img src="assets/screenshots/smart-planning.png" alt="智能规划" width="280" /> | <img src="assets/screenshots/full-route-map.png" alt="地图路线" width="280" /> | <img src="assets/screenshots/route-validation.png" alt="路线验证" width="280" /> |
+| 智能规划页面 | 完整路线（地图展示） |
+|:---:|:---:|
+| <img src="assets/screenshots/smart-planning.png" alt="智能规划" width="520" /> | <img src="assets/screenshots/full-route-map.png" alt="地图路线" width="520" /> |
 
-| 每日安排 + 多方式导出 | 交通方式对比 & 票价 | 餐厅推荐（5 档价位） |
-|:---:|:---:|:---:|
-| <img src="assets/screenshots/daily-itinerary-export.png" alt="每日安排" width="280" /> | <img src="assets/screenshots/transport-comparison.png" alt="交通对比" width="280" /> | <img src="assets/screenshots/restaurant-recommendation.png" alt="餐厅推荐" width="280" /> |
+| 路线验证 8 维评分 | 每日安排（支持多方式导出） |
+|:---:|:---:|
+| <img src="assets/screenshots/route-validation.png" alt="路线验证" width="520" /> | <img src="assets/screenshots/daily-itinerary-export.png" alt="每日安排" width="520" /> |
 
-| 酒店推荐（4 档星级） | 目的地天气 | 多维度旅行贴士 | 当地特色体验 |
-|:---:|:---:|:---:|:---:|
-| <img src="assets/screenshots/hotel-recommendation.png" alt="酒店推荐" width="200" /> | <img src="assets/screenshots/destination-weather.png" alt="天气" width="200" /> | <img src="assets/screenshots/multi-dim-tips.png" alt="旅行贴士" width="200" /> | <img src="assets/screenshots/local-specials.png" alt="特色体验" width="200" /> |
+| 交通方式对比 & 票价 | 餐厅推荐（5 档价位） |
+|:---:|:---:|
+| <img src="assets/screenshots/transport-comparison.png" alt="交通对比" width="520" /> | <img src="assets/screenshots/restaurant-recommendation.png" alt="餐厅推荐" width="520" /> |
 
-</details>
+| 酒店推荐（4 档星级） | 目的地近日天气 |
+|:---:|:---:|
+| <img src="assets/screenshots/hotel-recommendation.png" alt="酒店推荐" width="520" /> | <img src="assets/screenshots/destination-weather.png" alt="天气" width="520" /> |
+
+| 多维度旅行贴士 | 当地特色体验 |
+|:---:|:---:|
+| <img src="assets/screenshots/multi-dim-tips.png" alt="旅行贴士" width="520" /> | <img src="assets/screenshots/local-specials.png" alt="特色体验" width="520" /> |
 
 ### 2️⃣ 旅途伴侣（主页 Tab 2 + 独立全屏页）
 
@@ -231,19 +237,17 @@
 
 **📸 旅途伴侣截图：**
 
-<details>
-<summary>🖼️ 点击展开旅途伴侣相关截图</summary>
-<br>
-
-| 旅途伴侣页面 | NTP 授时服务器 | 日历 & 节假日倒计时 |
-|:---:|:---:|:---:|
-| <img src="assets/screenshots/travel-companion.png" alt="旅途伴侣" width="280" /> | <img src="assets/screenshots/ntp-time-server.png" alt="NTP" width="280" /> | <img src="assets/screenshots/calendar-display.png" alt="日历" width="280" /> |
-
-| 黄历显示 | 节假日倒计时 |
+| 旅途伴侣页面 | NTP 授时服务器显示 |
 |:---:|:---:|
-| <img src="assets/screenshots/huangli-calendar.png" alt="黄历" width="350" /> | <img src="assets/screenshots/holiday-countdown.png" alt="倒计时" width="350" /> |
+| <img src="assets/screenshots/travel-companion.png" alt="旅途伴侣" width="520" /> | <img src="assets/screenshots/ntp-time-server.png" alt="NTP" width="520" /> |
 
-</details>
+| 日历显示 | 黄历显示 |
+|:---:|:---:|
+| <img src="assets/screenshots/calendar-display.png" alt="日历" width="520" /> | <img src="assets/screenshots/huangli-calendar.png" alt="黄历" width="520" /> |
+
+| 节假日倒计时 |
+|:---:|
+| <img src="assets/screenshots/holiday-countdown.png" alt="倒计时" width="600" /> |
 
 ### 3️⃣ 社区路线（主页 Tab 3 + 独立全屏页 + 复盘沉淀）
 
@@ -263,15 +267,9 @@
 
 **📸 社区路线截图：**
 
-<details>
-<summary>🖼️ 点击展开社区路线相关截图</summary>
-<br>
-
 | 社区路线页面 |
 |:---:|
-| <img src="assets/screenshots/community-routes.png" alt="社区路线" width="500" /> |
-
-</details>
+| <img src="assets/screenshots/community-routes.png" alt="社区路线" width="900" /> |
 
 ---
 ## 🚀 快速启动（推荐）
