@@ -548,13 +548,33 @@ app.get('/api/city/resolve', async (req, res) => {
   }
 });
 
-/* ---------- 详细地址 → 坐标（高德地理编码） ---------- */
+/* ---------- 详细地址 → 坐标（高德地理编码 + POI 精确检索） ---------- */
 app.get('/api/address/geocode', async (req, res) => {
   try {
     const address = (req.query.address || '').toString().trim();
     const city = (req.query.city || '').toString().trim();
     if (!address) return res.status(400).json({ error: true, message: 'address is required' });
-    // 1) 高德
+    // 1) 高德 POI 精确检索（针对景点/餐厅/酒店等名称，返回真实坐标，避免 geocode 模糊匹配到公交站/同名地点）
+    if (AMAP_KEY && AMAP_KEY !== 'your_amap_key_here') {
+      try {
+        const pr = await callAmapRaw('/v3/place/text', new URLSearchParams({
+          keywords: address, city, offset: '5', page: '1', extensions: 'base', output: 'json'
+        }).toString());
+        const plist = (pr.pois || []).filter(p => p.name && p.location);
+        const hit = plist.find(p => p.name.includes(address) || address.includes(p.name)) || plist.find(p => p.name.includes(address.slice(0, 4)));
+        if (hit) {
+          const [lon, lat] = hit.location.split(',').map(parseFloat);
+          return res.json({
+            error: false, source: 'amap-poi',
+            address, city, full_address: hit.address || hit.name,
+            lng: lon, lat, location: hit.location,
+            poi_name: hit.name,
+            province: hit.province || '', adcode: hit.adcode || ''
+          });
+        }
+      } catch (e) {}
+    }
+    // 2) 高德地理编码
     if (AMAP_KEY && AMAP_KEY !== 'your_amap_key_here') {
       try {
         const full = city ? `${city}${address}` : address;
@@ -571,7 +591,7 @@ app.get('/api/address/geocode', async (req, res) => {
         }
       } catch (e) {}
     }
-    // 2) 兜底：取城市中心 + 1° 内随机偏移
+    // 3) 兜底：取城市中心 + hash 确定性偏移
     const c = CITY_COORDS[city];
     if (c) {
       // 基于地址 hash 偏移（确定性）
@@ -4034,6 +4054,7 @@ app.get('/api/ticket', (req, res) => {
       return {
         poi: p.name,
         type: p.type,
+        location: (typeof p.lng === 'number' && typeof p.lat === 'number') ? `${p.lng},${p.lat}` : '',
         price: base,
         prices: [...new Set([base, ...variants])].sort((a,b)=>a-b),
         types: types,

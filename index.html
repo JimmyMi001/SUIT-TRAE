@@ -1780,7 +1780,9 @@
   .comp__map-body{display:grid;grid-template-columns:1fr 320px;gap:0;min-height:380px;max-height:520px;
     transition:max-height .35s cubic-bezier(.4,0,.2,1)}
   .comp__map{position:relative;min-height:380px;background:linear-gradient(135deg,#0f172a,#1e293b);overflow:hidden}
-  .comp__map img{width:100%;height:100%;object-fit:cover;display:block}
+  /* 静态地图兜底图铺满；AMap 标点图片必须保持原始尺寸，否则会被压成 0×0 不可见 */
+  .comp__map > img{width:100%;height:100%;object-fit:cover;display:block}
+  .comp__map .amap-marker img{width:auto;height:auto;max-width:none;max-height:none;object-fit:contain;display:block}
   .comp__map-side{background:rgba(0,0,0,.18);border-left:1px solid var(--line);padding:14px;
     overflow-y:auto;max-height:520px}
   .comp__map-side-empty{color:var(--text-2);font-size:12px;text-align:center;padding:40px 20px;
@@ -4869,6 +4871,7 @@ document.getElementById('compMapToggle')?.addEventListener('click', () => {
 
 /* 任务5：收集工具结果中的地点并渲染到地图上（仅标点，不画连线）— 高德 JS API */
 let compMapInstance = null;
+let compMapInfoWindow = null;  // AMap v2.0 使用 InfoWindow.open(map,pos)，无 map.openInfoWindow
 async function collectAndRenderMap(tool, city, data){
   const wrap = document.getElementById('compMapWrap');
   const container = document.getElementById('compMapContainer');
@@ -4879,21 +4882,24 @@ async function collectAndRenderMap(tool, city, data){
     data.tickets.slice(0, 12).forEach(t => places.push({
       name: t.poi, type: 'poi', icon: '🎫',
       meta: (t.type || '景点') + ' · ¥' + (t.prices || []).join('/'),
-      address: t.address || ''
+      address: t.address || '',
+      location: t.location || ''
     }));
   }
   if (tool === 'hotel' && data.hotels?.length) {
     data.hotels.slice(0, 12).forEach(h => places.push({
       name: h.name, type: 'hotel', icon: '🏨',
       meta: '★'.repeat(h.stars || 3) + ' · ¥' + h.price + '/晚 · 距市中心 ' + h.distance_km + 'km',
-      address: h.address || ''
+      address: h.address || '',
+      location: h.location || ''
     }));
   }
   if (data.restaurants && Array.isArray(data.restaurants)) {
     data.restaurants.slice(0, 12).forEach(r => places.push({
       name: r.name, type: 'rest', icon: '🍜',
       meta: '¥' + (r.price_per_person || r.price || '?') + '/位 · ' + (r.district || ''),
-      address: r.address || ''
+      address: r.address || '',
+      location: r.location || ''
     }));
   }
   if (places.length === 0) {
@@ -4919,6 +4925,7 @@ async function renderCompanionAMap(city, places, side){
   if (mapWrap) { mapWrap.style.display = 'block'; mapWrap.style.visibility = 'visible'; }
   const mapBody = document.getElementById('compMapBody');
   if (mapBody) { mapBody.style.display = 'grid'; mapBody.style.visibility = 'visible'; }
+  if (compMapInfoWindow) { try { compMapInfoWindow.close(); } catch(e) {} compMapInfoWindow = null; }
   if (compMapInstance) { try { compMapInstance.destroy(); } catch(e) {} compMapInstance = null; }
   container.innerHTML = '';
   container.style.display = 'block';
@@ -4940,11 +4947,18 @@ async function renderCompanionAMap(city, places, side){
   }
 
   await new Promise(res => setTimeout(res, 80));
-  compMapInstance = new AMap.Map(container, {
-    zoom: 12, center: [lng, lat], viewMode: '2D',
-    mapStyle: 'amap://styles/darkblue'
-  });
-  try { compMapInstance.resize(); } catch(e) {}
+  try {
+    compMapInstance = new AMap.Map(container, {
+      zoom: 12, center: [lng, lat], viewMode: '2D',
+      mapStyle: 'amap://styles/darkblue'
+    });
+    try { compMapInstance.resize(); } catch(e) {}
+  } catch(e) {
+    console.error('[AMap] 地图初始化失败:', e);
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:380px;color:#fca5a5;font-size:13px;padding:40px;text-align:center">⚠️ 地图初始化失败：'+esc(e.message)+'</div>';
+    side.innerHTML = '<div class="comp__map-side-empty">⚠️ 地图初始化失败</div>';
+    return;
+  }
 
   // 对所有地点进行地理编码：优先用 address，无地址则用 POI 名称+城市
   // 失败时重试不带城市名，再失败用确定性 hash 偏移
@@ -5008,12 +5022,24 @@ async function renderCompanionAMap(city, places, side){
     markers.push(marker);
     marker.on('click', () => {
       const ic = '<div style="padding:8px 12px;min-width:180px"><div style="font-size:14px;font-weight:700;margin-bottom:4px">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#64748b">'+esc2(p.meta||p.address||'无更多信息')+'</div></div>';
-      compMapInstance.openInfoWindow(new AMap.InfoWindow({ content: ic, offset: new AMap.Pixel(0, -30) }), pos);
+      if (compMapInfoWindow) { try { compMapInfoWindow.close(); } catch(e) {} }
+      compMapInfoWindow = new AMap.InfoWindow({ content: ic, offset: new AMap.Pixel(0, -30) });
+      compMapInfoWindow.open(compMapInstance, pos);
     });
   });
 
   if (markerPositions.length > 0) {
-    try { compMapInstance.setBounds(new AMap.Bounds(markerPositions)); } catch(e) {}
+    // 自适应视野：全部坐标落在城市周边（<2°）才 fit，避免个别错误坐标把视野拉出地球
+    const lngs = markerPositions.map(p => p[0]), lats = markerPositions.map(p => p[1]);
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    if (isFinite(minLng) && isFinite(maxLat) && Math.abs(maxLng - minLng) < 2 && Math.abs(maxLat - minLat) < 1.5 && Math.abs(maxLng - lng) < 2 && Math.abs(maxLat - lat) < 1.5) {
+      // 外扩 12% 边距，保证边缘标点完整可见
+      const dx = (maxLng - minLng) * 0.12 || 0.02, dy = (maxLat - minLat) * 0.12 || 0.02;
+      try { compMapInstance.setBounds(new AMap.Bounds([minLng - dx, minLat - dy], [maxLng + dx, maxLat + dy])); } catch(e) {}
+    } else {
+      compMapInstance.setCenter([lng, lat]); compMapInstance.setZoom(12);
+    }
   } else { compMapInstance.setCenter([lng, lat]); compMapInstance.setZoom(12); }
   try { compMapInstance.addControl(new AMap.Scale()); } catch(e) {}
   try { compMapInstance.addControl(new AMap.ToolBar({ position: 'RB' })); } catch(e) {}
@@ -5026,8 +5052,8 @@ async function renderCompanionAMap(city, places, side){
       const i = parseInt(el.dataset.i);
       const pos = markerPositions[i];
       if (!pos) return;
-      // 关闭旧 InfoWindow
-      try { compMapInstance.clearInfoWindow(); } catch(e) {}
+      // 关闭旧 InfoWindow（AMap v2.0：InfoWindow.open/close，无 map.clearInfoWindow）
+      if (compMapInfoWindow) { try { compMapInfoWindow.close(); } catch(e) {} }
       // 定位到标点
       compMapInstance.setZoomAndCenter(16, pos);
       // 高亮当前sidebar项
@@ -5038,11 +5064,13 @@ async function renderCompanionAMap(city, places, side){
       // 弹出 InfoWindow
       const p = places[i];
       const ic = '<div style="padding:8px 12px;min-width:180px"><div style="font-size:14px;font-weight:700;margin-bottom:4px">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#64748b">'+esc2(p.meta||p.address||'无更多信息')+'</div><div style="font-size:10px;color:'+(p._geoSource==='fallback'?'#f59e0b':'#10b981')+';margin-top:4px">'+(p._geoSource==='fallback'?'⚠️ 近似坐标（hash估算）':'✅ 高德精确坐标')+'</div></div>';
-      compMapInstance.openInfoWindow(new AMap.InfoWindow({ content: ic, offset: new AMap.Pixel(0, -30) }), pos);
-      // 触达标点高亮动画（脉冲放大）
+      compMapInfoWindow = new AMap.InfoWindow({ content: ic, offset: new AMap.Pixel(0, -30) });
+      compMapInfoWindow.open(compMapInstance, pos);
+      // 触达标点高亮动画（脉冲放大）— v2.0 getContent() 可能返回字符串，需取 img 元素
       if (markers[i]) {
-        const el2 = markers[i].getContent();
-        if (el2) {
+        const cEl = markers[i].getContent ? markers[i].getContent() : null;
+        const el2 = (cEl && typeof cEl === 'object' && cEl.querySelector) ? cEl.querySelector('img') : null;
+        if (el2 && el2.style) {
           el2.style.transition = 'transform .25s cubic-bezier(.34,1.56,.64,1)';
           el2.style.transform = 'scale(1.4)';
           el2.style.filter = 'drop-shadow(0 0 8px rgba(240,183,131,.8))';
