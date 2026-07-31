@@ -116,6 +116,8 @@ async function fetchRealPOIsFromAmap(city, desiredCount = 24) {
   ];
   const seen = new Set();
   const pois = [];
+  let museumCount = 0;
+  const MAX_MUSEUM = 4; // 高德拉取时博物馆/美术馆/科技馆类 POI 总数上限，防止"行程全是博物馆"
   for (const keywords of keywordsList) {
     if (pois.length >= desiredCount) break;
     try {
@@ -137,6 +139,11 @@ async function fetchRealPOIsFromAmap(city, desiredCount = 24) {
         else if (/酒吧|夜市|夜店/.test(rawType)) mappedType = '夜生活';
         else if (/网红|打卡|拍照|地标|文创园|艺术区|涂鸦|观景台|灯塔|教堂/.test(rawType)) mappedType = '网红';
         else if (/咖啡|奶茶|甜品|烘焙|面包|糖水/.test(rawType)) mappedType = '美食';
+        // 博物馆类数量限制：只保留前 MAX_MUSEUM 个，避免候选池被博物馆/美术馆/科技馆淹没
+        if (/博物馆|博物院|美术馆|科技馆|纪念馆|展览馆|陈列馆/.test(rawType) || /博物馆|博物院|美术馆|科技馆/.test(p.name)) {
+          if (museumCount >= MAX_MUSEUM) continue;
+          museumCount++;
+        }
         pois.push({ name: p.name, type: mappedType, lng: lon, lat, address: p.address || '', tag: mappedType, _source: 'amap' });
         // 同时缓存到 POI_DB 供后续复用
         if (!POI_DB[city]) POI_DB[city] = [];
@@ -3012,25 +3019,35 @@ async function callAI(prompt){
     const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${DEEPSEEK_KEY}`},
-      signal: AbortSignal.timeout(90000),
+      signal: AbortSignal.timeout(150000),
       body: JSON.stringify({
         model:'deepseek-v4-flash',
         messages:[
-          { role:'system', content:'你是专业旅行规划师，输出简洁、实用、可执行。请直接输出最终结果。' },
+          { role:'system', content:'你是专业旅行规划师，输出简洁、实用、可执行。直接输出最终 JSON 结果，不要展示任何思考过程或解释。' },
           { role:'user', content: prompt }
         ],
         temperature:0.3,
-        max_tokens:3000
+        max_tokens:16384
       })
     });
     const dt = Date.now() - t0;
     if(!r.ok) { console.warn('[callAI] http', r.status, dt + 'ms', await r.text().catch(()=>'').then(s=>s.slice(0,200))); return null; }
     const j = await r.json();
     // v4-flash 是 reasoning 模型：思考放 reasoning_content，最终答案放 content
-    // 但实测发现 content 可能为空，answer 在 reasoning_content
+    // 但实测小 max_tokens 时 content 可能为空（输出被思考占满截断），故：
+    // 1) 优先用 content；2) content 为空时从 reasoning_content 提取最后一个 JSON 对象兜底
     const msg = j.choices?.[0]?.message || {};
-    return msg.content || msg.reasoning_content || '';
-  } catch(e){ return null; }
+    let out = msg.content || '';
+    if (!out && msg.reasoning_content) {
+      const m = String(msg.reasoning_content).match(/\{[\s\S]*\}/);
+      if (m) out = m[0];
+    }
+    if (!out) console.warn('[callAI] 返回空 content（finish:', j.choices?.[0]?.finish_reason, '）', dt + 'ms');
+    return out;
+  } catch(e){
+    console.warn('[callAI] 异常:', e.name, e.message, (Date.now() - t0) + 'ms');
+    return null;
+  }
 }
 
 app.get('/api/agent/plan', async (req, res) => {
@@ -3183,12 +3200,27 @@ app.get('/api/agent/plan', async (req, res) => {
           }
         }
       }
+      // 博物馆类数量统一限制（任何来源：POI_DB / 高德补充 / 城市专属池）：
+      // 只保留前 MUSEUM_CAP 个，防止"行程全是博物馆/美术馆/科技馆"。
+      // 上限随天数微增但封顶 6 个，保证行程多样性的同时保留真实博物馆。
+      let museumCapCount = 0;
+      const MUSEUM_CAP = Math.max(2, Math.min(6, d));
+      const preMuseum = allPois.length;
+      allPois = allPois.filter(p => {
+        if (p && p.name && /博物馆|博物院|美术馆|科技馆|纪念馆|展览馆|陈列馆/.test(String(p.name))) {
+          if (museumCapCount >= MUSEUM_CAP) return false;
+          museumCapCount++;
+        }
+        return true;
+      });
+      const museumTrimmed = preMuseum - allPois.length;
       // 统计类型分布
       const typeDist = {};
       allPois.forEach(p => { typeDist[p.type] = (typeDist[p.type] || 0) + 1; });
       const dt = Date.now() - ts;
       think(2, 'POI 数据拉取', allPois.length > 0 ? 'success' : 'empty', {
         total: allPois.length,
+        museum_capped: museumTrimmed > 0 ? `已限制博物馆/美术馆/科技馆类 POI 至 ${MUSEUM_CAP} 个（剔除 ${museumTrimmed} 个，避免行程博物馆过多）` : '无需限制',
         source: poiSource,
         source_label: poiSource === 'poi_db' ? 'POI 数据库（19 城真实景点，含坐标）' :
                        poiSource === 'poi_db+amap' ? `POI 数据库 + 高德 API 实时补充（共 ${allPois.length} 个真实 POI）` :
@@ -3260,6 +3292,7 @@ ${typesStr}
 2. 每天 4 个节点：上午 9-12（自然/历史/文化 1 个）+ 午餐 12-14（美食 1 个）+ 下午 14-18（按主题 1 个）+ 晚间 19-22（夜生活/夜景/夜市/演艺/购物/酒吧 1 个）
 3. 每天主题必须不同（避免重复"历史穿越"等）
 4. **仅使用候选 POI 清单中的真实地点**，绝对不要虚构/创造不存在的地点名。如果候选 POI 数量不够 ${d * 4} 个，请按实际可用 POI 数量设计行程，可减少天数或节点数，但每个地点必须真实。
+5. **博物馆/美术馆/科技馆等文化场馆类 POI 必须分散**：每天最多安排 1 个，整个行程总计不超过 ${Math.max(1, Math.ceil(d * 0.4))} 个，严禁把多个博物馆/美术馆堆在同一天（例如"广东省博物馆+广州艺术博物院"不能同时出现在同一天）。
 
 【任务】请为每天设计一个独特主题（避免重复），从候选 POI 中挑选尽可能多的真实 POI（每天最多 4 个，含早/午/下午/晚），按合理游览顺序排序。宁缺毋滥——只使用真实地点。
 
@@ -3287,7 +3320,7 @@ ${typesStr}
             const jsonMatch = aiText.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               let parsed;
-              try { parsed = JSON.parse(jsonMatch[0]); } catch(pe) { console.warn('[plan] JSON parse fail', pe.message); }
+              try { parsed = JSON.parse(jsonMatch[0]); } catch(pe) { console.warn('[plan] JSON parse fail', pe.message, '| aiText head:', String(aiText).slice(0, 300).replace(/\n/g, '\\n')); }
               if (parsed && parsed.days && Array.isArray(parsed.days)) {
                 // 修正天数：AI 偶尔返回不对的天数，用前 d 天
                 if (parsed.days.length !== d) {
@@ -3366,6 +3399,8 @@ ${typesStr}
                   parsed_pois: aiDesign.days.flatMap(d => d.nodes.map(n => n.poi))
                 }, 'deepseek', dt);
               }
+            } else {
+              console.warn('[plan] AI 返回无 JSON 块（len:', aiText.length, '）| head:', String(aiText).slice(0, 200).replace(/\n/g, '\\n'));
             }
           }
         } catch (e) {
@@ -3502,6 +3537,77 @@ ${typesStr}
           no_fake_pois: 'creativeByType 已彻底移除，所有地点名均来自真实数据源'
         }, 'local-heuristic', dt);
       }
+    }
+
+    // ---------- 步骤 3.5: 博物馆数量均衡（防止"博物馆过多/全部堆到一天"） ----------
+    // 同时适用于 AI 设计与本地启发式：每天最多 1 个博物馆/美术馆/科技馆类节点，
+    // 全行程总数不超过 max(1, ceil(d*0.4))；超出的用未使用的非博物馆真实 POI 替换，无可替代则移除（宁缺毋滥）。
+    {
+      const ts = Date.now();
+      const isMuseumNode = (n) => {
+        if (!n || n._removed || !n.poi) return false; // 已移除节点不参与统计（其占位名含"博物馆"字样）
+        const name = String(n.poi);
+        const t = String(n.type || '');
+        if (/博物馆|博物院|美术馆|纪念馆|艺术馆|展览馆|科技馆|陈列馆/.test(name)) return true;
+        if (/馆/.test(name) && /文化|艺术|展/.test(t)) return true;
+        return false;
+      };
+      const maxPerDay = 1;
+      const maxTotal = Math.max(1, Math.ceil(d * 0.4)); // 3天→2 4天→2 5天→2 7天→3 10天→4
+      // 已用 POI 名（含替换后的），避免重复
+      const usedNames = new Set(itinerary.flatMap(d => (d.nodes || [])).filter(n => !n._removed).map(n => n.poi));
+      // 替代池：完整真实候选池（allPois 而非截断的 scored）中未使用、本身非博物馆的 POI，按兴趣得分降序
+      const altPool = allPois
+        .filter(p => p && p.name && !usedNames.has(p.name) && !/博物馆|博物院|美术馆|纪念馆|艺术馆|展览馆|科技馆|陈列馆/.test(p.name))
+        .sort((a, b) => (b._s || 0) - (a._s || 0));
+      let replaced = 0, removed = 0;
+      const refreshCounts = () => ({
+        total: itinerary.flatMap(d => (d.nodes || [])).filter(n => !n._removed && isMuseumNode(n)).length,
+        perDay: itinerary.map(d => (d.nodes || []).filter(n => !n._removed && isMuseumNode(n)).length)
+      });
+      let cnt = refreshCounts();
+      for (let pass = 0; pass < 12 && cnt.total > 0; pass++) {
+        // 找第一个违反约束的博物馆节点：优先处理"当天已超 1 个"的，其次处理"全行程超上限"的
+        let target = null, targetDay = null;
+        for (const day of itinerary) {
+          const dayMuseums = (day.nodes || []).filter(n => !n._removed && isMuseumNode(n));
+          if (dayMuseums.length > maxPerDay) { target = dayMuseums[0]; targetDay = day; break; }
+        }
+        if (!target && cnt.total > maxTotal) {
+          for (const day of itinerary) {
+            const dayMuseums = (day.nodes || []).filter(n => !n._removed && isMuseumNode(n));
+            if (dayMuseums.length) { target = dayMuseums[0]; targetDay = day; break; }
+          }
+        }
+        if (!target) break;
+        const idx = targetDay.nodes.findIndex(n => n === target);
+        if (idx < 0) break;
+        const alt = altPool.find(p => !usedNames.has(p.name));
+        if (alt) {
+          usedNames.add(alt.name);
+          targetDay.nodes[idx] = {
+            time: target.time, slot: target.slot,
+            poi: alt.name, type: alt.type || '景点', tag: alt.tag || '',
+            lng: alt.lng, lat: alt.lat, address: alt.address || '',
+            tip: target.tip || '建议预留 2 小时', _replacedFromMuseum: true
+          };
+          replaced++;
+        } else {
+          targetDay.nodes[idx] = { ...target, _removed: true, _removeReason: '博物馆过多且无可用替代' };
+          removed++;
+        }
+        cnt = refreshCounts();
+      }
+      const museumNames = itinerary.flatMap(d => (d.nodes || [])).filter(n => !n._removed && isMuseumNode(n)).map(n => n.poi);
+      const dt = Date.now() - ts;
+      think(3.5, '博物馆数量均衡', (replaced || removed) ? 'fixed' : 'ok', {
+        rule: `每天最多 ${maxPerDay} 个博物馆/美术馆/科技馆节点；全行程最多 ${maxTotal} 个`,
+        replaced_count: replaced,
+        removed_count: removed,
+        final_museums: museumNames,
+        per_day_museums: itinerary.map(d => ({ day: d.day, museums: (d.nodes || []).filter(n => !n._removed && isMuseumNode(n)).map(n => n.poi) })),
+        balance_strategy: '用完整候选池中未使用的非博物馆真实 POI 替换；无可替代则移除该节点（宁缺毋滥，不虚构）'
+      }, 'heuristic-balance', dt);
     }
 
     // ---------- 步骤 4.5: 增强每节点 POI 详情（推荐理由 + 建议 + 票价） ----------

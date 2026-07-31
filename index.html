@@ -3361,10 +3361,19 @@ function weatherEmoji(cond){
   return '🌤';
 }
 
+// 智能规划"完整路线"地图实例（模块级保存，重新渲染前必须 destroy 旧实例，
+// 否则多次生成/修改行程会累积残留 AMap 实例，导致新地图空白但版权标志仍在）
+let planMapInstance = null;
+
 function renderAmapRoute(containerId, city, nodes, days){
   const box = document.getElementById(containerId);
   if (!box || typeof AMap === 'undefined') return false;
   try {
+    // 销毁旧实例：避免 WebGL/瓦片资源残留，防止重复渲染后新地图无法显示
+    if (planMapInstance) {
+      try { planMapInstance.destroy(); } catch(e) {}
+      planMapInstance = null;
+    }
     // 关键修复：清空 + 强制重置为块级布局（AMap 需要确定尺寸的块容器）
     box.innerHTML = '';
     box.style.display = 'block';
@@ -3381,6 +3390,12 @@ function renderAmapRoute(containerId, city, nodes, days){
       center: center,
       viewMode: '2D',
       mapStyle: 'amap://styles/darkblue'
+    });
+    planMapInstance = map;
+    // 样式资源异步加载，失败会静默回退白底/空白：complete 后幂等重设一次 + 强制 resize
+    map.on('complete', () => {
+      try { map.resize(); } catch(e) {}
+      try { map.setMapStyle('amap://styles/darkblue'); } catch(e) {}
     });
     // POI 标记
     const DAY_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6'];
