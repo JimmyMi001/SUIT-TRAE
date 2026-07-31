@@ -948,7 +948,12 @@ server {
    ```
    AMAP_KEY=你的高德Web服务Key
    DEEPSEEK_KEY=sk-你的DeepSeek Key
+   # 以下为可选真实数据源（不填则自动降级为内置体验数据）
+   FLYAI_API_KEY=sk-你的飞猪FlyAI Key        # 填写后解锁酒店完整价格
+   TUNIU_API_KEY=sk-你的途牛开放平台Key       # 真实门票/机票
+   MEITUAN_HT_TOKEN=你的美团酒旅Token         # 真实酒店/机票/门票，申请: developer.meituan.com/zh/v2/dev/token
    ```
+   > ℹ️ 容器内环境变量优先于 `.env` 模板，部署平台填写的 Key 不会被占位符覆盖（已修复 dotenv override 覆盖问题）。
 
 6. **点击部署**，等待 1-2 分钟。Sealos 会自动分配一个 `*.sealos.run` 域名并提供 HTTPS。
 

@@ -25,7 +25,7 @@
  *  汇率        GET  /api/fx
  */
 
-require('dotenv').config({ override: true });  // .env 优先，绕过 shell 注入的同名环境变量
+require('dotenv').config();  // .env 补充缺失变量；已注入的环境变量（如 Docker/Sealos 控制台配置）优先，避免模板占位符覆盖真实 Key
 require('./env-loader');                        // 兜底:从 .env.enc 解密加载(部署平台用)
 
 const express = require('express');
