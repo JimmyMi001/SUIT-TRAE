@@ -2425,7 +2425,7 @@
     <h2>社区路线库</h2>
     <p class="sub">所有用户提交的路线，搜索 / 筛选 / 查看详情</p>
     <div class="com__search">
-      <input id="comQuery" placeholder="搜城市 / 标题 / 标签 / POI" value="成都">
+      <input id="comQuery" placeholder="搜城市 / 标题 / 标签 / POI">
       <button class="btn btn--pri" id="comBtn">搜索</button>
       <button class="btn btn--ghost" id="comAll">全部</button>
     </div>
@@ -5331,9 +5331,9 @@ async function runCompTool(tool){
     out.innerHTML = `<div class="state" style="color:#fca5a5">查询失败：${esc(e.message)}</div>`;
   }
 }
-document.getElementById('comBtn').onclick = ()=>loadCommunity();
+document.getElementById('comBtn').onclick = ()=>loadCommunity(document.getElementById('comQuery').value.trim());
 document.getElementById('comAll').onclick = ()=>{ document.getElementById('comQuery').value=''; loadCommunity(); };
-document.getElementById('comQuery').onkeydown = e => { if(e.key==='Enter') loadCommunity(); };
+document.getElementById('comQuery').onkeydown = e => { if(e.key==='Enter') loadCommunity(document.getElementById('comQuery').value.trim()); };
 
 /* ========== 12. 级联下拉/时间显示/地址解析 ========== */
 
