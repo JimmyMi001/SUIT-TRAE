@@ -327,7 +327,7 @@ app.get('/api/health', async (_req, res) => {
     mcp12306: mcp12306,
     flyai: { available: true, anon_mode: FLYAI_ANON, note: '飞猪 FlyAI 体验模式（匿名 Key 免注册）' },
     tuniu: { configured: Boolean(TUNIU_API_KEY), register_url: 'https://open.tuniu.com/' },
-    meituan: { configured: Boolean((process.env.MEITUAN_API_KEY || '').trim() && (process.env.MEITUAN_MCP_ENDPOINT || '').trim()), api_key: Boolean((process.env.MEITUAN_API_KEY || '').trim()), endpoint: Boolean((process.env.MEITUAN_MCP_ENDPOINT || '').trim()), guide: '需在 AI Hub 控制台复制接入点(endpointUrl)填入 MEITUAN_MCP_ENDPOINT' },
+    meituan: { configured: Boolean(MEITUAN_HT_TOKEN), token: Boolean(MEITUAN_HT_TOKEN), mode: '官方酒旅直连（mcp-open-cater.meituan.com）', guide: '安装 mtskills-cli 后执行 mtskills i meituan-travel，将 Token 填入 MEITUAN_HT_TOKEN 或 MEITUAN_API_KEY' },
   });
 });
 
@@ -5659,78 +5659,96 @@ app.get('/api/tuniu/status', async (_req, res) => {
   res.json({ error: false, source: '途牛开放平台', configured: Boolean(TUNIU_API_KEY), register_url: 'https://open.tuniu.com/' });
 });
 
-/* ---------- 美团 AI Hub MCP 客户端（真实酒店/门票/餐饮，需 MEITUAN_API_KEY + MEITUAN_MCP_ENDPOINT） ----------
- * 获取方式：
- *   1. 打开 https://developer.meituan.com/zh/v2/dev/aiHub/mcpManage（AI Hub → MCP 管理）
- *   2. 在「MCP Token」页（/zh/v2/dev/aiHub/token）创建 Token，得到 MEITUAN_API_KEY（64 位十六进制）
- *   3. 在 MCP 广场选择服务，复制「接入点信息」endpointUrl（形如 https://mcp.meituan.com/api/carrier/proxyXXXX）
- *   4. 填入环境变量 MEITUAN_API_KEY 与 MEITUAN_MCP_ENDPOINT 后重启服务
- * 协议：MCP Streamable HTTP（POST JSON-RPC tools/call，Bearer token，SSE 响应），6h 内存缓存。
- * ⚠️ 网关 mcp.meituan.com 为动态代理路径，每个 MCP 服务的接入点不同，必须从控制台复制，无法盲猜。
+/* ---------- 美团酒旅直连（官方 openapi，真实酒店/机票/门票，需 MEITUAN_HT_TOKEN） ----------
+ * 来源：美团官方 Skill（npm i -g mtskills-cli && mtskills i meituan-travel）逆向出的官方直连协议：
+ *   POST https://mcp-open-cater.meituan.com/v1/api/voyage/openapi/query
+ *   headers: { Authorization: <MEITUAN_HT_TOKEN>, 'Content-Type': 'application/json' }
+ *   body:    { city, query, originQuery, channel: 'meituan-developer' }
+ *   响应:    { code:0, msg:'success', traceId, data: <AI 生成的 Markdown，含真实条目与 dpurl.cn 短链跳转> }
+ * Token 获取：https://developer.meituan.com/zh/v2/dev/token（API Token），支持 MEITUAN_HT_TOKEN 或 MEITUAN_API_KEY。
+ * 响应约 15~60 秒（AI 生成式回答），已做 6h 内存缓存，超时 120s，失败不影响其他数据源。
  */
-const MEITUAN_API_KEY    = (process.env.MEITUAN_API_KEY || '').trim();
-const MEITUAN_MCP_ENDPOINT = (process.env.MEITUAN_MCP_ENDPOINT || '').trim();
-const meituanCache = new Map();
-const MEITUAN_CACHE_TTL = 6 * 3600 * 1000;
+const MEITUAN_HT_TOKEN = (process.env.MEITUAN_HT_TOKEN || process.env.MEITUAN_API_KEY || '').trim();
+const MEITUAN_QUERY_ENDPOINT = 'https://mcp-open-cater.meituan.com/v1/api/voyage/openapi/query';
+const MEITUAN_CHANNEL = 'meituan-developer';
+const meituanTravelCache = new Map();
+const MEITUAN_TRAVEL_CACHE_TTL = 6 * 3600 * 1000;
 
-// 调用美团 MCP 工具：成功返回解析后的数据对象，失败返回 null（未配置也返回 null）
-async function meituanMcpCall(tool, args) {
-  if (!MEITUAN_API_KEY || !MEITUAN_MCP_ENDPOINT) return null;
-  const cacheKey = tool + '|' + JSON.stringify(args || {});
-  const hit = meituanCache.get(cacheKey);
-  if (hit && Date.now() - hit.at < MEITUAN_CACHE_TTL) return hit.data;
+// 美团酒旅 AI 查询：city + 自然语言 query → { ok, markdown, traceId, error }
+async function meituanTravelQuery(city, query) {
+  if (!MEITUAN_HT_TOKEN) return { ok: false, error: '未配置 MEITUAN_HT_TOKEN' };
+  const cacheKey = (city || '北京') + '|' + query;
+  const hit = meituanTravelCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < MEITUAN_TRAVEL_CACHE_TTL) return hit.data;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), 120000);
   try {
-    const r = await fetch(MEITUAN_MCP_ENDPOINT, {
+    const r = await fetch(MEITUAN_QUERY_ENDPOINT, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json, text/event-stream',
-        'Authorization': 'Bearer ' + MEITUAN_API_KEY
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', id: Math.floor(Math.random() * 1e6) + 1, method: 'tools/call', params: { name: tool, arguments: args || {} } }),
+      headers: { 'Authorization': MEITUAN_HT_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city: city || '北京', query, originQuery: query, channel: MEITUAN_CHANNEL }),
       signal: controller.signal
     });
-    if (!r.ok) return null;
-    let text = await r.text();
-    if (text.includes('event: message')) { const m = text.match(/data: (\{[\s\S]*\})/); if (m) text = m[1]; }
-    let json = null;
-    try { json = JSON.parse(text); } catch (e) { return null; }
-    if (json.error || !json.result) return null;
-    const t = (json.result.content || []).map(c => c.text || '').join(' ');
-    let data = null;
-    try { data = JSON.parse(t); } catch (e) { data = { __raw: t }; }
-    meituanCache.set(cacheKey, { at: Date.now(), data });
+    if (!r.ok) return { ok: false, error: 'HTTP ' + r.status + ' ' + r.statusText };
+    const j = await r.json().catch(() => null);
+    if (!j || j.code !== 0) return { ok: false, error: (j && (j.msg || j.message)) || '响应异常' };
+    const data = { ok: true, markdown: j.data || '', traceId: j.traceId || '' };
+    meituanTravelCache.set(cacheKey, { at: Date.now(), data });
     return data;
-  } catch (e) { return null; } finally { clearTimeout(timer); }
+  } catch (e) {
+    return { ok: false, error: e.name === 'AbortError' ? '请求超时（>120s）' : (e.message || String(e)) };
+  } finally { clearTimeout(timer); }
 }
 
-// 美团未配置（或缺接入点）时的统一引导提示
+// 解析美团 AI Markdown → 结构化条目 [{name, desc, price, link}]
+// 支持两种格式：
+//   机票: [深圳航空ZH9147 广州·白云→北京·首都 2026-08-02 07:05→10:15 3h10m 经济舱 ¥811](http://dpurl.cn/xxx)
+//   酒店: [**金果精选酒店\(北京协和医院店\)**](http://dpurl.cn/xxx) 美团经济型 **美团真实评分4.8** 2021/01开业 **￥512起/晚** ...
+function parseMeituanMarkdown(md) {
+  if (!md || typeof md !== 'string') return [];
+  const clean = md.replace(/!\[[^\]]*\]\([^)]*\)/g, '');          // 去掉图片引用
+  const items = [];
+  const re = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+  let m;
+  while ((m = re.exec(clean)) !== null) {
+    const title = m[1].replace(/[*_`~]/g, '').replace(/\\([()])/g, '$1').trim();
+    const url = m[2];
+    // 从该链接起点向后 260 字符内找价格（¥/￥），并截取链接后的描述文本
+    const tail = clean.slice(m.index, m.index + 260).replace(/\s*\n+\s*/g, ' ');
+    const pm = tail.match(/[¥￥]\s*(\d[\d,]*(?:\.\d+)?)/);
+    // 脱敏价（如 ¥1XX/¥3XX）不参与比价：价格后紧跟 X 视为脱敏
+    const masked = pm ? /^[¥￥]\s*\d[\d,.]*\s*X/i.test(tail.slice(pm.index)) : false;
+    const price = (pm && !masked) ? Number(pm[1].replace(/,/g, '')) : 0;
+    const after = tail.slice(m[0].length).trim().slice(0, 120).replace(/[*_`#>]/g, '').replace(/\s+/g, ' ').trim();
+    items.push({ name: title || '美团推荐', price, link: url, desc: after });
+  }
+  return items;
+}
+
+// 美团未配置 Token 时的引导提示
 function meituanNeedKey() {
-  return { error: true, message: '美团 AI Hub 未配置完成。请到 https://developer.meituan.com/zh/v2/dev/aiHub/mcpManage 选择 MCP 服务并复制「接入点信息」（endpointUrl），设置环境变量 MEITUAN_MCP_ENDPOINT（并确保 MEITUAN_API_KEY 已配置）后重启服务。当前已回退飞猪/途牛/本地数据。' };
+  return { error: true, message: '美团酒旅未配置 Token。请在 https://developer.meituan.com/zh/v2/dev/token 申请 API Token，填入 .env 的 MEITUAN_HT_TOKEN（或 MEITUAN_API_KEY）后重启服务。当前已回退飞猪/途牛/12306/高德数据。' };
 }
 
 app.get('/api/meituan/status', async (_req, res) => {
   res.json({
-    error: false, source: '美团 AI Hub MCP',
-    configured: Boolean(MEITUAN_API_KEY && MEITUAN_MCP_ENDPOINT),
-    api_key: Boolean(MEITUAN_API_KEY),
-    endpoint: Boolean(MEITUAN_MCP_ENDPOINT),
-    guide: '打开 https://developer.meituan.com/zh/v2/dev/aiHub/mcpManage → 选择 MCP 服务 → 复制「接入点信息」填入 MEITUAN_MCP_ENDPOINT'
+    error: false, source: '美团酒旅（官方 openapi）',
+    configured: Boolean(MEITUAN_HT_TOKEN),
+    token: Boolean(MEITUAN_HT_TOKEN),
+    mode: 'mcp-open-cater.meituan.com/v1/api/voyage/openapi/query',
+    guide: 'npm i -g mtskills-cli && mtskills i meituan-travel，Token 填入 MEITUAN_HT_TOKEN'
   });
 });
 
-// 尝试调用美团 MCP 工具（需已配置接入点）；前端可借此探测可用工具
+// 美团酒旅通用查询（前端/调试用）：/api/meituan/call?city=北京&query=明天北京到上海的机票
 app.get('/api/meituan/call', async (req, res) => {
-  if (!MEITUAN_API_KEY || !MEITUAN_MCP_ENDPOINT) return res.json(meituanNeedKey());
-  const tool = (req.query.tool || '').trim();
-  let args = {};
-  try { args = req.query.args ? JSON.parse(req.query.args) : {}; } catch (e) { /* 忽略非法 JSON */ }
-  if (!tool) return res.json({ error: true, message: '缺少 tool 参数（美团 MCP 工具名）' });
-  const data = await meituanMcpCall(tool, args);
-  if (!data) return res.json({ error: true, message: '美团 MCP 调用失败：接入点不可用或鉴权失败，请检查 MEITUAN_MCP_ENDPOINT/MEITUAN_API_KEY' });
-  res.json({ error: false, source: '美团 AI Hub MCP', tool, data });
+  if (!MEITUAN_HT_TOKEN) return res.json(meituanNeedKey());
+  const city = (req.query.city || '北京').trim();
+  const query = (req.query.query || '').trim();
+  if (!query) return res.json({ error: true, message: '缺少 query 参数（自然语言查询，如：北京到上海的机票）' });
+  const mt = await meituanTravelQuery(city, query);
+  if (!mt.ok) return res.json({ error: true, message: '美团酒旅查询失败：' + mt.error });
+  res.json({ error: false, source: '美团酒旅（官方 openapi）', city, query, markdown: mt.markdown, traceId: mt.traceId, items: parseMeituanMarkdown(mt.markdown) });
 });
 
 /* ---------- 多源联合决策（飞猪 FlyAI + 途牛 + 12306 + 高德 + DeepSeek） ----------
@@ -5804,6 +5822,25 @@ app.get('/api/consensus', async (req, res) => {
           sources.push({ source: '12306 官方', url: 'https://www.12306.cn/index/', items: trains, note: '价格为参考，请以 12306 实时为准' });
         }
       } catch (e) {}
+      // ④ 美团酒旅（官方 openapi，AI 生成真实航班 + dpurl 短链直达购票）
+      if (MEITUAN_HT_TOKEN) {
+        try {
+          const dateText = (() => { const [yy, mm, dd] = String(date || '').split('-'); return yy && mm && dd ? `${yy}年${Number(mm)}月${Number(dd)}日` : ''; })();
+          const q = dateText && date !== cnDateStr(1) ? `从${from}到${to}${dateText}的机票` : `从${from}到${to}明天的机票`;
+          const mt = await meituanTravelQuery(from || '北京', q);
+          if (mt.ok) {
+            const mitems = parseMeituanMarkdown(mt.markdown).filter(it => it.price > 0 && it.link);
+            if (mitems.length) {
+              sources.push({
+                source: '美团酒旅（官方）',
+                url: 'https://www.meituan.com/s/机票',
+                items: mitems.slice(0, 8),
+                note: '美团 AI 生成式推荐，价格含税情况以跳转页为准'
+              });
+            }
+          }
+        } catch (e) {}
+      }
     } else if (type === 'hotel') {
       // ① 飞猪 FlyAI 真实在售酒店
       try {
@@ -5838,6 +5875,23 @@ app.get('/api/consensus', async (req, res) => {
                 link: (h.bookingUrl || h.detailUrl || `https://hotel.tuniu.com/list/${encodeURIComponent(city)}-0/`)
               }))
             });
+          }
+        } catch (e) {}
+      }
+      // ③ 美团酒旅（官方 openapi，真实在售酒店 + dpurl 短链直达预订）
+      if (MEITUAN_HT_TOKEN) {
+        try {
+          const mt = await meituanTravelQuery(city || '北京', `${city}的酒店`);
+          if (mt.ok) {
+            const mitems = parseMeituanMarkdown(mt.markdown).filter(it => it.price > 0 && it.link);
+            if (mitems.length) {
+              sources.push({
+                source: '美团酒旅（官方）',
+                url: `https://www.meituan.com/s/${encodeURIComponent(city)}酒店`,
+                items: mitems.slice(0, 8),
+                note: '美团真实评分 + dpurl 短链直达预订，价格为起价/晚'
+              });
+            }
           }
         } catch (e) {}
       }
@@ -5880,6 +5934,23 @@ app.get('/api/consensus', async (req, res) => {
           });
         }
       } catch (e) {}
+      // ③ 美团酒旅（官方 openapi，真实门票价格 + dpurl 短链直达购票）
+      if (MEITUAN_HT_TOKEN) {
+        try {
+          const mt = await meituanTravelQuery(scenic || '北京', `${scenic}门票价格`);
+          if (mt.ok) {
+            const mitems = parseMeituanMarkdown(mt.markdown).filter(it => it.price > 0 && it.link);
+            if (mitems.length) {
+              sources.push({
+                source: '美团酒旅（官方）',
+                url: `https://www.meituan.com/s/${encodeURIComponent(scenic)}门票`,
+                items: mitems.slice(0, 8),
+                note: '美团真实门票价格 + dpurl 短链直达购票'
+              });
+            }
+          }
+        } catch (e) {}
+      }
     }
 
     // —— AI 联合分析（DeepSeek 综合多源对比，给出推荐）——
@@ -5892,7 +5963,7 @@ app.get('/api/consensus', async (req, res) => {
       ).join('\n\n');
       ai_analysis = await callDeepSeek(
         `以下是多源实时查询结果（${type === 'flight' ? '机票' : type === 'hotel' ? '酒店' : '门票'}，来源已标注）：\n${summary}\n\n请用 ≤130 字给出联合决策：性价比最优选择（含来源与价格）、价格可信度判断、风险提示（如中转/退改/脱敏）。不要 Markdown。`,
-        '你是"123就出发"的多源数据联合决策助手。基于多个真实数据源（飞猪/途牛/12306/高德）的对比结果，给出专业、克制的建议。'
+        '你是"123就出发"的多源数据联合决策助手。基于多个真实数据源（美团/飞猪/途牛/12306/高德）的对比结果，给出专业、克制的建议。'
       );
     } catch (e) {}
 

@@ -5382,7 +5382,7 @@ async function runConsensus(type){
   const originCity = (originText && originText.value.trim()) || (originSel && originSel.value) || '';
   const box = document.getElementById('consensusResult');
   if(!box) return;
-  box.innerHTML = '<div class="state">🔍 并发拉取多平台真实数据 + AI 联合分析中…（约 5~15 秒，请稍候）</div>';
+  box.innerHTML = '<div class="state">🔍 并发拉取美团/飞猪/途牛/12306/高德真实数据 + AI 联合分析中…（约 10~30 秒，请稍候）</div>';
   const d = new Date(); d.setDate(d.getDate() + 1);
   const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   const r = await API.consensus(type, { from: originCity, to: city, city, date: dateStr });
@@ -5418,7 +5418,7 @@ async function runConsensus(type){
       <div class="grid grid--2">${items || '<div class="state">该源暂无数据</div>'}</div>
       ${s.note ? `<div style="color:var(--muted);font-size:11px;margin-top:4px">📌 ${esc(s.note)}</div>` : ''}
     </div>`;
-  }).join('') || '<div class="state">暂无数据，请检查数据源配置（飞猪/途牛 Key）</div>';
+  }).join('') || '<div class="state">暂无数据，请检查数据源配置（美团 Token / 飞猪 / 途牛 Key）</div>';
   box.innerHTML = `
     ${aiBox}
     <h4 style="margin:10px 0 4px">${typeLabel} · ${r.source_count || 0} 个数据源对比${r.elapsed_ms ? `（${(r.elapsed_ms / 1000).toFixed(1)}s）` : ''}</h4>

@@ -115,7 +115,7 @@
 | 🥇 | **旅途伴侣：定位感知 + 应急拨号 + 实时高德 POI 推荐** | 市场竞品多聚焦于出行前规划，本项目实现**全旅程陪伴** |
 | 🥈 | **未知城市自动解析** —— 县级市/小众景点亦可生成路线 | 主流工具仅支持地级市以上 |
 | 🥈 | **CSS 驱动的液态玻璃 UI**（无 React/Vue） | 业界罕见的「原生三件套 + 现代设计语言」实践 |
-| 🥈 | **真实数据源策略 + 多源联合决策**（高德/Open-Meteo/Frankfurter 永久免费 + 飞猪 FlyAI/途牛/美团 MCP/12306 真实票价，`/api/consensus` 多平台交叉验证 + DeepSeek 联合决策，价格标注来源并附购票跳转） | 同类工具多依赖单一付费 API（Booking/Skyscanner） |
+| 🥈 | **真实数据源策略 + 多源联合决策**（高德/Open-Meteo/Frankfurter 永久免费 + 美团酒旅官方/飞猪 FlyAI/途牛/12306 真实票价，`/api/consensus` 多平台交叉验证 + DeepSeek 联合决策，价格标注来源并附购票跳转） | 同类工具多依赖单一付费 API（Booking/Skyscanner） |
 | 🥉 | **AES-256-CBC 加密密钥 + gitleaks CI 扫描** | 开源项目中少见的「密钥零泄露」工程实践 |
 | 🥉 | **省级→地级市级联 + 输入联想** | 真正符合中国行政区划习惯 |
 | 🥉 | **6 类思考链**（高德/天气/交通/酒店/餐厅/AI）实时标注 | 提高 AI 输出的**可信度**与**可解释性** |
@@ -387,20 +387,23 @@ TUNIU_API_KEY=your_tuniu_api_key_here      # 从 open.tuniu.com 注册获取
 
 > ⚠️ **不配置也能运行**：未配置时 `/api/tuniu/*` 返回引导注册提示，机票/酒店自动降级为 FlyAI 真实数据或本地参考估算。配置后即可查询真实门票（`query_cheapest_tickets`）、酒店（`tuniu_hotel_search`）、机票（`searchLowestPriceFlight`）。
 
-### 4.5 美团 AI Hub MCP（可选 · 真实酒店/门票/餐饮）
+### 4.5 美团酒旅直连（可选 · 官方 openapi，真实酒店/机票/门票）
 
-**用途**：美团 MCP 服务（酒店/门票/餐饮等真实数据），参与 `/api/consensus` 多源联合决策
+**用途**：美团官方酒旅服务（酒店/机票/门票真实数据 + 预订跳转短链），参与 `/api/consensus` 多源联合决策
 
-1. 打开 https://developer.meituan.com/zh/v2/dev/toke 生成 MCP Token，填入 `.env`：
-2. 打开 https://developer.meituan.com/zh/v2/dev/aiHub/mcpManage 选择要使用的 MCP 服务
-3. 在服务详情里复制「接入点信息」的 `endpointUrl`（形如 `https://mcp.meituan.com/api/carrier/proxyXXXX`），填入 `.env`：
+**接入方式（推荐，免 MCP 网关配置）**：官方发布 `mtskills-cli` 一键安装 skill，逆向出官方直连协议后已在服务端内置（`POST https://mcp-open-cater.meituan.com/v1/api/voyage/openapi/query`）：
 
-```
-MEITUAN_API_KEY=your_meituan_mcp_token_here      # 从 developer.meituan.com/zh/v2/dev/toke 生成
-MEITUAN_MCP_ENDPOINT=https://mcp.meituan.com/api/carrier/proxyXXXX   # 从 AI Hub 控制台「接入点信息」复制
-```
+1. 安装美团官方 CLI（可选，仅用于查看 skill 文档）：
+   ```bash
+   npm i -g mtskills-cli && mtskills i meituan-travel
+   ```
+2. 打开 https://developer.meituan.com/zh/v2/dev/token 申请 API Token，填入 `.env`：
+   ```
+   MEITUAN_HT_TOKEN=your_meituan_token_here      # 从 developer.meituan.com/zh/v2/dev/token 生成
+   # 兼容旧变量：未设置 MEITUAN_HT_TOKEN 时自动回退使用 MEITUAN_API_KEY
+   ```
 
-> ⚠️ **接入点无法自动发现**：美团 MCP 网关采用动态代理，每个服务的 `/api/carrier/proxyXXXX` 路径必须从控制台复制，无法猜测。未配置时自动降级为飞猪/途牛/高德/本地数据，不阻塞其他功能。
+> ℹ️ **无需配置 MCP 接入点**：早期版本要求的 `MEITUAN_MCP_ENDPOINT`（`mcp.meituan.com/api/carrier/proxyXXXX`）已废弃，官方酒旅 skill 走独立网关，仅需 Token。响应为 AI 生成式回答（约 15~60s，已 6h 缓存），真实条目均带 `dpurl.cn` 短链可直达预订页。未配置 Token 时自动降级为飞猪/途牛/12306/高德/本地数据，不阻塞其他功能。
 
 ### 5. 验证密钥是否生效
 
@@ -414,14 +417,14 @@ MEITUAN_MCP_ENDPOINT=https://mcp.meituan.com/api/carrier/proxyXXXX   # 从 AI Hu
   "mcp12306": true,
   "flyai": { "available": true, "anon_mode": true },
   "tuniu": { "configured": false },
-  "meituan": { "configured": false, "api_key": true, "endpoint": false }
+  "meituan": { "configured": true, "token": true, "mode": "官方酒旅直连（mcp-open-cater.meituan.com）" }
 }
 ```
 
 - `amap_configured` / `deepseek_configured` 为 `true` 即核心配置成功
 - `flyai.available` 为 `true` 表示飞猪真实机票/酒店已就绪
 - `tuniu.configured` 为 `true` 表示途牛门票 Key 已生效
-- `meituan.configured` 为 `true` 表示美团 MCP（Key + 接入点）已完整就绪
+- `meituan.configured` 为 `true` 表示美团酒旅 Token 已生效（官方直连）
 
 > ⚠️ **无密钥亦可运行**，但地图与 AI 功能将提示错误。社区路线、UI 交互及基础显示不受影响。
 
@@ -1217,22 +1220,22 @@ npm run setup  # 等价于 scripts/setup.js
 | GET | `/api/tuniu/flight?from=xxx&to=xxx` | 途牛机票（需 TUNIU_API_KEY）|
 | GET | `/api/tuniu/status` | 途牛 Key 配置状态 |
 
-### 美团 AI Hub MCP（真实酒店/门票/餐饮）
+### 美团酒旅直连（官方 openapi，真实酒店/机票/门票）
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/meituan/status` | 美团 MCP 配置状态（Key/接入点是否就绪 + 接入指引）|
-| GET | `/api/meituan/call?tool=xxx&args={json}` | 通用工具调用（需 MEITUAN_API_KEY + MEITUAN_MCP_ENDPOINT）|
+| GET | `/api/meituan/status` | 美团酒旅 Token 配置状态 + 接入指引 |
+| GET | `/api/meituan/call?city=北京&query=明天北京到上海的机票` | 美团酒旅自然语言查询（需 MEITUAN_HT_TOKEN / MEITUAN_API_KEY），返回 `markdown`（原始 AI 回答）+ `items`（解析出的结构化条目）|
 
-> ⚠️ **美团接入说明**：美团 AI Hub MCP 网关 `mcp.meituan.com` 采用动态代理（每个服务的接入点为 `/api/carrier/proxyXXXX`，无法盲猜）。需在控制台 https://developer.meituan.com/zh/v2/dev/aiHub/mcpManage 选择服务并复制「接入点信息」填入 `MEITUAN_MCP_ENDPOINT`，Token 在 https://developer.meituan.com/zh/v2/dev/toke 生成填入 `MEITUAN_API_KEY`。未配置时自动降级为飞猪/途牛/高德/本地数据，不阻塞其他功能。
+> ⚠️ **美团接入说明**：直连官方网关 `https://mcp-open-cater.meituan.com/v1/api/voyage/openapi/query`（来自官方 `@meituan-travel/ht-ai` CLI 逆向），仅需 Token（https://developer.meituan.com/zh/v2/dev/token），无需配置 MCP 接入点。响应约 15~60s，6h 缓存；真实条目附 `dpurl.cn` 预订短链。未配置时自动降级为飞猪/途牛/12306/高德/本地数据，不阻塞其他功能。
 
-### 🔀 多源联合决策（飞猪 + 途牛 + 12306 + 高德 + DeepSeek）
+### 🔀 多源联合决策（美团 + 飞猪 + 途牛 + 12306 + 高德 + DeepSeek）
 > 对同一需求**并发拉取多个真实数据源**，每条价格均标注来源并附带购票/预订跳转链接，再由 DeepSeek 综合给出性价比建议（无 Key 时本地启发式兜底）。前端「旅途伴侣 → 🔀 多源比价」入口可直接体验。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/consensus?type=flight&from=广州&to=北京` | 机票联合决策（FlyAI 航班 + 途牛机票 + 12306 高铁余票备选）|
-| GET | `/api/consensus?type=hotel&city=杭州` | 酒店联合决策（FlyAI 在售酒店 + 途牛酒店）|
-| GET | `/api/consensus?type=ticket&to=长城` | 门票联合决策（途牛真实门票 + 高德 POI 补充）|
+| GET | `/api/consensus?type=flight&from=广州&to=北京` | 机票联合决策（FlyAI 航班 + 途牛机票 + 美团酒旅 + 12306 高铁余票备选）|
+| GET | `/api/consensus?type=hotel&city=杭州` | 酒店联合决策（FlyAI 在售酒店 + 途牛酒店 + 美团酒旅）|
+| GET | `/api/consensus?type=ticket&to=长城` | 门票联合决策（途牛真实门票 + 高德 POI 补充 + 美团酒旅）|
 
 返回结构：`{ sources:[{source,url,items:[{name,desc,price,link}]}], ai_analysis, source_count, elapsed_ms, note }`。`link` 为对应平台的购票/预订跳转地址，`ai_analysis` 为 DeepSeek ≤130 字联合决策（含性价比最优、可信度判断、风险提示）。
 
