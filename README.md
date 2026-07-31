@@ -865,6 +865,53 @@ server {
 }
 ```
 
+### 方式 4：Sealos（Docker 一键部署，约 ¥17-28/月）
+
+国内可访问，按量付费，新用户赠送 ¥10-15 免费额度，适合短期评审演示。项目已配置 GitHub Actions 自动构建 Docker 镜像并推送至 `ghcr.io`。
+
+**前置条件**：
+- GitHub 仓库已 fork / 推送至你自己的账号
+- 已配置高德 `AMAP_KEY` 和 DeepSeek `DEEPSEEK_KEY`
+
+**部署步骤**：
+
+1. **确保镜像已构建**：推送到 `main` 分支后，GitHub Actions 会自动构建并推送 Docker 镜像到 ghcr.io。去 [Actions 页面](https://github.com/JimmyMi001/SUIT-TRAE/actions) 确认 `Docker 构建 & 推送` workflow 运行成功（绿色勾）。
+
+2. **将镜像包设为公开**：打开 `https://github.com/<你的用户名>/SUIT-TRAE/pkgs/container/suit-trae` → 页面右侧 **Package settings** → **Change visibility** → 选择 **Public**。
+
+3. **注册 Sealos**：打开 [sealos.run](https://sealos.run)，微信扫码注册登录。新用户赠送 ¥10-15 免费额度。
+
+4. **创建应用**：进入 Sealos 控制台 → 「应用管理」→ 「新建应用」。
+   - **应用类型**：选择「SaaS Web 应用」
+   - **镜像源**：选择「公共镜像」，填入：
+     ```
+     ghcr.io/<你的用户名>/suit-trae:latest
+     ```
+     > 注意：GitHub 用户名必须**全小写**，例如 `ghcr.io/jimmymi001/suit-trae:latest`
+   - **端口**：容器端口填 `3000`
+   - **资源配置**：CPU 0.2 核 + 内存 256MB 即可（约 ¥17/月），推荐 0.5 核 + 512MB（约 ¥28/月）
+   - **存储卷**：3-5GB 足够
+
+5. **配置环境变量**：在「环境变量」区域添加（每行一个，用 `=` 分隔）：
+   ```
+   AMAP_KEY=你的高德Web服务Key
+   DEEPSEEK_KEY=sk-你的DeepSeek Key
+   ```
+
+6. **点击部署**，等待 1-2 分钟。Sealos 会自动分配一个 `*.sealos.run` 域名并提供 HTTPS。
+
+**成本参考**（按量付费）：
+
+| 资源 | 单价 | 月费估算（0.2核+256MB） | 月费估算（0.5核+512MB） |
+|------|------|------------------------|------------------------|
+| CPU | ¥0.0277/核/时 | ¥3.99 | ¥9.97 |
+| 内存 | ¥0.0140/GiB/时 | ¥2.57 | ¥5.14 |
+| 存储 | ¥0.0008/GiB/时 | ¥0.18 | ¥0.37 |
+| 端口 | ¥0.0139/时 | ¥10.01 | ¥10.01 |
+| **合计** | | **≈ ¥17/月** | **≈ ¥25/月** |
+
+> 新用户赠送 ¥10-15，实际月费约 ¥2-15。评审/演示结束可随时删除应用，停止计费。
+
 ---
 
 ## ⚙️ CI/CD 与自动化
@@ -977,7 +1024,7 @@ npm run setup  # 等价于 scripts/setup.js
 | 6 | **可观测性** | 无 APM、无前端性能埋点（LCP/FCP/INP）；错误处理大量 `console.error` 静默 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中（接 Sentry / Prometheus） |
 | 7 | **安全 / 隐私** | 无用户系统、无登录注册、无 GDPR 合规设计、无 Rate Limiting、无 Cookie 同意 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中 |
 | 8 | **国际化** | 仅中文界面；货币仅人民币；字体仅适配简中（繁体/英文 fallback 弱） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（接 i18next） |
-| 9 | **部署 / 运维** | 强依赖 Vercel，**无 Dockerfile**、无蓝绿部署、无集中式日志 | 根目录 · 🟡 中（加 Dockerfile + docker-compose.yml） |
+| 9 | **部署 / 运维** | 强依赖 Vercel，无蓝绿部署、无集中式日志 | 根目录 · 🟡 中（加 docker-compose.yml / 日志聚合） |
 | 10 | **移动端** | 无 PWA / 离线模式 / Service Worker；无 App 包装（Capacitor / RN） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（manifest.json + sw.js） |
 
 > **图例**：🟢 1 周内可完成 · 🟡 1-4 周 · 🔴 1 月以上
@@ -989,7 +1036,7 @@ npm run setup  # 等价于 scripts/setup.js
 - [ ] 添加 Jest 单元测试，覆盖 `recommendRestaurants` / `scoreItinerary` / `generateMultiDimTips`
 - [ ] 增加 `express-rate-limit` 实现基础 DoS 防护（10 req/s/IP）
 - [ ] CSS 变量系统重构：将 `#F0A500` / `DM Serif Display` 等抽取至 `:root` 统一定义
-- [ ] 添加 `Dockerfile`（`FROM node:18-alpine` 即可）
+- [x] ~~添加 `Dockerfile`~~（已完成：`Dockerfile` + `.dockerignore` + GitHub Actions 自动构建推送至 ghcr.io，支持 Sealos 一键部署）
 - [ ] 错误日志结构化：将 `console.error` 替换为 JSON Line 格式（便于后续对接日志平台）
 
 ### 中期可改进（1-2 月 · 需产品与工程权衡）
