@@ -6009,13 +6009,42 @@ function setupOriginChangeRefresh(){
   });
 }
 
-// IP 定位自动识别出发城市（来源：高德 IP 定位；仅自动填一次，用户改过后不再覆盖，始终可手动修改）
+// 省级名归一化：广东省→广东、新疆维吾尔自治区→新疆（用于 IP 定位省名与级联省名匹配）
+const originProvinceKey = (s) => String(s || '')
+  .replace(/省|市|自治区|特别行政区/g, '')
+  .replace(/壮族|回族|维吾尔|族/g, '');
+
+// 同步出发地级联下拉：默认显示的是级联（省/市下拉），需把省、市都选中用户才看得到自动填充
+function syncOriginCascade(province, city, tries){
+  const provSel = document.getElementById('originProvince');
+  const citySel = document.getElementById('originCitySel');
+  if (!provSel || !citySel) return;
+  const pk = originProvinceKey(province);
+  const apply = () => {
+    if (provSel.options.length <= 1) return false; // 省份选项还没填充完（initCascade 异步）
+    const pOpt = Array.from(provSel.options).find(o => originProvinceKey(o.value) === pk);
+    if (!pOpt) return false; // 找不到对应省份则跳过
+    provSel.value = pOpt.value;
+    // 与 initCascade 相同逻辑填充城市选项（不触发 change 事件，不会误记手动修改）
+    const p = CASCADE_DATA && CASCADE_DATA.find(x => x.province === pOpt.value);
+    citySel.innerHTML = '<option value="">— 地级市 —</option>' + (p ? p.cities.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('') : '');
+    const cOpt = Array.from(citySel.options).find(o => o.value === city);
+    if (cOpt) citySel.value = city;
+    return true;
+  };
+  if (apply()) return;
+  if ((tries || 0) >= 10) return; // 最多等 3 秒
+  setTimeout(() => syncOriginCascade(province, city, (tries || 0) + 1), 300);
+}
+
+// IP 定位自动识别出发城市（来源：高德 IP 定位；自动填到出发地，用户可随时手动修改，改过后不再覆盖）
 async function autoDetectOriginCity(){
   try {
     if (localStorage.getItem('origin_manual_override')) return;
     const r = await API.ipLocate();
     if (r.__error || !r.city) return;
     const city = String(r.city).trim();
+    const province = String(r.province || '').trim();
     if (!city) return;
     const input = document.getElementById('userOriginCity');
     const tip = document.getElementById('originIpTip');
@@ -6024,12 +6053,8 @@ async function autoDetectOriginCity(){
     const cur = (input.value || '').trim();
     if (cur && cur !== city) return;
     input.value = city;
-    // 尽量同步选中级联下拉（能匹配则选中；程序化赋值不触发 change，不会误记手动修改）
-    const sel = document.getElementById('originCitySel');
-    if (sel) {
-      const hit = Array.from(sel.options).find(o => o.value === city);
-      if (hit) sel.value = city;
-    }
+    // 同步级联下拉：默认出发地显示级联模式，自动把省/市也选中
+    syncOriginCascade(province, city, 0);
     if (tip) {
       tip.style.display = '';
       tip.innerHTML = `已通过 <b>IP 定位</b> 自动识别你所在城市：<b>${esc(city)}</b>（数据来源：高德 IP 定位 · 可手动修改）`;
