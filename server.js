@@ -327,6 +327,7 @@ app.get('/api/health', async (_req, res) => {
     mcp12306: mcp12306,
     flyai: { available: true, anon_mode: FLYAI_ANON, note: '飞猪 FlyAI 体验模式（匿名 Key 免注册）' },
     tuniu: { configured: Boolean(TUNIU_API_KEY), register_url: 'https://open.tuniu.com/' },
+    meituan: { configured: Boolean((process.env.MEITUAN_API_KEY || '').trim() && (process.env.MEITUAN_MCP_ENDPOINT || '').trim()), api_key: Boolean((process.env.MEITUAN_API_KEY || '').trim()), endpoint: Boolean((process.env.MEITUAN_MCP_ENDPOINT || '').trim()), guide: '需在 AI Hub 控制台复制接入点(endpointUrl)填入 MEITUAN_MCP_ENDPOINT' },
   });
 });
 
@@ -5656,6 +5657,270 @@ app.get('/api/tuniu/flight', async (req, res) => {
 
 app.get('/api/tuniu/status', async (_req, res) => {
   res.json({ error: false, source: '途牛开放平台', configured: Boolean(TUNIU_API_KEY), register_url: 'https://open.tuniu.com/' });
+});
+
+/* ---------- 美团 AI Hub MCP 客户端（真实酒店/门票/餐饮，需 MEITUAN_API_KEY + MEITUAN_MCP_ENDPOINT） ----------
+ * 获取方式：
+ *   1. 打开 https://developer.meituan.com/zh/v2/dev/aiHub/mcpManage（AI Hub → MCP 管理）
+ *   2. 在「MCP Token」页（/zh/v2/dev/aiHub/token）创建 Token，得到 MEITUAN_API_KEY（64 位十六进制）
+ *   3. 在 MCP 广场选择服务，复制「接入点信息」endpointUrl（形如 https://mcp.meituan.com/api/carrier/proxyXXXX）
+ *   4. 填入环境变量 MEITUAN_API_KEY 与 MEITUAN_MCP_ENDPOINT 后重启服务
+ * 协议：MCP Streamable HTTP（POST JSON-RPC tools/call，Bearer token，SSE 响应），6h 内存缓存。
+ * ⚠️ 网关 mcp.meituan.com 为动态代理路径，每个 MCP 服务的接入点不同，必须从控制台复制，无法盲猜。
+ */
+const MEITUAN_API_KEY    = (process.env.MEITUAN_API_KEY || '').trim();
+const MEITUAN_MCP_ENDPOINT = (process.env.MEITUAN_MCP_ENDPOINT || '').trim();
+const meituanCache = new Map();
+const MEITUAN_CACHE_TTL = 6 * 3600 * 1000;
+
+// 调用美团 MCP 工具：成功返回解析后的数据对象，失败返回 null（未配置也返回 null）
+async function meituanMcpCall(tool, args) {
+  if (!MEITUAN_API_KEY || !MEITUAN_MCP_ENDPOINT) return null;
+  const cacheKey = tool + '|' + JSON.stringify(args || {});
+  const hit = meituanCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < MEITUAN_CACHE_TTL) return hit.data;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const r = await fetch(MEITUAN_MCP_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream',
+        'Authorization': 'Bearer ' + MEITUAN_API_KEY
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: Math.floor(Math.random() * 1e6) + 1, method: 'tools/call', params: { name: tool, arguments: args || {} } }),
+      signal: controller.signal
+    });
+    if (!r.ok) return null;
+    let text = await r.text();
+    if (text.includes('event: message')) { const m = text.match(/data: (\{[\s\S]*\})/); if (m) text = m[1]; }
+    let json = null;
+    try { json = JSON.parse(text); } catch (e) { return null; }
+    if (json.error || !json.result) return null;
+    const t = (json.result.content || []).map(c => c.text || '').join(' ');
+    let data = null;
+    try { data = JSON.parse(t); } catch (e) { data = { __raw: t }; }
+    meituanCache.set(cacheKey, { at: Date.now(), data });
+    return data;
+  } catch (e) { return null; } finally { clearTimeout(timer); }
+}
+
+// 美团未配置（或缺接入点）时的统一引导提示
+function meituanNeedKey() {
+  return { error: true, message: '美团 AI Hub 未配置完成。请到 https://developer.meituan.com/zh/v2/dev/aiHub/mcpManage 选择 MCP 服务并复制「接入点信息」（endpointUrl），设置环境变量 MEITUAN_MCP_ENDPOINT（并确保 MEITUAN_API_KEY 已配置）后重启服务。当前已回退飞猪/途牛/本地数据。' };
+}
+
+app.get('/api/meituan/status', async (_req, res) => {
+  res.json({
+    error: false, source: '美团 AI Hub MCP',
+    configured: Boolean(MEITUAN_API_KEY && MEITUAN_MCP_ENDPOINT),
+    api_key: Boolean(MEITUAN_API_KEY),
+    endpoint: Boolean(MEITUAN_MCP_ENDPOINT),
+    guide: '打开 https://developer.meituan.com/zh/v2/dev/aiHub/mcpManage → 选择 MCP 服务 → 复制「接入点信息」填入 MEITUAN_MCP_ENDPOINT'
+  });
+});
+
+// 尝试调用美团 MCP 工具（需已配置接入点）；前端可借此探测可用工具
+app.get('/api/meituan/call', async (req, res) => {
+  if (!MEITUAN_API_KEY || !MEITUAN_MCP_ENDPOINT) return res.json(meituanNeedKey());
+  const tool = (req.query.tool || '').trim();
+  let args = {};
+  try { args = req.query.args ? JSON.parse(req.query.args) : {}; } catch (e) { /* 忽略非法 JSON */ }
+  if (!tool) return res.json({ error: true, message: '缺少 tool 参数（美团 MCP 工具名）' });
+  const data = await meituanMcpCall(tool, args);
+  if (!data) return res.json({ error: true, message: '美团 MCP 调用失败：接入点不可用或鉴权失败，请检查 MEITUAN_MCP_ENDPOINT/MEITUAN_API_KEY' });
+  res.json({ error: false, source: '美团 AI Hub MCP', tool, data });
+});
+
+/* ---------- 多源联合决策（飞猪 FlyAI + 途牛 + 12306 + 高德 + DeepSeek） ----------
+ * 对同一需求（机票/酒店/门票）并行拉取多个真实数据源，各自标注来源与购票跳转链接，
+ * 再由 DeepSeek 综合分析给出性价比建议（无 Key 时用本地启发式兜底）。
+ * 全部价格均注明来源，提高可信度。
+ */
+app.get('/api/consensus', async (req, res) => {
+  try {
+    const type = (req.query.type || 'flight').toLowerCase();          // flight | hotel | ticket
+    const from = (req.query.from || '').trim();
+    const to = (req.query.to || '').trim();
+    const city = (req.query.city || '').trim();
+    const date = (req.query.date || cnDateStr(1)).trim();
+    if (!['flight', 'hotel', 'ticket'].includes(type)) {
+      return res.json({ error: true, message: 'type 仅支持 flight / hotel / ticket' });
+    }
+    if ((type === 'flight' && (!from || !to)) || (type === 'hotel' && !city) || (type === 'ticket' && !(to || city))) {
+      return res.json({ error: true, message: '参数不完整：flight 需 from/to，hotel 需 city，ticket 需 to/city' });
+    }
+    const startedAt = Date.now();
+    const sources = [];
+
+    if (type === 'flight') {
+      // ① 飞猪 FlyAI 真实航班
+      try {
+        const raw = await flyaiCall('search_flight', { origin: from, destination: to, depDate: date, limit: 10 });
+        const list = parseFlyaiFlights(raw, from, to, date).filter(f => f.price > 0);
+        const direct = list.filter(f => !f.transfer);
+        const pool = direct.length ? direct : list;
+        if (pool.length) {
+          sources.push({
+            source: '飞猪 FlyAI 实时',
+            url: `https://www.fliggy.com/flight/?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&date=${date}`,
+            items: pool.slice(0, 8).map(f => ({
+              name: `${f.airline} ${f.flight_no}`,
+              desc: `${(f.dep_time || '').slice(11, 16)} ${f.dep_station || from} → ${(f.arr_time || '').slice(11, 16)} ${f.arr_station || to}${f.transfer ? '（中转）' : ''}`,
+              price: f.price, transfer: f.transfer, link: f.jump_url || ''
+            }))
+          });
+        }
+      } catch (e) {}
+      // ② 途牛真实机票（有 Key 才查）
+      if (TUNIU_API_KEY) {
+        try {
+          const d = await tuniuCall('flight', 'searchLowestPriceFlight', { departureCityName: from, arrivalCityName: to, departureDate: date });
+          const fl = Array.isArray(d && d.data) ? d.data : [];
+          if (fl.length) {
+            sources.push({
+              source: '途牛开放平台',
+              url: `https://www.tuniu.com/flight/search/${encodeURIComponent(from)}-${encodeURIComponent(to)}/`,
+              items: fl.slice(0, 8).map(f => ({
+                name: `${f.airlineCompany || ''} ${f.flightNumber || ''}`.trim(),
+                desc: `${f.departureTime || ''} ${f.departureAirport || from}${f.departureTerminal ? ' T' + f.departureTerminal : ''} → ${f.arrivalTime || ''} ${f.arrivalAirport || to}（${f.type || ''}${f.remainingSeats ? '，余票' + f.remainingSeats + '张' : ''}${f.cabinClass ? '，' + f.cabinClass : ''}）`,
+                price: Math.round((Number(f.basePrice) || 0) + (Number(f.totalTax) || 0)),
+                link: `https://www.tuniu.com/flight/search/${encodeURIComponent(from)}-${encodeURIComponent(to)}/`
+              }))
+            });
+          }
+        } catch (e) {}
+      }
+      // ③ 12306 高铁（真实余票/票价）作为备选交通参考
+      try {
+        const real = await call12306Tool('query-tickets', { from_station: from, to_station: to, train_date: date });
+        if (real && real.success && Array.isArray(real.trains) && real.trains.length) {
+          const sorted = real.trains.slice().sort((a, b) => String(a.start_time || '').localeCompare(String(b.start_time || '')));
+          const trains = sorted.slice(0, 5).map(t => ({
+            name: t.train_no, desc: `${t.start_time} → ${t.arrive_time}（12306 余票：${JSON.stringify(t.seats || {})}）`,
+            price: 0, link: `https://kyfw.12306.cn/otn/leftTicket/init?linktypeid=dc&fs=${encodeURIComponent(from)},,&ts=${encodeURIComponent(to)},,&date=${date}&flag=N,N,Y`
+          }));
+          sources.push({ source: '12306 官方', url: 'https://www.12306.cn/index/', items: trains, note: '价格为参考，请以 12306 实时为准' });
+        }
+      } catch (e) {}
+    } else if (type === 'hotel') {
+      // ① 飞猪 FlyAI 真实在售酒店
+      try {
+        const raw = await flyaiCall('search_hotels', { destName: city, checkInDate: cnDateStr(0), checkOutDate: cnDateStr(1), limit: 10 });
+        const list = parseFlyaiHotels(raw || null);
+        if (list.length) {
+          sources.push({
+            source: '飞猪 FlyAI 实时',
+            url: `https://hotel.fliggy.com/?keyword=${encodeURIComponent(city)}`,
+            items: list.slice(0, 8).map(h => ({
+              name: h.name,
+              desc: `${h.star || ''}${h.price_masked ? '（体验价脱敏）' : ''}`,
+              price: Number(String(h.price || '').replace(/[^\d.]/g, '')) || 0,
+              link: h.detail_url || `https://hotel.fliggy.com/?keyword=${encodeURIComponent(h.name)}`
+            }))
+          });
+        }
+      } catch (e) {}
+      // ② 途牛真实酒店（有 Key 才查）
+      if (TUNIU_API_KEY) {
+        try {
+          const d = await tuniuCall('hotel', 'tuniu_hotel_search', { cityName: city, checkIn: cnDateStr(0), checkOut: cnDateStr(1) });
+          const hl = Array.isArray(d && d.hotels) ? d.hotels : [];
+          if (hl.length) {
+            sources.push({
+              source: '途牛开放平台',
+              url: `https://hotel.tuniu.com/list/${encodeURIComponent(city)}-0/`,
+              items: hl.slice(0, 8).map(h => ({
+                name: h.hotelName || h.name || '',
+                desc: (h.star || h.level || '') + '（' + (h.address || '') + '）',
+                price: Number(h.price || h.lowestPrice || 0),
+                link: (h.bookingUrl || h.detailUrl || `https://hotel.tuniu.com/list/${encodeURIComponent(city)}-0/`)
+              }))
+            });
+          }
+        } catch (e) {}
+      }
+    } else if (type === 'ticket') {
+      const scenic = (to || city || '').trim();
+      // ① 途牛真实门票（有 Key 才查）
+      if (TUNIU_API_KEY) {
+        try {
+          const d = await tuniuCall('ticket', 'query_cheapest_tickets', { scenic_name: scenic });
+          const tk = Array.isArray(d && d.tickets) ? d.tickets : [];
+          if (tk.length) {
+            sources.push({
+              source: '途牛开放平台（真实门票）',
+              url: `https://www.tuniu.com/search_ticket/${encodeURIComponent(scenic)}-0/`,
+              items: tk.slice(0, 8).map(t => ({
+                name: t.resName || t.productName || '',
+                desc: `${t.scenicName || scenic} · ${t.personTypeName || ''} · ${t.enterTypeName || ''}${t.lossName ? ' · ' + t.lossName : ''}`,
+                price: Number(t.startPrice || 0),
+                link: `https://www.tuniu.com/search_ticket/${encodeURIComponent(scenic)}-0/`
+              }))
+            });
+          }
+        } catch (e) {}
+      }
+      // ② 高德 POI 真实景点信息补充
+      try {
+        const qs = new URLSearchParams({ keywords: scenic, city: scenic, offset: '5', page: '1', output: 'json' }).toString();
+        const poi = await callAmap(qs);
+        const pois = (poi && Array.isArray(poi.pois)) ? poi.pois : [];
+        if (pois.length) {
+          sources.push({
+            source: '高德地图',
+            url: `https://www.amap.com/search?query=${encodeURIComponent(scenic)}`,
+            items: pois.slice(0, 5).map(p => ({
+              name: p.name,
+              desc: `${p.type || ''} · ${p.address || ''}`,
+              price: 0,
+              link: p.id ? `https://www.amap.com/place/${p.id}` : 'https://www.amap.com/'
+            }))
+          });
+        }
+      } catch (e) {}
+    }
+
+    // —— AI 联合分析（DeepSeek 综合多源对比，给出推荐）——
+    let ai_analysis = null;
+    try {
+      const summary = sources.map(s =>
+        `【${s.source}】\n` + (s.items.length
+          ? s.items.slice(0, 6).map(it => `- ${it.name}${it.price ? ' ¥' + it.price : ''}${it.desc ? '（' + it.desc + '）' : ''}`).join('\n')
+          : '（无数据）')
+      ).join('\n\n');
+      ai_analysis = await callDeepSeek(
+        `以下是多源实时查询结果（${type === 'flight' ? '机票' : type === 'hotel' ? '酒店' : '门票'}，来源已标注）：\n${summary}\n\n请用 ≤130 字给出联合决策：性价比最优选择（含来源与价格）、价格可信度判断、风险提示（如中转/退改/脱敏）。不要 Markdown。`,
+        '你是"123就出发"的多源数据联合决策助手。基于多个真实数据源（飞猪/途牛/12306/高德）的对比结果，给出专业、克制的建议。'
+      );
+    } catch (e) {}
+
+    // 本地启发式兜底分析（DeepSeek 不可用时）
+    if (!ai_analysis) {
+      let best = null, bestSrc = null;
+      for (const s of sources) {
+        for (const it of s.items) {
+          if (it.price && it.price > 0 && (!best || it.price < best)) { best = it.price; bestSrc = s.source; }
+        }
+      }
+      const srcNames = sources.map(s => s.source).join(' / ');
+      ai_analysis = best
+        ? `综合 ${sources.length} 个数据源（${srcNames}），最低价来自「${bestSrc}」（¥${best}）。建议下单前核实该来源的退改政策与含税情况。`
+        : '暂无可用实时数据，请稍后重试或检查数据源配置（飞猪/途牛 Key）。';
+    }
+
+    res.json({
+      error: false, type, from, to, city, date,
+      sources,
+      source_count: sources.length,
+      ai_analysis,
+      elapsed_ms: Date.now() - startedAt,
+      note: '价格为各平台实时/参考价，含税与退改以平台为准；点击条目可跳转对应购票/预订页'
+    });
+  } catch (e) {
+    res.json({ error: true, message: e.message });
+  }
 });
 
 app.get('/api/routes/search', (req, res) => {

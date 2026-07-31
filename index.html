@@ -2394,6 +2394,7 @@
       <div class="comp__tool" data-tool="hotel">🏨 找酒店</div>
       <div class="comp__tool" data-tool="flight">✈️ 机票</div>
       <div class="comp__tool" data-tool="train">🚄 高铁</div>
+      <div class="comp__tool" data-tool="consensus" style="border-color:rgba(240,165,0,.45)">🔀 多源比价</div>
     </div>
     <div id="compToolResult"></div>
     <!-- 任务5：旅途伴侣地图（显示查询到的地点标点） -->
@@ -2498,6 +2499,7 @@ const API = {
   ticket:(city, poi)=>API.get('/api/ticket?city='+encodeURIComponent(city||'')+(poi?'&poi='+encodeURIComponent(poi):'')),
   hotel:(city, stars, maxPrice)=>API.get('/api/hotel?city='+encodeURIComponent(city||'')+'&stars='+(stars||0)+'&maxPrice='+(maxPrice||9999)),
   flight:(origin, dest, date)=>API.get('/api/flight?origin='+encodeURIComponent(origin||'北京')+'&dest='+encodeURIComponent(dest||'成都')+'&date='+(date||'')),
+  consensus:(type, p)=>API.get('/api/consensus?type='+encodeURIComponent(type||'flight')+'&from='+encodeURIComponent(p.from||'')+'&to='+encodeURIComponent(p.to||'')+'&city='+encodeURIComponent(p.city||'')+'&date='+encodeURIComponent(p.date||'')),
   train:(origin, dest, date)=>API.get('/api/train?origin='+encodeURIComponent(origin||'北京')+'&dest='+encodeURIComponent(dest||'成都')+'&date='+(date||'')),
   weather:(city)=>API.get('/api/weather/fallback?city='+encodeURIComponent(city||'')),
   agentPlan:(params)=>API.get('/api/agent/plan?'+new URLSearchParams({
@@ -5354,10 +5356,74 @@ async function runCompTool(tool){
         </div>`).join('')}</div>
         ${r.disclaimer ? `<div style="color:var(--muted);font-size:11px;margin-top:8px">${esc(r.disclaimer)}</div>` : ''}
         <div style="color:var(--muted);font-size:12px;margin-top:4px">💡 修改出发地：在智能规划页顶部修改「你所在城市」</div>`;
+    } else if(tool === 'consensus'){
+      // 🔀 多源联合比价：选类型 → 并发拉取多平台真实价格 + AI 联合决策
+      out.innerHTML = `
+        <h3 style="margin:16px 0 8px">🔀 多源联合比价（飞猪 / 途牛 / 12306 / 高德 + AI 联合决策）</h3>
+        <div style="color:var(--muted);font-size:12px;margin-bottom:10px">💡 选择对比类型：实时拉取多个平台真实价格（均标注来源），由 AI 综合给出性价比建议，可跳转购票/预订。</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div class="card" style="padding:12px 14px;cursor:pointer;border:1px solid rgba(240,165,0,.35)" onclick="runConsensus('flight')"><div style="font-weight:600">✈️ 机票比价</div><div style="color:var(--muted);font-size:12px;margin-top:4px">${esc(originCity||'你的出发地')} → ${esc(city)}</div></div>
+          <div class="card" style="padding:12px 14px;cursor:pointer;border:1px solid rgba(240,165,0,.35)" onclick="runConsensus('hotel')"><div style="font-weight:600">🏨 酒店比价</div><div style="color:var(--muted);font-size:12px;margin-top:4px">${esc(city)} 全网比价</div></div>
+          <div class="card" style="padding:12px 14px;cursor:pointer;border:1px solid rgba(240,165,0,.35)" onclick="runConsensus('ticket')"><div style="font-weight:600">🎫 门票比价</div><div style="color:var(--muted);font-size:12px;margin-top:4px">${esc(city)} 景区门票</div></div>
+        </div>
+        <div id="consensusResult" style="margin-top:12px"></div>`;
     }
   } catch(e){
     out.innerHTML = `<div class="state" style="color:#fca5a5">查询失败：${esc(e.message)}</div>`;
   }
+}
+
+// 🔀 多源联合决策：调用 /api/consensus，展示各来源 + AI 分析 + 购票跳转
+async function runConsensus(type){
+  const cityEl = document.getElementById('compCity');
+  const city = (cityEl && cityEl.value.trim()) || currentPlanCity || '成都';
+  const originText = document.getElementById('userOriginCity');
+  const originSel = document.getElementById('originCitySel');
+  const originCity = (originText && originText.value.trim()) || (originSel && originSel.value) || '';
+  const box = document.getElementById('consensusResult');
+  if(!box) return;
+  box.innerHTML = '<div class="state">🔍 并发拉取多平台真实数据 + AI 联合分析中…（约 5~15 秒，请稍候）</div>';
+  const d = new Date(); d.setDate(d.getDate() + 1);
+  const dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const r = await API.consensus(type, { from: originCity, to: city, city, date: dateStr });
+  if(r.__error || r.error){
+    box.innerHTML = `<div class="state" style="color:#fca5a5">查询失败：${esc((r.__error && r.__error.message) || r.message || '未知错误')}</div>`;
+    return;
+  }
+  const typeLabel = type === 'flight' ? '✈️ 机票' : type === 'hotel' ? '🏨 酒店' : '🎫 门票';
+  const aiBox = r.ai_analysis
+    ? `<div style="margin:12px 0;padding:14px 16px;border-radius:10px;background:linear-gradient(135deg,rgba(240,165,0,.10),rgba(16,185,129,.06));border:1px solid rgba(240,165,0,.35)">
+        <div style="font-weight:700;color:var(--accent);margin-bottom:6px">🧠 DeepSeek 联合决策（多源交叉验证）</div>
+        <div style="font-size:13px;line-height:1.7;color:var(--text)">${esc(r.ai_analysis)}</div>
+      </div>` : '';
+  const groups = (r.sources || []).map(s => {
+    const items = (s.items || []).map(it => {
+      const priceHtml = (it.price && it.price > 0)
+        ? `<div style="font-size:20px;color:var(--accent);font-weight:700">¥${it.price}</div>`
+        : `<div style="font-size:12px;color:var(--muted)">价格以平台为准</div>`;
+      const linkHtml = it.link
+        ? `<a class="tag" style="color:var(--accent);text-decoration:none" href="${esc(it.link)}" target="_blank" rel="noopener">🔗 查看/预订</a>`
+        : '';
+      return `<div class="card" style="padding:12px">
+        <div style="font-weight:600;font-size:14px">${esc(it.name || '—')}</div>
+        ${it.desc ? `<div class="card__meta" style="font-size:12px">${esc(it.desc)}</div>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px">${priceHtml}${linkHtml}</div>
+      </div>`;
+    }).join('');
+    return `<div style="margin:10px 0">
+      <div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(126,224,163,.12);border:1px solid rgba(126,224,163,.35);color:#7ee0a3;font-size:11px;font-weight:600;letter-spacing:.03em">${esc(s.source)}</span>
+        ${s.url ? `<a style="color:var(--muted);font-size:11px;text-decoration:none" href="${esc(s.url)}" target="_blank" rel="noopener">直达平台 ↗</a>` : ''}
+      </div>
+      <div class="grid grid--2">${items || '<div class="state">该源暂无数据</div>'}</div>
+      ${s.note ? `<div style="color:var(--muted);font-size:11px;margin-top:4px">📌 ${esc(s.note)}</div>` : ''}
+    </div>`;
+  }).join('') || '<div class="state">暂无数据，请检查数据源配置（飞猪/途牛 Key）</div>';
+  box.innerHTML = `
+    ${aiBox}
+    <h4 style="margin:10px 0 4px">${typeLabel} · ${r.source_count || 0} 个数据源对比${r.elapsed_ms ? `（${(r.elapsed_ms / 1000).toFixed(1)}s）` : ''}</h4>
+    <div style="color:var(--muted);font-size:11px;margin-bottom:6px">${esc(r.note || '')}</div>
+    ${groups}`;
 }
 document.getElementById('comBtn').onclick = ()=>loadCommunity(document.getElementById('comQuery').value.trim());
 document.getElementById('comAll').onclick = ()=>{ document.getElementById('comQuery').value=''; loadCommunity(); };

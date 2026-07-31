@@ -58,6 +58,7 @@ out/
 # 备份文件(本地保留,不入仓)
 *.bak
 *.bak.*
+*.bak_*
 *.orig
 *.rej
 *.tmp
