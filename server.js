@@ -273,6 +273,45 @@ async function geocodeAddressFromAmap(fullAddress, city) {
   return result;
 }
 
+/** ③ 高德 POI 事实信息（extensions=all）：真实营业时间 + 评分 + 人均消费
+ * 用于门票卡片展示真实营业时间（biz_ext.opentime2，实测可靠），cost 多数字段为空仅作参考。
+ * 缓存 1 小时，串行节流，失败静默返回 null。 */
+const _factsCache = new Map();
+async function fetchPOIFactsFromAmap(name, city) {
+  if (!name) return null;
+  if (!AMAP_KEY || AMAP_KEY === 'your_amap_key_here') return null;
+  const key = `f|${city}|${name}`;
+  if (_factsCache.has(key)) {
+    const c = _factsCache.get(key);
+    if (c && Date.now() - c.ts < 3600000) return c.data;
+  }
+  try {
+    const qs = new URLSearchParams({
+      keywords: String(name).replace(/[（(].*?[）)]/g, '').trim() || name,
+      city: city || '', offset: '3', page: '1', extensions: 'all', output: 'json'
+    }).toString();
+    const r = await callAmapRetry('/v3/place/text', qs, resp => !(resp && Array.isArray(resp.pois) && resp.pois.length));
+    if (!r) return null;
+    const hit = (r.pois || [])
+      .filter(p => p.name && p.location && isInCity(p, city))
+      .find(p => p.name.includes(name) || name.includes(p.name)) || (r.pois || [])[0];
+    if (!hit) return null;
+    const be = hit.biz_ext || {};
+    const out = {
+      open: be.opentime2 || be.open_time || '',
+      rating: be.rating ? String(be.rating) : '',
+      cost: (Array.isArray(be.cost) && be.cost.length ? be.cost : []),
+      poi_name: hit.name,
+      address: hit.address || '',
+      amap_type: (hit.type || '').split(';')[0] || ''
+    };
+    _factsCache.set(key, { data: out, ts: Date.now() });
+    return out;
+  } catch (e) {
+    return null;
+  }
+}
+
 /* ---------- 健康检查 ---------- */
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -4287,93 +4326,244 @@ function buildLocalMultiDimTips(city, region, cityTags, cd, days, budget, pax, s
   return { culture, customs, safety, timing };
 }
 
+/* ==================================================================
+ * 🔑 景点门票真实票价（多层数据源，宁缺毋滥，绝不虚构）
+ * ─────────────────────────────────────────────────────────────
+ * 获取方式更灵活，按优先级取值：
+ *   1. TICKET_DB 手维护真实票价（知名景点官方/平台可查稳定价，p=0 即免费）
+ *   2. 免费识别启发式（公立博物馆/美术馆/科技馆免费 + 广场/步行街/老街/海滨沙滩等公共区域）
+ *   3. 高德 extensions=all 实时营业时间（opentime2）+ 评分（rating）补充展示
+ *   4. 类型区间参考估算（仅兜底，明确标注"参考估算，请以官方实时为准"）
+ * 支持 ?poi= 指定景点单点查询（伴侣对话框/智能规划均可复用）
+ * ================================================================== */
+const TICKET_DB = {
+  /* —— 免费（p:0）—— */
+  '天安门广场': { p:0, t:'免费', open:'全天（升旗时段需安检）', note:'免费开放，需实名安检' },
+  '南锣鼓巷': { p:0, t:'免费' }, '798 艺术区': { p:0, t:'免费（园区免费，个别展馆另收费）' },
+  '什刹海': { p:0, t:'免费' }, '王府井': { p:0, t:'免费' }, '簋街': { p:0, t:'免费' },
+  '三里屯': { p:0, t:'免费' }, '鼓楼': { p:0, t:'外观免费（登城楼另收费）' }, '烟袋斜街': { p:0, t:'免费' },
+  '外滩': { p:0, t:'免费' }, '南京路步行街': { p:0, t:'免费' }, '田子坊': { p:0, t:'免费' },
+  '新天地': { p:0, t:'免费' }, '陆家嘴': { p:0, t:'免费' }, '武康大楼': { p:0, t:'免费（外观打卡）' },
+  '1933老场坊': { p:0, t:'免费' },
+  '宽窄巷子': { p:0, t:'免费' }, '锦里': { p:0, t:'免费' }, '春熙路': { p:0, t:'免费' },
+  '九眼桥酒吧街': { p:0, t:'免费' }, '太古里': { p:0, t:'免费' },
+  '成都IFS爬墙熊猫': { p:0, t:'免费' }, '东郊记忆': { p:0, t:'免费（园区免费，展演另收费）' },
+  '沙面岛': { p:0, t:'免费' }, '上下九步行街': { p:0, t:'免费' }, '永庆坊': { p:0, t:'免费' },
+  '东山口': { p:0, t:'免费' }, 'K11购物艺术中心': { p:0, t:'免费（商场）' },
+  '回民街': { p:0, t:'免费' }, '大唐不夜城': { p:0, t:'免费' }, '永兴坊': { p:0, t:'免费' },
+  '赛格国际购物中心': { p:0, t:'免费（商场）' },
+  '西湖': { p:0, t:'免费', note:'环湖免费；游船/登岛/雷峰塔等单独收费' },
+  '河坊街': { p:0, t:'免费' }, '龙井村': { p:0, t:'免费' }, '小河直街': { p:0, t:'免费' },
+  '银泰in77': { p:0, t:'免费（商场）' },
+  '洱海': { p:0, t:'免费', note:'环湖免费；游船/租车另收费' },
+  '大理古城': { p:0, t:'免费（古城免费开放）' }, '喜洲古镇': { p:0, t:'免费' },
+  '双廊': { p:0, t:'免费' }, '海舌公园': { p:0, t:'免费' },
+  '丽江古城': { p:0, t:'免费（古城维护费已停止征收）' }, '束河古镇': { p:0, t:'免费' },
+  '四方街': { p:0, t:'免费' },
+  '亚龙湾': { p:0, t:'免费（沙滩免费开放）' }, '大东海': { p:0, t:'免费（沙滩）' },
+  '第一市场': { p:0, t:'免费（海鲜市场）' },
+  '厦门大学': { p:0, t:'免费（需提前预约，凭身份证入校）' }, '曾厝垵': { p:0, t:'免费' },
+  '环岛路': { p:0, t:'免费' }, '南普陀寺': { p:0, t:'免费' }, '中山路步行街': { p:0, t:'免费' },
+  '沙坡尾': { p:0, t:'免费' }, '集美学村': { p:0, t:'免费（校区免费，内部景点另收）' },
+  '中山陵': { p:0, t:'免费（需预约）' }, '夫子庙': { p:0, t:'免费（街区免费，江南贡院等另收费）' },
+  '秦淮河': { p:0, t:'河岸免费（游船另收费）' }, '玄武湖': { p:0, t:'免费' },
+  '南京大屠杀纪念馆': { p:0, t:'免费（需实名预约）', note:'周一闭馆' },
+  '先锋书店': { p:0, t:'免费' }, '颐和路': { p:0, t:'免费' },
+  '苏州博物馆': { p:0, t:'免费（需提前预约）', note:'周一闭馆' },
+  '平江路': { p:0, t:'免费' }, '山塘街': { p:0, t:'免费' }, '金鸡湖': { p:0, t:'免费' },
+  '东方之门': { p:0, t:'免费（外观打卡）' }, '苏州中心': { p:0, t:'免费（商场）' },
+  '洪崖洞': { p:0, t:'免费' }, '解放碑步行街': { p:0, t:'免费' }, '磁器口古镇': { p:0, t:'免费' },
+  '李子坝轻轨站': { p:0, t:'免费（观景台）' }, '鹅岭二厂': { p:0, t:'免费' },
+  '东湖': { p:0, t:'免费（绿道免费；梅园/樱园等子景点另收费）' },
+  '户部巷': { p:0, t:'免费（小吃街）' }, '武汉大学': { p:0, t:'免费（樱花季需预约）' },
+  '楚河汉街': { p:0, t:'免费' }, '昙华林': { p:0, t:'免费' }, '黎黄陂路': { p:0, t:'免费' },
+  '橘子洲': { p:0, t:'免费（观光小火车另收费）' }, '太平街': { p:0, t:'免费' },
+  '文和友': { p:0, t:'免费（餐饮消费）' }, '梅溪湖': { p:0, t:'免费' },
+  '万家丽国际MALL': { p:0, t:'免费（商场）' },
+  '栈桥': { p:0, t:'免费' }, '八大关': { p:0, t:'免费' }, '台东商业街': { p:0, t:'免费' },
+  '小麦岛': { p:0, t:'免费' }, '大学路网红墙': { p:0, t:'免费' },
+  '八廓街': { p:0, t:'免费' }, '羊卓雍措': { p:0, t:'免费（部分观景台另收费）' },
+  '阳朔西街': { p:0, t:'免费' }, '象鼻山': { p:0, t:'免费', note:'2022 年起象鼻山景区免费开放' },
+  '屯溪老街': { p:0, t:'免费' },
+  '中央大街': { p:0, t:'免费' }, '圣索菲亚教堂': { p:0, t:'外观免费（内部参观另收费）' },
+  '太阳岛': { p:0, t:'免费（景区免费开放）' }, '松花江铁路大桥': { p:0, t:'免费' },
+  '哈尔滨大剧院': { p:0, t:'外观免费（演出另购票）' },
+  '鼓浪屿': { p:0, t:'上岛免费（轮渡船票 35 元起；岛上景点联票 90 元）' },
+  '朱家角': { p:0, t:'古镇免费（景区内景点另收费）' },
+  '上海博物馆': { p:0, t:'免费（需预约）' },
+  '陕西历史博物馆': { p:0, t:'免费（需提前预约，凭身份证）', note:'周一闭馆' },
+  '湖南博物院': { p:0, t:'免费（需预约）' },
+  '鸟巢/水立方': { p:0, t:'外观免费（鸟巢内场参观 100 元）' },
+  /* —— 收费（官方/平台可查稳定参考价）—— */
+  '故宫博物院': { p:60, t:'旺季 60 元（4-10 月）/ 淡季 40 元', note:'需提前预约，周一闭馆' },
+  '颐和园': { p:30, t:'门票 30 元（联票 60 元）' },
+  '长城(八达岭)': { p:40, t:'旺季 40 元 / 淡季 35 元' },
+  '天坛': { p:15, t:'门票 15 元（联票 34 元）' },
+  '北海公园': { p:10, t:'门票 10 元' },
+  '东方明珠': { p:180, t:'259 米主观光层 180 元；三球联票 220 元' },
+  '豫园': { p:40, t:'旺季 40 元 / 淡季 30 元' },
+  '迪士尼乐园': { p:399, t:'成人票平日 399 元起（周末/节假日上调）' },
+  '大熊猫繁育基地': { p:55, t:'成人票 55 元' },
+  '武侯祠': { p:50, t:'成人票 50 元' },
+  '杜甫草堂': { p:50, t:'成人票 50 元' },
+  '青城山': { p:80, t:'前山门票 80 元（索道另收）' },
+  '都江堰': { p:80, t:'成人票 80 元' },
+  '广州塔': { p:150, t:'433 米白云星空观光票 150 元起' },
+  '陈家祠': { p:10, t:'成人票 10 元' },
+  '白云山': { p:5, t:'门票 5 元（摩星岭登顶另收 5 元）' },
+  '长隆旅游度假区': { p:250, t:'欢乐世界成人票 250 元起（各园区不同）' },
+  '珠江夜游': { p:78, t:'游船票价 78 元起' },
+  '兵马俑': { p:120, t:'成人票 120 元' },
+  '大雁塔': { p:50, t:'大慈恩寺门票 50 元（含登塔）' },
+  '西安城墙': { p:54, t:'成人票 54 元（含骑行）' },
+  '华清宫': { p:120, t:'成人票 120 元' },
+  '钟楼': { p:30, t:'登楼 30 元（外观免费）' },
+  '灵隐寺': { p:75, t:'飞来峰景区 45 元 + 灵隐寺香花券 30 元' },
+  '雷峰塔': { p:40, t:'成人票 40 元' },
+  '宋城': { p:320, t:'门票 320 元起（含《宋城千古情》演出）' },
+  '千岛湖': { p:130, t:'门票 130 元（另需船费）' },
+  '西溪湿地': { p:80, t:'门票 80 元（摇橹船另收）' },
+  '苍山': { p:40, t:'景区门票 40 元（索道另收）' },
+  '崇圣寺三塔': { p:75, t:'成人票 75 元' },
+  '蝴蝶泉': { p:40, t:'成人票 40 元' },
+  '玉龙雪山': { p:100, t:'进山费 100 元（索道/环保车另收）' },
+  '拉市海': { p:30, t:'湿地公园门票 30 元' },
+  '黑龙潭': { p:50, t:'门票 50 元' },
+  '天涯海角': { p:68, t:'旺季 68 元 / 淡季 60 元' },
+  '蜈支洲岛': { p:144, t:'门票+往返船票 144 元' },
+  '南山文化旅游区': { p:108, t:'成人票 108 元' },
+  '鹿回头': { p:42, t:'门票 42 元' },
+  '总统府': { p:35, t:'成人票 35 元' },
+  '拙政园': { p:70, t:'旺季 70 元 / 淡季 50 元' },
+  '周庄': { p:100, t:'成人票 100 元' },
+  '长江三峡游': { p:300, t:'三峡游轮 300 元起（不同线路/舱位）' },
+  '武隆天生三桥': { p:95, t:'门票 95 元（观光车另收）' },
+  '大足石刻': { p:100, t:'宝顶山石刻门票 100 元' },
+  '长江索道': { p:30, t:'单程 30 元（往返 60 元）' },
+  '黄鹤楼': { p:70, t:'成人票 70 元' },
+  '岳麓书院': { p:40, t:'成人票 40 元' },
+  '崂山': { p:90, t:'景区门票 90 元（不同游览区略有差异）' },
+  '啤酒博物馆': { p:60, t:'成人票 60 元' },
+  '布达拉宫': { p:200, t:'旺季 200 元 / 淡季 100 元' },
+  '大昭寺': { p:85, t:'成人票 85 元' },
+  '纳木措': { p:120, t:'门票 120 元' },
+  '漓江': { p:210, t:'漓江精华游船 210 元起' },
+  '龙脊梯田': { p:80, t:'门票 80 元' },
+  '黄山风景区': { p:190, t:'旺季 190 元 / 淡季 150 元' },
+  '宏村': { p:104, t:'成人票 104 元' },
+  '西递': { p:104, t:'成人票 104 元' },
+  '雪乡': { p:120, t:'门票+环保车 120 元（冬季）' }
+};
+
+/** 免费识别启发式：公立文博场馆 + 公共开放区域（免费是普遍事实，不在 TICKET_DB 时兜底）
+ * 注意：收费的"XX公园"（如颐和园/北海公园/天坛公园）均已收录在 TICKET_DB，优先级更高，不会被误判 */
+function isFreePOI(name, type) {
+  const n = String(name || '');
+  const t = String(type || '');
+  if (/博物馆|博物院|美术馆|科技馆|纪念馆|陈列馆|展览馆/.test(n)) return true;   // 全国博物馆免费开放政策
+  if (/广场|步行街|老街|古街|外滩|环岛路|海滨|沙滩|海岸线/.test(n)) return true; // 公共开放区域
+  if (/(古镇)$/.test(n)) return true;                                              // 古镇入城免费（景点另收费）
+  if (/公园$/.test(n) && !/风景区|乐园|欢乐谷/.test(n)) return true;               // 城市公园普遍免费
+  return false;
+}
+
+/** 兜底：类型区间参考估算（仅未入库且非免费时使用，明确标注） */
+const TYPE_EST = {
+  '历史':   { base: 80, t:'参考估算：成人票 60-120 元', note:'请以官方/平台实时报价为准' },
+  '自然':   { base: 60, t:'参考估算：门票 30-100 元（索道/景交另计）', note:'请以官方/平台实时报价为准' },
+  '亲子':   { base: 220, t:'参考估算：成人票 150-300 元', note:'请以官方/平台实时报价为准' },
+  '地标':   { base: 0, t:'参考估算：外观免费，登高/观景另收费', note:'请以官方/平台实时报价为准' },
+  '文化':   { base: 30, t:'参考估算：门票 0-80 元', note:'请以官方/平台实时报价为准' },
+  '美食':   { base: 0, t:'无门票（餐饮消费）' },
+  '购物':   { base: 0, t:'无门票（购物消费）' },
+  '夜生活': { base: 0, t:'无门票（入场/酒水另计）' },
+  '文艺':   { base: 50, t:'参考估算：门票 0-120 元', note:'请以官方/平台实时报价为准' },
+  '网红':   { base: 0, t:'多数免费打卡点（个别另收费）' }
+};
+
 app.get('/api/ticket', async (req, res) => {
   try {
     const city = req.query.city || '成都';
+    const onlyPoi = (req.query.poi || '').trim();
     const db = POI_DB[city] || POI_DEFAULT;
-    // 真实票价类型（基于 POI 类型）— 仅为典型区间
-    const typePriceMap = {
-      '历史':   { base: 60,  types: ['成人票 60元', '学生票 30元', '老人票 0元', '亲子票 90元'], booking: ['景区官网','携程','美团','去哪儿'] },
-      '自然':   { base: 80,  types: ['门票 80元', '景区交通 60元', '索道往返 120元', '两日联票 150元'], booking: ['景区官网','携程','美团','驴妈妈'] },
-      '亲子':   { base: 220, types: ['成人票 220元', '儿童票 160元', '亲子套票 380元', '家庭卡 580元'], booking: ['景区官网','美团','携程','官方公众号'] },
-      '地标':   { base: 0,   types: ['免费', '登塔票 80元', '夜场票 120元', '套票 150元'], booking: ['现场','携程','美团','景区公众号'] },
-      '美食':   { base: 0,   types: ['免费', '套餐 88元', '套餐 168元', '套餐 268元'], booking: ['大众点评','美团','口碑','店内'] },
-      '文化':   { base: 30,  types: ['成人票 30元', '学生票 15元', '夜场票 50元', '年票 200元'], booking: ['博物馆官网','携程','美团','公众号'] },
-      '购物':   { base: 0,   types: ['免费', '折扣卡 100元', '购物返券 50元', 'VIP 体验 200元'], booking: ['商场服务台','支付宝','微信','大众点评'] },
-      '夜生活': { base: 80,  types: ['入场费 80元', '套餐 188元', '包厢 588元', '酒水套餐 388元'], booking: ['美团','大众点评','夜场APP','现场'] },
-      '文艺':   { base: 50,  types: ['门票 50元', '联票 80元', '体验课 120元', '年卡 280元'], booking: ['景区公众号','美团','大麦','猫眼'] }
-    };
-    const list = db.slice(0, 12).map((p, i) => {
-      const cfg = typePriceMap[p.type] || typePriceMap['历史'];
-      const base = cfg.base;
-      const variants = [base, Math.round(base * 0.5), Math.round(base * 0.3)].filter(n => n > 0);
-      const types = [];
-      for (let k = 0; k < Math.min(3, cfg.types.length); k++) {
-        types.push(cfg.types[(i + k) % cfg.types.length]);
+    let pool = db.slice(0, 12);
+    if (onlyPoi) {
+      // 单点查询：精确/包含匹配 → 匹配不到时用高德拉真实 POI（不虚构）
+      pool = db.filter(p => p.name === onlyPoi || p.name.includes(onlyPoi) || onlyPoi.includes(p.name));
+      if (!pool.length) {
+        const geo = await resolvePOIFromAmap(onlyPoi, city);
+        if (geo) pool = [{ name: geo.poi_name || onlyPoi, type: '景点', lng: geo.lng, lat: geo.lat, tag: '景点' }];
       }
-      // 官方查询链接（按 POI 类型路由到对应平台）
-      const platformMap = {
-        '历史':   'https://piao.ctrip.com/dest/zh-CN/city{ctripId}.html',
-        '自然':   'https://piao.ctrip.com/dest/zh-CN/city{ctripId}.html',
-        '亲子':   'https://i.meituan.com/awp/h5/article/scenicSpot.html',
-        '地标':   'https://piao.qunar.com/',
-        '美食':   'https://www.dianping.com/',
-        '文化':   'https://piao.ctrip.com/dest/zh-CN/city{ctripId}.html',
-        '购物':   'https://www.taobao.com/',
-        '夜生活': 'https://www.dianping.com/',
-        '文艺':   'https://www.damai.cn/'
-      };
+      if (!pool.length) {
+        return res.json({ error: false, source: 'local', city, count: 0, tickets: [], message: '未找到该景点，请换一个名称试试' });
+      }
+    }
+    // 并行：票价取值 + 高德真实营业时间/评分 + 坐标解析（并发 4）
+    const tickets = await runConcurrent(pool, 4, async (p, idx) => {
+      const name = p.name;
+      const type = p.type || '景点';
+      const tk = TICKET_DB[name];
+      const free = !tk && isFreePOI(name, type);
+      let price, ticketText, sourceTag, note;
+      if (tk) {
+        price = tk.p; ticketText = tk.t || (tk.p === 0 ? '免费' : `¥${tk.p}`);
+        sourceTag = '官方/平台可查参考价'; note = tk.note || '';
+      } else if (free) {
+        price = 0; ticketText = '免费';
+        sourceTag = '免费开放'; note = '免费开放（如需预约请提前通过官方渠道预约）';
+      } else {
+        const est = TYPE_EST[type] || TYPE_EST['历史'];
+        price = est.base; ticketText = est.t; sourceTag = '参考估算'; note = est.note || '';
+      }
+      // 高德实时营业时间 + 评分（有则覆盖默认）
+      let open = (tk && tk.open) || '';
+      let rating = '';
+      const facts = await fetchPOIFactsFromAmap(name, city);
+      if (facts) {
+        if (!open && facts.open) open = facts.open;
+        if (facts.rating) rating = facts.rating;
+      }
+      if (!open) {
+        open = type === '历史' ? '8:30-17:00（周一闭馆）' : type === '文化' ? '9:00-17:00（周一闭馆）'
+          : type === '亲子' ? '9:00-21:00' : type === '自然' ? '旺季 6:00-18:00' : '全天开放';
+      }
+      // 坐标：优先高德解析（与地图标点一致），失败保留 POI_DB 原坐标
+      let location = (typeof p.lng === 'number' && typeof p.lat === 'number') ? `${p.lng},${p.lat}` : '';
+      let geoSource = 'poi-db';
+      const geo = await resolvePOIFromAmap(name, city);
+      if (geo) { location = `${geo.lng},${geo.lat}`; geoSource = 'amap-poi'; }
       return {
-        poi: p.name,
-        type: p.type,
-        location: (typeof p.lng === 'number' && typeof p.lat === 'number') ? `${p.lng},${p.lat}` : '',
-        price: base,
-        prices: [...new Set([base, ...variants])].sort((a,b)=>a-b),
-        types: types,
-        booking: cfg.booking[i % cfg.booking.length],
+        poi: name,
+        type,
+        location,
+        geo_source: geoSource,
+        price,                      // 0 = 免费；null = 参考估算
+        free: price === 0,
+        ticket: ticketText,         // 票种/价格说明
+        prices: price === 0 ? [0] : (price > 0 ? [price] : []),   // 兼容旧前端
+        types: [ticketText],
+        open,
+        rating,
+        note,
+        booking: sourceTag,
         booking_links: {
-          ctrip:  `https://piao.ctrip.com/?query=${encodeURIComponent(p.name)}`,
-          meituan:`https://i.meituan.com/awp/h5/article/scenicSpot.html?keyword=${encodeURIComponent(p.name)}`,
-          qunar:  `https://piao.qunar.com/?query=${encodeURIComponent(p.name)}`,
-          damai:  `https://search.damai.cn/search.html?keyword=${encodeURIComponent(p.name)}`,
-          official_search: `https://www.bing.com/search?q=${encodeURIComponent(p.name + ' 官网 门票')}`
-        },
-        open: p.type === '历史' ? '8:30-17:00（周一闭馆）' : p.type === '自然' ? '全天（旺季 6:00-18:00）' : p.type === '亲子' ? '9:00-21:00' : p.type === '文化' ? '9:00-17:00' : '全天',
-        note: p.type === '历史' ? '需提前 1-7 天官方预约' : p.type === '自然' ? '旺季提前 1 天预约' : p.type === '亲子' ? '建议工作日，避开周末' : p.type === '美食' ? '晚 5-7 点高峰，建议提前订位' : '电子票免排队',
-        price_disclaimer: '价格为参考区间，最终以官方/平台实时报价为准'
+          ctrip:  `https://piao.ctrip.com/?query=${encodeURIComponent(name)}`,
+          meituan: `https://i.meituan.com/awp/h5/article/scenicSpot.html?keyword=${encodeURIComponent(name)}`,
+          qunar:  `https://piao.qunar.com/?query=${encodeURIComponent(name)}`,
+          damai:  `https://search.damai.cn/search.html?keyword=${encodeURIComponent(name)}`,
+          official_search: `https://www.bing.com/search?q=${encodeURIComponent(name + ' 官网 门票')}`
+        }
       };
     });
-    // 所有 POI（含 POI_DB 已有坐标的项）统一调高德 API 解析真实坐标：
-    // POI_DB 坐标为人工粗略取点（3 位小数 ≈ 百米级），与高德真实位置常有数百米偏差，
-    // 必须用高德 place/text 实时解析的官方坐标覆盖，才能让标点落在真实位置上。
-    // 并发 4 + 缓存 + 节流；解析失败才保留 POI_DB 原坐标（标记 geo_source='poi-db' 供前端如实标注），
-    // 无坐标项保留空 location（前端标记"无坐标"宁缺毋滥，不再 hash 估算）
-    const needGeo = list.map(t => t.poi);
-    let geoResults = [];
-    if (needGeo.length) {
-      geoResults = await runConcurrent(needGeo, 4, (name) => resolvePOIFromAmap(name, city));
-      needGeo.forEach((name, i) => {
-        const g = geoResults[i];
-        const hit = list.find(t => t.poi === name);
-        if (!hit) return;
-        if (g) {
-          hit.location = `${g.lng},${g.lat}`;
-          hit.geo_source = 'amap-poi';
-          hit.geo_name = g.poi_name;
-          hit.geo_address = g.address || '';
-        } else if (hit.location) {
-          hit.geo_source = 'poi-db'; // 高德未解析到 → 保留本地库坐标，但如实标注
-        }
-      });
-    }
     res.json({
       error: false,
-      source: 'local+reference',
+      source: 'ticket-db+amap+reference',
       city,
-      count: list.length,
-      tickets: list,
-      geo_resolved: needGeo.filter((n, i) => !!geoResults[i]).length,
-      disclaimer: '本数据为基于历史票价的参考估算，请通过上方 booking_links 跳转官方平台查询实时价格',
+      count: tickets.length,
+      tickets,
+      free_count: tickets.filter(t => t.free).length,
+      real_price_count: tickets.filter(t => t.price > 0).length,
+      disclaimer: '价格来自手维护真实票价库（免费景点如实标注免费）或官方/平台参考价；仅未收录景点为"参考估算"。请通过 booking_links 跳转官方平台核对实时价格',
       official_channels: {
         ctrip:   'https://piao.ctrip.com/',
         meituan: 'https://i.meituan.com/awp/h5/article/scenicSpot.html',

@@ -2307,8 +2307,8 @@
         <div class="plan-form__field plan-form__field--small">
           <label>👥 同行人</label>
           <select id="planPax">
-            <option value="独自">独自</option>
-            <option value="情侣" selected>情侣</option>
+            <option value="独自" selected>独自</option>
+            <option value="情侣">情侣</option>
             <option value="家庭">家庭</option>
             <option value="朋友">朋友</option>
             <option value="亲子">亲子</option>
@@ -2490,14 +2490,14 @@ const API = {
   cityResolve:(name)=>API.get('/api/city/resolve?name='+encodeURIComponent(name)),
   addressGeocode:(address,city)=>API.get('/api/address/geocode?address='+encodeURIComponent(address)+'&city='+encodeURIComponent(city||'')),
   timeNow:(city,days)=>API.get('/api/time/now'+(city?'?city='+encodeURIComponent(city)+'&days='+(days||3):'')),
-  ticket:(city)=>API.get('/api/ticket?city='+encodeURIComponent(city||'')),
+  ticket:(city, poi)=>API.get('/api/ticket?city='+encodeURIComponent(city||'')+(poi?'&poi='+encodeURIComponent(poi):'')),
   hotel:(city, stars, maxPrice)=>API.get('/api/hotel?city='+encodeURIComponent(city||'')+'&stars='+(stars||0)+'&maxPrice='+(maxPrice||9999)),
   flight:(origin, dest, date)=>API.get('/api/flight?origin='+encodeURIComponent(origin||'北京')+'&dest='+encodeURIComponent(dest||'成都')+'&date='+(date||'')),
   train:(origin, dest, date)=>API.get('/api/train?origin='+encodeURIComponent(origin||'北京')+'&dest='+encodeURIComponent(dest||'成都')+'&date='+(date||'')),
   weather:(city)=>API.get('/api/weather/fallback?city='+encodeURIComponent(city||'')),
   agentPlan:(params)=>API.get('/api/agent/plan?'+new URLSearchParams({
     city:params.city||'', days:params.days||3, budget:params.budget||500,
-    pax:params.pax||'情侣', tags:(params.tags||[]).join(',')
+    pax:params.pax||'独自', tags:(params.tags||[]).join(',')
   })),
   agentRefine:(p)=>API.post('/api/agent/refine', p),
   chat:(msg)=>API.get('/api/chat?q='+encodeURIComponent(msg||''))
@@ -2589,7 +2589,7 @@ function getPlanParams(){
   const days = parseInt(document.getElementById('planDays').value) || 3;
   const departDays = Math.min(15, Math.max(0, parseInt(document.getElementById('planDepartDays')?.value) || 0));
   const budget = parseInt(document.getElementById('planBudget').value) || 500;
-  const pax = document.getElementById('planPax').value || '情侣';
+  const pax = document.getElementById('planPax').value || '独自';
   const tags = Array.from(document.querySelectorAll('#planTags input:checked')).map(c=>c.value);
   return { city, days, departDays, budget, pax, tags };
 }
@@ -4051,7 +4051,7 @@ async function loadPlan(){
     }
     const data = await API.get('/api/agent/plan?'+new URLSearchParams({
       city:params.city||'', days:params.days||3, budget:params.budget||500,
-      pax:params.pax||'情侣', tags:(params.tags||[]).join(','),
+      pax:params.pax||'独自', tags:(params.tags||[]).join(','),
       depart_in_days: params.departDays || 0
     }));
     if (data.__error) {
@@ -4207,7 +4207,7 @@ document.getElementById('planExampleBtn').onclick = () => {
   document.getElementById('planCity').value = '大理';
   document.getElementById('planDays').value = '4';
   document.getElementById('planBudget').value = '400';
-  document.getElementById('planPax').value = '情侣';
+  document.getElementById('planPax').value = '独自';
   document.querySelectorAll('#planTags input').forEach(c=>c.checked=['自然','文艺','美食'].includes(c.value));
   loadPlan();
 };
@@ -4493,6 +4493,28 @@ async function compSend(){
     } else {
       compAddMsg('agent', `查不到 ${city} 天气，请确认城市名`, '⚠️');
     }
+    return;
+  }
+
+  // 2.5) 景点门票单点查询（"广州塔门票多少钱" / "白云山要门票吗" / "XX需要预约吗"）
+  if(/门票|票价|要门票|要钱|收费|需要预约/.test(msg) && !/机票|火车票|高铁票|动车票|车票/.test(msg)){
+    let poiName = '';
+    const m = msg.match(/(.+?)(?:门票|票价|要门票|要钱|收费|需要预约)/);
+    if (m && m[1]) {
+      poiName = m[1].replace(/附近|去|到|的|请问|帮我查|要|多少钱|吗|呢/g, '').replace(/[？?！!。，,\s]/g, '').trim();
+    }
+    const r = await API.ticket(city, poiName);
+    if (r.__error || !r.tickets?.length) {
+      compAddMsg('agent', `没查到「${esc(poiName || city)}」的门票信息。可换个说法，例如：<br>• 广州塔门票多少钱<br>• 白云山要门票吗`, '⚠️');
+      return;
+    }
+    const t = r.tickets[0];
+    compAddMsg('agent',
+      `🎫 <strong>${esc(t.poi)}</strong>（${esc(t.type)}）<br>
+       💰 ${t.free ? '<span style="color:#34d399;font-weight:700">🆓 免费</span>' : ('<strong style="color:var(--accent)">¥' + (t.price || '—') + '</strong>（' + esc(t.ticket) + '）')}<br>
+       ⏰ 营业：${esc(t.open || '全天')}${t.rating ? `<br>⭐ 评分：${esc(t.rating)}` : ''}${t.note ? `<br>📌 ${esc(t.note)}` : ''}<br>
+       <small style="color:var(--muted)">来源：${esc(t.booking || '')} · 价格为参考，点击核对实时价 → <a href="${esc(t.booking_links?.official_search || '#')}" target="_blank" rel="noopener" style="color:var(--accent)">官方查询</a></small>`,
+      '🎫 真实票价库');
     return;
   }
 
@@ -4948,7 +4970,7 @@ async function collectAndRenderMap(tool, city, data){
   if (tool === 'ticket' && data.tickets?.length) {
     data.tickets.slice(0, 12).forEach(t => places.push({
       name: t.poi, type: 'poi', icon: '🎫',
-      meta: (t.type || '景点') + ' · ¥' + (t.prices || []).join('/'),
+      meta: (t.type || '景点') + ' · ' + (t.free ? '🆓免费' : ('¥' + (t.price || '参考价'))),
       address: t.geo_address || t.address || '',
       location: t.location || '',
       geo_source: t.geo_source || ''
@@ -5228,12 +5250,19 @@ async function runCompTool(tool){
       const r = await API.ticket(city);
       if(r.__error || !r.tickets?.length){ out.innerHTML = '<div class="state">暂无数据</div>'; collectAndRenderMap(tool, city, {}); return; }
       out.innerHTML = `<h3 style="margin:16px 0 8px">🎫 ${esc(city)} 景点门票（${r.tickets.length}）</h3>
+        <div style="margin:0 0 10px;padding:8px 12px;border-radius:8px;background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.2);font-size:12px;color:var(--muted)">💡 数据来源：手维护真实票价库（免费景点如实标注）/ 高德实时营业时间 / 官方平台参考价；仅未收录景点为"参考估算"。点击"官方查询"核对实时价格。</div>
         <div class="grid grid--2">${r.tickets.map(t=>`<div class="card" style="padding:12px">
-          <div class="card__title" style="font-size:15px">📍 ${esc(t.poi)}</div>
+          <div class="card__title" style="font-size:15px">📍 ${esc(t.poi)}${t.rating?` <span class="tag" style="margin-left:4px">⭐ ${esc(t.rating)}</span>`:''}</div>
           <div class="card__meta">${esc(t.type)} · 营业：${esc(t.open || '全天')}</div>
-          <div style="margin:6px 0;font-size:13px;color:var(--text)">${(t.types||[]).map(x=>`<span class="tag" style="margin:2px">${esc(x)}</span>`).join('')}</div>
-          <div style="font-size:22px;color:var(--accent);font-weight:700;margin:6px 0">¥ ${t.prices.join(' / ')}</div>
-          <div style="color:var(--muted);font-size:13px">来源：${esc(t.booking)} · ${esc(t.note)}</div>
+          <div style="margin:6px 0;font-size:13px;color:var(--text)"><span class="tag" style="margin:2px">${esc(t.ticket || '')}</span></div>
+          <div style="font-size:22px;${t.free?'color:#34d399':'color:var(--accent)'};font-weight:700;margin:6px 0">${t.free ? '🆓 免费' : ('¥ ' + (t.price || '—'))}</div>
+          ${t.note?`<div style="color:var(--muted);font-size:12px">📌 ${esc(t.note)}</div>`:''}
+          <div style="color:var(--muted);font-size:12px;margin-top:4px">来源：${esc(t.booking || '')}</div>
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+            <a class="tag" style="color:var(--accent);text-decoration:none" href="${esc(t.booking_links?.ctrip||'#')}" target="_blank" rel="noopener">携程</a>
+            <a class="tag" style="color:var(--accent);text-decoration:none" href="${esc(t.booking_links?.meituan||'#')}" target="_blank" rel="noopener">美团</a>
+            <a class="tag" style="color:var(--accent);text-decoration:none" href="${esc(t.booking_links?.official_search||'#')}" target="_blank" rel="noopener">官方查询</a>
+          </div>
         </div>`).join('')}</div>`;
       // 任务5：渲染地图
       collectAndRenderMap(tool, city, r);
