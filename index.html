@@ -5274,7 +5274,12 @@ async function runCompTool(tool){
     } else if(tool === 'hotel'){
       const r = await API.hotel(city, 0, 9999);
       if(r.__error || !r.hotels?.length){ out.innerHTML = '<div class="state">暂无数据</div>'; collectAndRenderMap(tool, city, {}); return; }
-      out.innerHTML = `<h3 style="margin:16px 0 8px">🏨 ${esc(city)} 酒店（${r.hotels.length}）</h3>
+      const hSrcReal = r.source === '飞猪 FlyAI 实时';
+      const hBadge = hSrcReal
+        ? `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(126,224,163,.12);border:1px solid rgba(126,224,163,.35);color:#7ee0a3;font-size:11px;font-weight:600;letter-spacing:.03em;margin-left:8px">🏨 飞猪 FlyAI 实时在售</span>`
+        : `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(240,165,0,.12);border:1px solid rgba(240,165,0,.35);color:#fbbf24;font-size:11px;font-weight:600;letter-spacing:.03em;margin-left:8px">📊 参考估算（星级×城市系数）</span>`;
+      out.innerHTML = `<h3 style="margin:16px 0 8px">🏨 ${esc(city)} 酒店（${r.hotels.length}）${hBadge}</h3>
+        ${r.anon_mode ? `<div style="color:var(--muted);font-size:12px;margin-bottom:8px">⚠️ 匿名体验模式价格为脱敏价（如 ¥3xx），实际价格以飞猪/酒店官方为准</div>` : ''}
         <div class="grid grid--2">${r.hotels.map(h=>`<div class="card" style="padding:12px">
           <div style="display:flex;justify-content:space-between;align-items:start">
             <div>
@@ -5283,12 +5288,12 @@ async function runCompTool(tool){
               <div style="color:var(--muted);font-size:12px;margin-top:2px">📍 ${esc(h.address || '')}</div>
             </div>
             <div style="text-align:right">
-              <div style="font-size:20px;color:var(--accent);font-weight:700">¥${h.price}</div>
+              <div style="font-size:20px;color:var(--accent);font-weight:700">${esc(h.price_display || ('¥'+h.price))}</div>
               <div style="color:var(--muted);font-size:11px">/晚</div>
             </div>
           </div>
           <div style="margin-top:6px">${(h.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
-          <div style="color:var(--muted);font-size:12px;margin-top:6px">来源：${esc(h.booking)}</div>
+          <div style="color:var(--muted);font-size:12px;margin-top:6px">来源：${esc(h.source || h.booking || '本地估算')}</div>
         </div>`).join('')}</div>`;
       // 任务5：渲染地图
       collectAndRenderMap(tool, city, r);
@@ -5302,11 +5307,15 @@ async function runCompTool(tool){
           <div style="margin-top:8px;padding:10px 14px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.25);border-radius:6px;font-size:13px;color:var(--text)">💡 短途出行建议选择<a href="javascript:void(0)" onclick="runCompTool('train')" style="color:var(--accent);text-decoration:underline">高铁/动车</a>，更便捷经济</div>`;
         return;
       }
-      out.innerHTML = `<h3 style="margin:16px 0 8px">✈️ ${esc(originCity)}→${esc(city)} 航班（${r.date}）</h3>
+      const fReal = r.source === '飞猪 FlyAI 实时';
+      const fBadge = fReal
+        ? `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(126,224,163,.12);border:1px solid rgba(126,224,163,.35);color:#7ee0a3;font-size:11px;font-weight:600;letter-spacing:.03em;margin-left:8px">✈️ 飞猪 FlyAI 实时票价</span>`
+        : `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(240,165,0,.12);border:1px solid rgba(240,165,0,.35);color:#fbbf24;font-size:11px;font-weight:600;letter-spacing:.03em;margin-left:8px">📊 参考估算</span>`;
+      out.innerHTML = `<h3 style="margin:16px 0 8px">✈️ ${esc(originCity)}→${esc(city)} 航班（${r.date}）${fBadge}</h3>
         <div style="display:flex;flex-direction:column;gap:8px">${r.flights.map(f=>`<div class="card" style="padding:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">
           <div style="flex:1">
             <div style="font-weight:600">${esc(f.airline)} ${esc(f.flight)} · ${esc(f.type)}</div>
-            <div class="card__meta">${esc(f.depart)} → ${esc(f.arrive)} · ${esc(f.duration)}</div>
+            <div class="card__meta">${esc(f.depart)} → ${esc(f.arrive)} · ${esc(f.duration)}${f.dep_station ? ' · ' + esc(f.dep_station) + '→' + esc(f.arr_station) : ''}</div>
           </div>
           <div style="text-align:right">
             <div style="font-size:20px;color:var(--accent);font-weight:700">¥${f.price}</div>

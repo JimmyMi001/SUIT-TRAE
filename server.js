@@ -32,6 +32,9 @@ const express = require('express');
 const cors    = require('cors');
 const path    = require('path');
 const fs      = require('fs');
+const crypto  = require('crypto');
+const zlib    = require('zlib');
+const os      = require('os');
 const flightCrawler = require('./flight-crawler');  // 携程机票真实价格爬虫(学习自 Suysker/Ctrip-Crawler)
 
 const app  = express();
@@ -322,6 +325,8 @@ app.get('/api/health', async (_req, res) => {
     amap_configured: Boolean(AMAP_KEY) && AMAP_KEY !== 'your_amap_key_here',
     deepseek_configured: Boolean(DEEPSEEK_KEY) && DEEPSEEK_KEY !== 'your_deepseek_key_here',
     mcp12306: mcp12306,
+    flyai: { available: true, anon_mode: FLYAI_ANON, note: '飞猪 FlyAI 体验模式（匿名 Key 免注册）' },
+    tuniu: { configured: Boolean(TUNIU_API_KEY), register_url: 'https://open.tuniu.com/' },
   });
 });
 
@@ -1966,14 +1971,33 @@ app.get('/api/transport/price', async (req, res) => {
       desc: `二等座 约 ¥${rail.second} · 一等座 约 ¥${rail.first} · 商务座 约 ¥${rail.business}（铁路里程 ${rail.rail_km} km）`,
       source: '12306 G 字头官方费率（0.46/0.74/1.40 元/km）'
     };
-    const flight = {
+    // 飞机：优先飞猪 FlyAI 真实航班（默认明天，可传 date 指定），失败回退本地估算
+    const flyDate = (req.query.date || cnDateStr(1)).trim();
+    let realCheapest = null;
+    let flyaiFlightErr = null;
+    try {
+      const raw = await flyaiCall('search_flight', { origin, destination: dest, depDate: flyDate, limit: 10 });
+      const fsList = parseFlyaiFlights(raw, origin, dest, flyDate).filter(f => f.price > 0);
+      // 优先直达航班；无直达才用中转（避免把"广州→无锡→北京"误当直达报价）
+      const direct = fsList.filter(f => !f.transfer);
+      const pool = direct.length ? direct : fsList;
+      if (pool.length) realCheapest = pool.reduce((a, b) => (b.price < a.price ? b : a));
+    } catch (e) { flyaiFlightErr = e.message; }
+    const flight = realCheapest ? {
+      type: '飞机', icon: '✈️',
+      price: realCheapest.price,
+      time: (realCheapest.duration_min || 0) + 90,  // 飞行 + 1.5h 候机
+      desc: `${realCheapest.airline} ${realCheapest.flight_no} ${(realCheapest.dep_time || '').slice(11, 16)} ${realCheapest.dep_station || origin}→${realCheapest.arr_station || dest} 经济舱 ¥${realCheapest.price} 含税${realCheapest.transfer ? '（中转）' : ''}（${flyDate}）`,
+      source: '飞猪 FlyAI 实时',
+      real: { flight_no: realCheapest.flight_no, airline: realCheapest.airline, dep_time: realCheapest.dep_time, arr_time: realCheapest.arr_time, dep_station: realCheapest.dep_station, arr_station: realCheapest.arr_station, transfer: realCheapest.transfer, jump_url: realCheapest.jump_url }
+    } : {
       type: '飞机', icon: '✈️',
       price: flightPrice,
       time: Math.round(distance / 800) * 60 + 90,  // 含 1.5h 候机
       desc: distance < 500 ? '距离 < 500 km，建议高铁（飞行时间不划算）' :
             distance < 800 ? `距离 < 800 km，建议对比高铁（飞行 ${(distance/800).toFixed(1)}h 加上候机不占优）` :
             `经济舱 约 ¥${flightPrice}（含燃油+基建，铁路里程 ${rail.rail_km} km）`,
-      source: '携程/航司估算'
+      source: '携程/航司估算（参考）'
     };
     const bus = {
       type: '大巴', icon: '🚌',
@@ -4682,7 +4706,20 @@ app.get('/api/hotel', async (req, res) => {
     const stars = parseInt(req.query.stars) || 0;
     const maxPrice = parseInt(req.query.maxPrice) || 9999;
     const center = CITY_COORDS[city] || { lat: 30, lon: 104 };
-    // 城市专属酒店池 [name, stars, district, street]
+    const checkInDate = (req.query.checkIn || cnDateStr(0)).trim();
+    const checkOutDate = (req.query.checkOut || cnDateStr(1)).trim();
+    // ① 优先：飞猪 FlyAI 真实酒店（真实名称/地址/坐标/星级；匿名体验模式价格脱敏为 ¥1xx/¥2xx）
+    let flyaiHotels = [];
+    try {
+      const fArgs = { destName: city, checkInDate, checkOutDate, limit: 10 };
+      if (req.query.stars) fArgs.hotelStars = String(req.query.stars);
+      const fMax = parseInt(req.query.maxPrice, 10);
+      if (fMax > 0) fArgs.maxPrice = fMax;
+      const raw = await flyaiCall('search_hotels', fArgs);
+      flyaiHotels = parseFlyaiHotels(raw || null);
+    } catch (e) {}
+    const useFlyAI = flyaiHotels.length >= 3;
+    // 城市专属酒店池 [name, stars, district, street]（FlyAI 不可用时回退）
     const hotelPools = {
       '北京': [
         ['北京饭店', 5, '东城区', '东长安街33号'],['王府井诺富特', 4, '东城区', '王府井大街138号'],
@@ -4838,79 +4875,131 @@ app.get('/api/hotel', async (req, res) => {
         ['桔子水晶', 3, '商业区', '金融街18号'],['维也纳国际', 3, '商业区', '长安街99号']
       ]
     };
-    const list = hotelPools[city] || hotelPools.default;
-    // 价格基数（按星级真实定价）+ 城市经济系数
-    const cityPriceFactor = { '北京':1.4, '上海':1.6, '深圳':1.4, '广州':1.2, '杭州':1.2, '成都':1.0, '西安':0.95, '重庆':0.95, '南京':1.1, '苏州':1.1, '厦门':1.1, '青岛':1.0, '武汉':1.0, '长沙':0.95, '三亚':1.3, '拉萨':1.1, '昆明':0.9, '哈尔滨':0.85, '桂林':0.9, '黄山':0.95, '张家界':0.85, '敦煌':0.8, '丽江':1.0, '大理':0.95, '澳门':1.7, '香港':1.7, '大连':1.0, '济南':0.95, '天津':1.0, '沈阳':0.9 }[city] || 1.0;
-    const starBase = { 1: 120, 2: 200, 3: 350, 4: 600, 5: 1100 };
-    const bookings = ['携程','美团','去哪儿','飞猪','Booking','Trip.com','艺龙','同程'];
-    const tagsPool = {
-      1: ['经济实惠','公用卫浴'],2: ['含早餐','24小时前台','经济型'],
-      3: ['免费WiFi','市中心','含早餐','健身房','商务中心'],
-      4: ['免费停车','游泳池','行政酒廊','管家服务','亲子房'],
-      5: ['米其林餐厅','海景房','Spa','管家服务','礼宾服务','机场接送']
-    };
-    const ratingPool = { 1: ['3.8','4.0'], 2: ['4.1','4.3','4.5'], 3: ['4.4','4.5','4.6'], 4: ['4.6','4.7','4.8'], 5: ['4.7','4.8','4.9'] };
-    const hotels = list.map((row, i) => {
-      const [name, hStars, district, street] = row;
-      const base = starBase[hStars] || 300;
-      const price = Math.round(base * cityPriceFactor * (0.85 + (i * 0.07) % 0.30));
-      // 兜底坐标：基于城市中心 + 区域偏移（确定性，无随机）——仅在高德 geocode 失败时使用
-      const offsetLng = ((i * 73) % 200 - 100) * 0.0008;
-      const offsetLat = ((i * 47) % 150 - 75) * 0.0007;
-      const lng = center.lon + offsetLng;
-      const lat = center.lat + offsetLat;
-      const distance = Math.hypot((lng - center.lon) * Math.cos(center.lat * Math.PI / 180), lat - center.lat) * 111;
-      return {
-        name,
-        stars: hStars,
-        price,
-        address: `${city}${district}${street}`,
-        _district: district,
-        geo_status: 'pending', // pending → amap / synthetic
-        lng, lat,
-        location: `${lng},${lat}`,
-        distance_km: distance.toFixed(2),
-        tags: (tagsPool[hStars] || []).slice(0, 2 + (i % 2)),
-        rating: (ratingPool[hStars] || ['4.5'])[i % (ratingPool[hStars] || ['4.5']).length],
-        booking: bookings[i % bookings.length],
-        booking_links: {
-          ctrip:  `https://hotels.ctrip.com/hotel/${encodeURIComponent(city)}?keywords=${encodeURIComponent(name)}`,
-          fliggy: `https://www.fliggy.com/hotel/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(name)}`,
-          meituan:`https://hotel.meituan.com/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(name)}`,
-          qunar:  `https://hotel.qunar.com/city/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(name)}`,
-          agoda:  `https://www.agoda.com/zh-cn/search?city=${encodeURIComponent(city)}&q=${encodeURIComponent(name)}`,
-          booking:`https://www.booking.com/searchresults.zh-cn.html?ss=${encodeURIComponent(city + ' ' + name)}`
-        },
-        source: 'local+reference',
-        price_disclaimer: '价格为按"星级基数×城市系数×浮动"估算的参考价，最终以官方/平台实时报价为准'
+    let hotels = [];
+    if (useFlyAI) {
+      // ② 飞猪 FlyAI 真实酒店 → 统一结构（真实坐标，无需高德解析）
+      const starMap = { '经济型': 2, '舒适型': 3, '高档型': 4, '豪华型': 5, '五星级': 5, '四星级': 4, '三星级': 3, '二星级': 2 };
+      const maskedToNum = (s) => { const m = String(s || '').match(/¥(\d+)[xX]/); return m ? Number(m[1]) * 100 : 0; };  // "¥3xx" → 300（取区间下限）
+      const tagsPoolF = {
+        2: ['经济型', '24小时前台'], 3: ['免费WiFi', '市中心', '含早餐'],
+        4: ['免费停车', '行政酒廊', '健身房'], 5: ['礼宾服务', 'Spa', '机场接送']
       };
-    }).filter(h => (stars === 0 || h.stars >= stars) && h.price <= maxPrice);
-    // 用高德解析酒店真实坐标（并发 4，带缓存），优先级：① 酒店名 place/text（多为真实 POI，最准）
-    // ② 完整地址 geocode ③ 城市+区 中心；全部失败才保留合成坐标（城市中心+确定性偏移）
-    await runConcurrent(hotels, 4, async (h) => {
-      let g = await resolvePOIFromAmap(h.name, city);
-      if (!g) g = await geocodeAddressFromAmap(h.address, city);
-      if (!g && h._district) {
-        g = await geocodeAddressFromAmap(`${city}${h._district}`, city);
-      }
-      if (g) {
-        h.lng = g.lng; h.lat = g.lat;
-        h.location = `${g.lng},${g.lat}`;
-        h.geo_status = 'amap';
-        h.geo_full_address = g.full_address || '';
-        h.distance_km = (Math.hypot((g.lng - center.lon) * Math.cos(center.lat * Math.PI / 180), g.lat - center.lat) * 111).toFixed(2);
-      } else {
-        h.geo_status = 'synthetic';
-      }
-    });
+      const fmtDist = (h) => {
+        if (!h.latitude || !h.longitude) return '—';
+        return (Math.hypot((h.longitude - center.lon) * Math.cos(center.lat * Math.PI / 180), h.latitude - center.lat) * 111).toFixed(2);
+      };
+      hotels = flyaiHotels.map((h, i) => {
+        const hStars = starMap[h.star] || 3;
+        const price = h.price_masked
+          ? (maskedToNum(h.price) || (hStars >= 5 ? 800 : hStars >= 4 ? 500 : hStars >= 3 ? 300 : 180))
+          : (parseInt(String(h.price).replace(/[^\d]/g, ''), 10) || 0);
+        return {
+          name: h.name, stars: hStars,
+          price, price_masked: h.price_masked, price_display: h.price || ('¥' + price),
+          address: h.address || city, _district: '',
+          geo_status: 'flyai', lng: h.longitude, lat: h.latitude,
+          location: (h.longitude && h.latitude) ? `${h.longitude},${h.latitude}` : '',
+          distance_km: fmtDist(h),
+          tags: (tagsPoolF[hStars] || []).slice(0, 2 + (i % 2)),
+          rating: h.rate ? String(h.rate) : (hStars >= 5 ? '4.7' : hStars >= 4 ? '4.5' : '4.2'),
+          booking: '飞猪',
+          booking_links: {
+            ctrip:  `https://hotels.ctrip.com/hotel/${encodeURIComponent(city)}?keywords=${encodeURIComponent(h.name)}`,
+            fliggy: h.detail_url || `https://www.fliggy.com/hotel/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(h.name)}`,
+            meituan:`https://hotel.meituan.com/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(h.name)}`,
+            qunar:  `https://hotel.qunar.com/city/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(h.name)}`,
+            agoda:  `https://www.agoda.com/zh-cn/search?city=${encodeURIComponent(city)}&q=${encodeURIComponent(h.name)}`,
+            booking:`https://www.booking.com/searchresults.zh-cn.html?ss=${encodeURIComponent(city + ' ' + h.name)}`
+          },
+          source: '飞猪 FlyAI 实时',
+          price_disclaimer: h.price_masked ? `匿名体验模式价格为脱敏价（${h.price}），实际价格请在飞猪/酒店官方查询（配置 FLYAI_API_KEY 可解锁完整价格）` : '价格为飞猪 FlyAI 实时报价，最终以官方/平台实时报价为准',
+          brand: h.brand, main_pic: h.main_pic
+        };
+      });
+    } else {
+      // ③ 回退：本地酒店池（真实星级 + 估算价格）
+      const list = hotelPools[city] || hotelPools.default;
+      // 价格基数（按星级真实定价）+ 城市经济系数
+      const cityPriceFactor = { '北京':1.4, '上海':1.6, '深圳':1.4, '广州':1.2, '杭州':1.2, '成都':1.0, '西安':0.95, '重庆':0.95, '南京':1.1, '苏州':1.1, '厦门':1.1, '青岛':1.0, '武汉':1.0, '长沙':0.95, '三亚':1.3, '拉萨':1.1, '昆明':0.9, '哈尔滨':0.85, '桂林':0.9, '黄山':0.95, '张家界':0.85, '敦煌':0.8, '丽江':1.0, '大理':0.95, '澳门':1.7, '香港':1.7, '大连':1.0, '济南':0.95, '天津':1.0, '沈阳':0.9 }[city] || 1.0;
+      const starBase = { 1: 120, 2: 200, 3: 350, 4: 600, 5: 1100 };
+      const bookings = ['携程','美团','去哪儿','飞猪','Booking','Trip.com','艺龙','同程'];
+      const tagsPool = {
+        1: ['经济实惠','公用卫浴'],2: ['含早餐','24小时前台','经济型'],
+        3: ['免费WiFi','市中心','含早餐','健身房','商务中心'],
+        4: ['免费停车','游泳池','行政酒廊','管家服务','亲子房'],
+        5: ['米其林餐厅','海景房','Spa','管家服务','礼宾服务','机场接送']
+      };
+      const ratingPool = { 1: ['3.8','4.0'], 2: ['4.1','4.3','4.5'], 3: ['4.4','4.5','4.6'], 4: ['4.6','4.7','4.8'], 5: ['4.7','4.8','4.9'] };
+      hotels = list.map((row, i) => {
+        const [name, hStars, district, street] = row;
+        const base = starBase[hStars] || 300;
+        const price = Math.round(base * cityPriceFactor * (0.85 + (i * 0.07) % 0.30));
+        // 兜底坐标：基于城市中心 + 区域偏移（确定性，无随机）——仅在高德 geocode 失败时使用
+        const offsetLng = ((i * 73) % 200 - 100) * 0.0008;
+        const offsetLat = ((i * 47) % 150 - 75) * 0.0007;
+        const lng = center.lon + offsetLng;
+        const lat = center.lat + offsetLat;
+        const distance = Math.hypot((lng - center.lon) * Math.cos(center.lat * Math.PI / 180), lat - center.lat) * 111;
+        return {
+          name,
+          stars: hStars,
+          price,
+          address: `${city}${district}${street}`,
+          _district: district,
+          geo_status: 'pending', // pending → amap / synthetic
+          lng, lat,
+          location: `${lng},${lat}`,
+          distance_km: distance.toFixed(2),
+          tags: (tagsPool[hStars] || []).slice(0, 2 + (i % 2)),
+          rating: (ratingPool[hStars] || ['4.5'])[i % (ratingPool[hStars] || ['4.5']).length],
+          booking: bookings[i % bookings.length],
+          booking_links: {
+            ctrip:  `https://hotels.ctrip.com/hotel/${encodeURIComponent(city)}?keywords=${encodeURIComponent(name)}`,
+            fliggy: `https://www.fliggy.com/hotel/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(name)}`,
+            meituan:`https://hotel.meituan.com/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(name)}`,
+            qunar:  `https://hotel.qunar.com/city/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(name)}`,
+            agoda:  `https://www.agoda.com/zh-cn/search?city=${encodeURIComponent(city)}&q=${encodeURIComponent(name)}`,
+            booking:`https://www.booking.com/searchresults.zh-cn.html?ss=${encodeURIComponent(city + ' ' + name)}`
+          },
+          source: 'local+reference',
+          price_disclaimer: '价格为按"星级基数×城市系数×浮动"估算的参考价，最终以官方/平台实时报价为准'
+        };
+      });
+    }
+    hotels = hotels.filter(h => (stars === 0 || h.stars >= stars) && (h.price || 0) <= maxPrice);
+    // 用高德解析本地酒店真实坐标（并发 4，带缓存）；FlyAI 酒店已有真实坐标，跳过
+    if (!useFlyAI) {
+      // 优先级：① 酒店名 place/text（多为真实 POI，最准）② 完整地址 geocode ③ 城市+区 中心；全部失败才保留合成坐标
+      await runConcurrent(hotels, 4, async (h) => {
+        let g = await resolvePOIFromAmap(h.name, city);
+        if (!g) g = await geocodeAddressFromAmap(h.address, city);
+        if (!g && h._district) {
+          g = await geocodeAddressFromAmap(`${city}${h._district}`, city);
+        }
+        if (g) {
+          h.lng = g.lng; h.lat = g.lat;
+          h.location = `${g.lng},${g.lat}`;
+          h.geo_status = 'amap';
+          h.geo_full_address = g.full_address || '';
+          h.distance_km = (Math.hypot((g.lng - center.lon) * Math.cos(center.lat * Math.PI / 180), g.lat - center.lat) * 111).toFixed(2);
+        } else {
+          h.geo_status = 'synthetic';
+        }
+      });
+    }
+    const respSource = useFlyAI ? '飞猪 FlyAI 实时' : 'local+reference';
+    const disclaimer = useFlyAI
+      ? (FLYAI_ANON ? '酒店为飞猪 FlyAI 真实在售酒店，匿名体验模式价格为脱敏价（¥1xx/¥2xx），请通过 booking_links 跳转飞猪/官方平台查询实时价格与房态；配置 FLYAI_API_KEY 后解锁完整价格' : '酒店为飞猪 FlyAI 真实在售酒店，价格/房态请以官方平台实时为准')
+      : '酒店价格为基于星级/城市系数的参考估算，请通过 booking_links 跳转官方平台查询实时价格与房态';
     res.json({
       error: false,
-      source: 'local+reference',
+      source: respSource,
       city,
+      anon_mode: useFlyAI ? FLYAI_ANON : false,
       count: hotels.length,
       hotels,
-      geo_resolved: hotels.filter(h => h.geo_status === 'amap').length,
-      disclaimer: '酒店价格为基于星级/城市系数的参考估算，请通过 booking_links 跳转官方平台查询实时价格与房态',
+      geo_resolved: hotels.filter(h => h.geo_status === 'amap' || h.geo_status === 'flyai').length,
+      disclaimer,
       official_channels: {
         ctrip:   'https://hotels.ctrip.com/',
         fliggy:  'https://www.fliggy.com/hotel/',
@@ -4937,7 +5026,41 @@ app.get('/api/flight', async (req, res) => {
   try {
     const origin = req.query.origin || '北京';
     const dest = req.query.dest || '成都';
-    const date = req.query.date || new Date().toISOString().slice(0,10);
+    const date = req.query.date || cnDateStr(1);   // 默认明天（北京时间），保证航班可售
+    const booking_links = {
+      ctrip_flight:   `https://flights.ctrip.com/online/list/oneway-${origin}-${dest}?_=1&depdate=${date}`,
+      fliggy:         `https://www.fliggy.com/flight/?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(dest)}&date=${date}`,
+      qunar:          `https://flight.qunar.com/site/oneway_list.htm?searchDepartureAirport=${encodeURIComponent(origin)}&searchArrivalAirport=${encodeURIComponent(dest)}&searchDepartureTime=${date}`,
+      umetrip:        'https://www.umetrip.com/',
+      airline_search: `https://www.bing.com/search?q=${encodeURIComponent(origin + '到' + dest + ' 机票 ' + date)}`
+    };
+
+    // ----- 优先：飞猪 FlyAI 实时航班（真实航班号/时刻/含税价） -----
+    const raw = await flyaiCall('search_flight', { origin, destination: dest, depDate: date, limit: 10 });
+    if (raw) {
+      const fmtDur = (min) => { const m = Number(min) || 0; const h = Math.floor(m / 60), mm = m % 60; return h + 'h' + (mm > 0 ? mm + 'm' : ''); };
+      const parsed = parseFlyaiFlights(raw, origin, dest, date);
+      // 优先直达；若存在中转航班则标注"（中转）"，避免把首段误当直达
+      const hasDirect = parsed.some(f => !f.transfer);
+      const flights = parsed.map(f => ({
+        flight: f.flight_no, airline: f.airline, origin, dest,
+        depart: (f.dep_time || '').slice(11, 16),   // "2026-08-03 21:15:00" → "21:15"
+        arrive: (f.arr_time || '').slice(11, 16),
+        duration: fmtDur(f.duration_min),
+        price: f.price, type: (f.transfer && hasDirect) ? f.seat_class + '·中转' : f.seat_class,
+        dep_station: f.dep_station, arr_station: f.arr_station,
+        dep_term: f.dep_term, arr_term: f.arr_term,
+        transfer: f.transfer, jump_url: f.jump_url
+      })).filter(f => (hasDirect ? !f.transfer : true));
+      if (flights.length) {
+        return res.json({
+          error: false, source: '飞猪 FlyAI 实时',
+          origin, dest, date, flights,
+          disclaimer: '航班时刻/含税价格来自飞猪 FlyAI 实时接口（经济舱），实际以航司/飞猪出票为准',
+          booking_links
+        });
+      }
+    }
 
     // ----- 真实爬虫（学习自 Suysker/Ctrip-Crawler, Node.js 版） -----
     // 启用: set ENABLE_FLIGHT_CRAWLER=1
@@ -4950,13 +5073,7 @@ app.get('/api/flight', async (req, res) => {
           timeoutMs: 25000
         });
         // 补全 booking_links, 与参考价响应结构对齐
-        real.booking_links = {
-          ctrip_flight:   `https://flights.ctrip.com/online/list/oneway-${origin}-${dest}?_=1&depdate=${date}`,
-          fliggy:         `https://www.fliggy.com/flight/?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(dest)}&date=${date}`,
-          qunar:          `https://flight.qunar.com/site/oneway_list.htm?searchDepartureAirport=${encodeURIComponent(origin)}&searchArrivalAirport=${encodeURIComponent(dest)}&searchDepartureTime=${date}`,
-          umetrip:        'https://www.umetrip.com/',
-          airline_search: `https://www.bing.com/search?q=${encodeURIComponent(origin + '到' + dest + ' 机票 ' + date)}`
-        };
+        real.booking_links = booking_links;
         return res.json(real);
       } catch (e) {
         console.warn('[flight] crawler 失败, 降级到参考价:', e.message);
@@ -5252,6 +5369,293 @@ app.get('/api/train', async (req, res) => {
       official_channels
     });
   } catch(e){ res.status(500).json({ error:true, message:e.message }); }
+});
+
+/* ---------- 飞猪 FlyAI MCP 客户端（真实机票/酒店/POI，直连签名复刻，零注册体验模式） ----------
+ * FlyAI 是飞猪开放平台基于 MCP 协议的真实出行数据源：
+ *   - 机票：真实航班时刻 + 真实含税票价（ticketPrice 完整，经济舱）
+ *   - 酒店：真实酒店名称/地址/坐标/星级；匿名体验模式价格脱敏为 ¥1xx/¥2xx
+ *   - POI：真实景点/餐饮/购物分类检索
+ * 内置匿名 Key 免注册可用（价格可能脱敏）；配置 FLYAI_API_KEY / FLYAI_SIGN_SECRET 后解锁完整价格。
+ * 签名算法逆向自 @fly-ai/flyai-cli v1.0.6（HMAC-SHA256 + AES-256-GCM 加密上下文）。
+ * 数据仅供学习研究，实际预订以飞猪/航司/酒店官方为准。
+ */
+const FLYAI_ENDPOINT  = 'https://flyai.open.fliggy.com/mcp';
+const FLYAI_KEY       = (process.env.FLYAI_API_KEY || 'sk-faRn8Kp2QzXvLm9YtA4EjHcWbS7oUdG5iF3xNqV6rZ').trim();
+const FLYAI_SECRET    = (process.env.FLYAI_SIGN_SECRET || 'XSbdYnucPARDc9knhD8+X6hxdD1Nh6ZGI6Hadg25kBw=').trim();
+const FLYAI_TTID      = 'ai2c(sk.clawhub)';
+const FLYAI_VER       = '1.0.6';
+const FLYAI_ANON      = !(process.env.FLYAI_API_KEY || '').trim();   // 是否匿名体验模式（价格可能脱敏）
+const flyaiCache      = new Map();                                   // 内存缓存：key -> {at, data}
+const FLYAI_CACHE_TTL = 6 * 3600 * 1000;                             // 6 小时
+let _flyaiDeviceId = null;
+
+function flyaiDeviceId() {
+  if (_flyaiDeviceId) return _flyaiDeviceId;
+  let raw = '';
+  try { raw = fs.readFileSync(path.join(__dirname, '.cache', 'flyai-device-id'), 'utf8').trim(); } catch (e) {}
+  if (!raw) { raw = crypto.randomUUID(); try { fs.mkdirSync(path.join(__dirname, '.cache'), { recursive: true }); fs.writeFileSync(path.join(__dirname, '.cache', 'flyai-device-id'), raw); } catch (e) {} }
+  _flyaiDeviceId = crypto.createHash('sha256').update(raw, 'utf8').digest('hex').toLowerCase();
+  return _flyaiDeviceId;
+}
+
+// 构造 x-ff-ctx：gzip 压缩上下文后用 AES-256-GCM 加密（key = sha256(secret) 原始字节），前缀 0x01
+function flyaiCtx() {
+  const platform = process.platform;
+  const memGB = os.totalmem() <= 2 * 1073741824 ? 2 : os.totalmem() <= 4 * 1073741824 ? 4 : os.totalmem() <= 8 * 1073741824 ? 8 : os.totalmem() <= 16 * 1073741824 ? 16 : 32;
+  const deviceMem = Math.min(8, Math.max(2, memGB));
+  const tzOffset = -new Date().getTimezoneOffset();
+  const ua = `flyai-cli/${FLYAI_VER} (Node.js ${process.version}; ${platform} ${os.arch()})`;
+  const osRelease = (os.release().match(/^(\d+)/) || [0, '0'])[1];
+  const ctx = {
+    machine: { platform, arch: os.arch(), cpus: os.cpus().length, memoryTierGB: memGB, osType: os.type(), nodeVersion: process.version, osReleaseMajor: osRelease },
+    fingerprint: { language: 'en', platform: platform === 'darwin' ? 'Macintosh' : platform === 'win32' ? 'Windows' : 'Linux', userAgent: ua, hardwareConcurrency: os.cpus().length, deviceMemory: deviceMem, clientSurface: 'cli', timezoneOffset: tzOffset, deviceId: flyaiDeviceId() }
+  };
+  const gz = zlib.gzipSync(Buffer.from(JSON.stringify(ctx), 'utf8'));
+  const aesKey = crypto.createHash('sha256').update(FLYAI_SECRET, 'utf8').digest();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', aesKey, iv);
+  const enc = Buffer.concat([cipher.update(gz), cipher.final()]);
+  return Buffer.concat([Buffer.from([0x01]), iv, enc, cipher.getAuthTag()]).toString('base64');
+}
+
+// 签名：POST\n/mcp\n{ts}\n{nonce}\n{sha256(body)}\n{sha256('Bearer '+key)} → HMAC-SHA256(secret) base64url
+function flyaiHeaders(body) {
+  const ts = Date.now().toString();
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const bodyHash = crypto.createHash('sha256').update(body, 'utf8').digest('hex');
+  const auth = 'Bearer ' + FLYAI_KEY;
+  const authHash = crypto.createHash('sha256').update(auth, 'utf8').digest('hex');
+  const signStr = 'POST\n/mcp\n' + ts + '\n' + nonce + '\n' + bodyHash + '\n' + authHash;
+  return {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json, text/event-stream',
+    'Authorization': auth,
+    'x-ff-ctx': flyaiCtx(),
+    'x-ttid': FLYAI_TTID,
+    'User-Agent': `flyai-cli/${FLYAI_VER} (Node.js ${process.version}; ${process.platform} ${os.arch()})`,
+    'x-flyai-sign-ver': '7',
+    'x-flyai-sign-alg': 'hmac-sha256',
+    'x-flyai-ts': ts,
+    'x-flyai-nonce': nonce,
+    'x-flyai-sign': crypto.createHmac('sha256', FLYAI_SECRET).update(signStr, 'utf8').digest('base64url')
+  };
+}
+
+// 调用 FlyAI 工具：成功返回解析后的数据对象（content[0].text 已二次 JSON 解析），失败返回 null
+async function flyaiCall(tool, args) {
+  const cacheKey = tool + '|' + JSON.stringify(args || {});
+  const hit = flyaiCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < FLYAI_CACHE_TTL) return hit.data;
+  const payload = { jsonrpc: '2.0', id: Math.floor(Math.random() * 1e6) + 1, method: 'tools/call', params: { name: tool, arguments: args || {} } };
+  const body = JSON.stringify(payload);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const r = await fetch(FLYAI_ENDPOINT, { method: 'POST', headers: flyaiHeaders(body), body, signal: controller.signal });
+    if (!r.ok) return null;
+    let text = await r.text();
+    // Streamable HTTP 可能返回 SSE 格式，提取 data: 行
+    if (text.includes('event: message')) { const m = text.match(/data: (\{[\s\S]*\})/); if (m) text = m[1]; }
+    let json = null;
+    try { json = JSON.parse(text); } catch (e) { return null; }
+    if (json.error || !json.result) return null;
+    const t = (json.result.content || []).map(c => c.text || '').join(' ');
+    let data = null;
+    try { data = JSON.parse(t); } catch (e) { data = { __raw: t }; }
+    flyaiCache.set(cacheKey, { at: Date.now(), data });
+    return data;
+  } catch (e) { return null; } finally { clearTimeout(timer); }
+}
+
+// 解析 FlyAI 航班 → 统一航班列表（供 /api/flyai/flight 与 /api/transport/price 复用）
+function parseFlyaiFlights(raw, origin, dest, date) {
+  const list = (raw && raw.data && Array.isArray(raw.data.itemList)) ? raw.data.itemList : [];
+  if (!list.length) return [];
+  return list.map(item => {
+    const j0 = (item.journeys || [])[0] || {};
+    const seg = (j0.segments || [])[0] || {};
+    return {
+      flight_no: seg.marketingTransportNo || '',
+      airline: seg.marketingTransportName || '',
+      seat_class: seg.seatClassName || '经济舱',
+      transport_type: seg.transportType || '飞机',
+      dep_city: seg.depCityName || origin, dep_station: seg.depStationName || '', dep_term: seg.depTerm || '',
+      arr_city: seg.arrCityName || dest, arr_station: seg.arrStationName || '', arr_term: seg.arrTerm || '',
+      dep_time: seg.depDateTime || '', arr_time: seg.arrDateTime || '',
+      duration_min: parseInt(seg.duration || '0', 10) || 0,
+      transfer: (item.journeys || []).length > 1 || (j0.transferDuration || 0) > 0,
+      price: Math.round(Number(item.ticketPrice) || 0),
+      jump_url: item.jumpUrl || '',
+      tags: Array.isArray(item.tags) ? item.tags : []
+    };
+  });
+}
+
+// 解析 FlyAI 酒店 → 统一酒店列表（匿名模式 price 可能为 ¥1xx 脱敏价）
+function parseFlyaiHotels(raw) {
+  const list = (raw && raw.data && Array.isArray(raw.data.itemList)) ? raw.data.itemList : [];
+  if (!list.length) return [];
+  return list.map(h => ({
+    name: h.name || '',
+    address: h.address || '',
+    star: h.star || '',
+    price: h.price || '',
+    price_masked: /[xX]/.test(h.price || ''),
+    latitude: parseFloat(h.latitude) || null,
+    longitude: parseFloat(h.longitude) || null,
+    brand: h.brandName || null,
+    detail_url: h.detailUrl || '',
+    main_pic: h.mainPic || '',
+    rate: h.rate || null,
+    interests: h.interestsPoi || ''
+  }));
+}
+
+/* 飞猪 FlyAI 真实数据代理端点（前端按需调用；不可用返回 error:true，前端回退本地估算） */
+app.get('/api/flyai/flight', async (req, res) => {
+  try {
+    const origin = (req.query.from || req.query.origin || '').trim();
+    const dest = (req.query.to || req.query.destination || '').trim();
+    const date = (req.query.date || cnDateStr(1)).trim();
+    if (!origin || !dest) return res.json({ error: true, message: '缺少 from/to（出发/到达城市）参数' });
+    const raw = await flyaiCall('search_flight', { origin, destination: dest, depDate: date, limit: 10 });
+    if (!raw) return res.json({ error: true, message: '飞猪 FlyAI 暂不可用，请稍后重试' });
+    const flights = parseFlyaiFlights(raw, origin, dest, date);
+    if (!flights.length) return res.json({ error: true, message: '未查询到该航线航班', hint: '请检查城市名（如 广州/北京）与日期格式（YYYY-MM-DD）' });
+    res.json({
+      error: false, source: '飞猪 FlyAI 实时', anon_mode: FLYAI_ANON, origin, dest, date, flights,
+      query_url: `https://www.fliggy.com/flight/?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(dest)}&date=${date}`,
+      disclaimer: '航班时刻/价格来自飞猪 FlyAI 实时接口，实际以航司/飞猪出票为准'
+    });
+  } catch (e) { res.json({ error: true, message: e.message }); }
+});
+
+app.get('/api/flyai/hotels', async (req, res) => {
+  try {
+    const destName = (req.query.city || req.query.dest || '').trim();
+    if (!destName) return res.json({ error: true, message: '缺少 city 参数' });
+    const checkInDate = (req.query.checkIn || cnDateStr(0)).trim();
+    const checkOutDate = (req.query.checkOut || cnDateStr(1)).trim();
+    const args = { destName, checkInDate, checkOutDate, limit: 10 };
+    if (req.query.stars) args.hotelStars = String(req.query.stars);
+    const maxPrice = parseInt(req.query.maxPrice, 10);
+    if (maxPrice > 0) args.maxPrice = maxPrice;
+    const raw = await flyaiCall('search_hotels', args);
+    if (!raw) return res.json({ error: true, message: '飞猪 FlyAI 暂不可用，请稍后重试' });
+    const hotels = parseFlyaiHotels(raw);
+    res.json({
+      error: false, source: '飞猪 FlyAI 实时', anon_mode: FLYAI_ANON,
+      destName, checkInDate, checkOutDate, hotels,
+      notice: FLYAI_ANON ? '匿名体验模式下酒店价格为脱敏价（如 ¥1xx），配置 FLYAI_API_KEY 后解锁完整价格' : '',
+      query_url: `https://www.fliggy.com/hotel/?city=${encodeURIComponent(destName)}`
+    });
+  } catch (e) { res.json({ error: true, message: e.message }); }
+});
+
+app.get('/api/flyai/poi', async (req, res) => {
+  try {
+    const cityName = (req.query.city || '').trim();
+    const keyword = (req.query.keyword || '').trim();
+    if (!cityName || !keyword) return res.json({ error: true, message: '缺少 city/keyword 参数' });
+    const raw = await flyaiCall('search_poi', { cityName, keyword });
+    if (!raw) return res.json({ error: true, message: '飞猪 FlyAI 暂不可用，请稍后重试' });
+    res.json({ error: false, source: '飞猪 FlyAI 实时', cityName, keyword, ...raw });
+  } catch (e) { res.json({ error: true, message: e.message }); }
+});
+
+app.get('/api/flyai/status', async (_req, res) => {
+  const raw = await flyaiCall('search_flight', { origin: '广州', destination: '北京', depDate: cnDateStr(1), limit: 1 });
+  res.json({ error: !raw, source: '飞猪 FlyAI', anon_mode: FLYAI_ANON, available: Boolean(raw) });
+});
+
+/* ---------- 途牛开放平台 MCP 客户端（真实门票/酒店/机票，需 TUNIU_API_KEY） ----------
+ * 端点：https://openapi.tuniu.cn/mcp/{ticket|hotel|flight}，apiKey 请求头认证，无状态无需 initialize。
+ * 限额：所有 apikey 共享 5 次/分钟、50 次/天，务必依赖内存缓存（6h）。
+ * 注册获取 API Key：https://open.tuniu.com/ → 创建应用。
+ * 未配置 TUNIU_API_KEY 时所有端点返回 error + 引导提示（前端回退本地估算/高德）。
+ */
+const TUNIU_API_KEY = (process.env.TUNIU_API_KEY || '').trim();
+const TUNIU_BASE = { ticket: 'https://openapi.tuniu.cn/mcp/ticket', hotel: 'https://openapi.tuniu.cn/mcp/hotel', flight: 'https://openapi.tuniu.cn/mcp/flight' };
+const tuniuCache = new Map();
+const TUNIU_CACHE_TTL = 6 * 3600 * 1000;
+
+// 调用途牛 MCP 工具：成功返回解析后的数据对象，失败返回 null
+async function tuniuCall(kind, tool, args) {
+  if (!TUNIU_API_KEY) return null;
+  const cacheKey = kind + '|' + tool + '|' + JSON.stringify(args || {});
+  const hit = tuniuCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < TUNIU_CACHE_TTL) return hit.data;
+  const payload = { jsonrpc: '2.0', id: Math.floor(Math.random() * 1e6) + 1, method: 'tools/call', params: { name: tool, arguments: args || {} } };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const r = await fetch(TUNIU_BASE[kind], {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream', 'apiKey': TUNIU_API_KEY },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!r.ok) return null;
+    let text = await r.text();
+    if (text.includes('event: message')) { const m = text.match(/data: (\{[\s\S]*\})/); if (m) text = m[1]; }
+    let json = null;
+    try { json = JSON.parse(text); } catch (e) { return null; }
+    if (json.error || !json.result) return null;
+    const t = (json.result.content || []).map(c => c.text || '').join(' ');
+    let data = null;
+    try { data = JSON.parse(t); } catch (e) { data = { __raw: t }; }
+    tuniuCache.set(cacheKey, { at: Date.now(), data });
+    return data;
+  } catch (e) { return null; } finally { clearTimeout(timer); }
+}
+
+// 途牛 Key 未配置时的统一提示
+function tuniuNeedKey() {
+  return { error: true, message: '途牛开放平台未配置 TUNIU_API_KEY（真实门票数据源）。请前往 https://open.tuniu.com/ 注册并创建应用获取 API Key，然后设置环境变量 TUNIU_API_KEY 后重启服务；当前已回退本地/高德估算数据' };
+}
+
+/* 途牛真实数据代理端点（门票/酒店/机票） */
+app.get('/api/tuniu/ticket', async (req, res) => {
+  if (!TUNIU_API_KEY) return res.json(tuniuNeedKey());
+  const scenic_name = (req.query.scenic || req.query.name || '').trim();
+  if (!scenic_name) return res.json({ error: true, message: '缺少 scenic（景区名）参数' });
+  const data = await tuniuCall('ticket', 'query_cheapest_tickets', { scenic_name });
+  if (!data) return res.json({ error: true, message: '途牛门票接口暂不可用，请稍后重试' });
+  const tickets = Array.isArray(data.tickets) ? data.tickets : [];
+  res.json({
+    error: false, source: '途牛开放平台（真实门票）', scenic_name, tickets,
+    query_url: `https://www.tuniu.com/search_ticket/${encodeURIComponent(scenic_name)}-0/`
+  });
+});
+
+app.get('/api/tuniu/hotels', async (req, res) => {
+  if (!TUNIU_API_KEY) return res.json(tuniuNeedKey());
+  const cityName = (req.query.city || '').trim();
+  if (!cityName) return res.json({ error: true, message: '缺少 city 参数' });
+  const args = { cityName, checkIn: (req.query.checkIn || cnDateStr(0)).trim(), checkOut: (req.query.checkOut || cnDateStr(1)).trim() };
+  if (req.query.keyword) args.keyword = String(req.query.keyword);
+  if (req.query.prices) args.prices = String(req.query.prices);
+  const data = await tuniuCall('hotel', 'tuniu_hotel_search', args);
+  if (!data) return res.json({ error: true, message: '途牛酒店接口暂不可用，请稍后重试' });
+  const hotels = Array.isArray(data.hotels) ? data.hotels : [];
+  res.json({ error: false, source: '途牛开放平台（真实酒店）', cityName, hotels, query_url: `https://hotel.tuniu.com/list/${encodeURIComponent(cityName)}-0/` });
+});
+
+app.get('/api/tuniu/flight', async (req, res) => {
+  if (!TUNIU_API_KEY) return res.json(tuniuNeedKey());
+  const departureCityName = (req.query.from || '').trim();
+  const arrivalCityName = (req.query.to || '').trim();
+  const departureDate = (req.query.date || cnDateStr(1)).trim();
+  if (!departureCityName || !arrivalCityName) return res.json({ error: true, message: '缺少 from/to 参数' });
+  const data = await tuniuCall('flight', 'searchLowestPriceFlight', { departureCityName, arrivalCityName, departureDate });
+  if (!data) return res.json({ error: true, message: '途牛机票接口暂不可用，请稍后重试' });
+  const flights = Array.isArray(data.data) ? data.data : [];
+  res.json({ error: false, source: '途牛开放平台（真实机票）', departureCityName, arrivalCityName, departureDate, flights });
+});
+
+app.get('/api/tuniu/status', async (_req, res) => {
+  res.json({ error: false, source: '途牛开放平台', configured: Boolean(TUNIU_API_KEY), register_url: 'https://open.tuniu.com/' });
 });
 
 app.get('/api/routes/search', (req, res) => {

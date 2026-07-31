@@ -115,7 +115,7 @@
 | 🥇 | **旅途伴侣：定位感知 + 应急拨号 + 实时高德 POI 推荐** | 市场竞品多聚焦于出行前规划，本项目实现**全旅程陪伴** |
 | 🥈 | **未知城市自动解析** —— 县级市/小众景点亦可生成路线 | 主流工具仅支持地级市以上 |
 | 🥈 | **CSS 驱动的液态玻璃 UI**（无 React/Vue） | 业界罕见的「原生三件套 + 现代设计语言」实践 |
-| 🥈 | **真实数据源策略**（高德/Open-Meteo/Frankfurter 永久免费） | 同类工具多依赖付费 API（Booking/Skyscanner） |
+| 🥈 | **真实数据源策略**（高德/Open-Meteo/Frankfurter 永久免费 + 飞猪 FlyAI/途牛/12306 真实票价） | 同类工具多依赖付费 API（Booking/Skyscanner） |
 | 🥉 | **AES-256-CBC 加密密钥 + gitleaks CI 扫描** | 开源项目中少见的「密钥零泄露」工程实践 |
 | 🥉 | **省级→地级市级联 + 输入联想** | 真正符合中国行政区划习惯 |
 | 🥉 | **6 类思考链**（高德/天气/交通/酒店/餐厅/AI）实时标注 | 提高 AI 输出的**可信度**与**可解释性** |
@@ -147,7 +147,7 @@
 
 1. **可解释 AI** —— 不局限于「AI 输出结果」，而是完整展示 AI 的推理过程、查询内容及推荐依据
 2. **三位一体范式** —— 规划 + 验证 + 陪伴，形成旅行体验的完整闭环
-3. **真实数据优先** —— 280+ 真实城市库、12306 真实票价算法、5 大真实平台比价
+3. **真实数据优先** —— 280+ 真实城市库、12306 真实票价算法、飞猪 FlyAI 真实机票/酒店、途牛真实门票、5 大真实平台比价
 4. **工程化程度** —— CI/CD、密钥加密、单元测试、文档全覆盖，达到工业级标准
 5. **设计语言创新** —— 液态玻璃 × 深夜暖金，纯原生实现，无 React/Vue 也能做到现代感
 
@@ -360,7 +360,34 @@ chmod +x start.sh
 
 > 💡 **本项目使用 `deepseek-v4-flash` 模型**，相比 V3 速度提升 3 倍，价格降低 50%，中文能力相当。
 
-### 3. 验证密钥是否生效
+### 3. 飞猪 FlyAI API Key（可选 · 内置匿名体验 Key）
+
+**用途**：真实机票（完整价格）、真实酒店（名称/地址/坐标/星级）、POI 门票信息
+
+- **免注册体验模式**：已内置飞猪 FlyAI 官方体验 Key，开箱即用。机票价格为**完整真实价格**；酒店价格在体验模式下脱敏显示为 `¥2xx/¥3xx`（区间下限）。
+- **正式 Key（解锁酒店完整价格）**：联系飞猪开放平台开通后，填入 `.env` 覆盖内置匿名 Key：
+
+```
+FLYAI_API_KEY=your_flyai_api_key_here      # 正式 Key（不填则用内置匿名 Key）
+FLYAI_SIGN_SECRET=your_flyai_sign_secret_here   # 签名密钥（不填则用内置匿名 Secret）
+```
+
+> 技术实现：后端直连 `https://flyai.open.fliggy.com/mcp`，完整复刻 MCP 工具（`search_flight`/`search_hotels`/`search_poi`/`search_train`/`search_marriott_hotels` 等）的 HMAC-SHA256 签名与 AES-256-GCM 上下文加密，6 小时内存缓存。
+
+### 4. 途牛开放平台 API Key（可选 · 真实门票数据）
+
+**用途**：真实景点门票（唯一门票真实来源，FlyAI 无门票工具）
+
+- 免费注册：https://open.tuniu.com/ （每日限额 RPM 5 次 / RPD 50 次，服务端已做 6 小时缓存）
+- 注册后获取 `apiKey`，填入 `.env`：
+
+```
+TUNIU_API_KEY=your_tuniu_api_key_here      # 从 open.tuniu.com 注册获取
+```
+
+> ⚠️ **不配置也能运行**：未配置时 `/api/tuniu/*` 返回引导注册提示，机票/酒店自动降级为 FlyAI 真实数据或本地参考估算。配置后即可查询真实门票（`query_cheapest_tickets`）、酒店（`tuniu_hotel_search`）、机票（`searchLowestPriceFlight`）。
+
+### 5. 验证密钥是否生效
 
 启动服务后访问 http://localhost:3000/api/health：
 
@@ -368,11 +395,16 @@ chmod +x start.sh
 {
   "ok": true,
   "amap_configured": true,
-  "deepseek_configured": true
+  "deepseek_configured": true,
+  "mcp12306": true,
+  "flyai": { "available": true, "anon_mode": true },
+  "tuniu": { "configured": false }
 }
 ```
 
-两个 `configured` 字段均为 `true` 即表示配置成功。
+- `amap_configured` / `deepseek_configured` 为 `true` 即核心配置成功
+- `flyai.available` 为 `true` 表示飞猪真实机票/酒店已就绪
+- `tuniu.configured` 为 `true` 表示途牛门票 Key 已生效
 
 > ⚠️ **无密钥亦可运行**，但地图与 AI 功能将提示错误。社区路线、UI 交互及基础显示不受影响。
 
@@ -1152,6 +1184,22 @@ npm run setup  # 等价于 scripts/setup.js
 | GET | `/api/companion/navigate?from=xxx&to=xxx` | 通用导航 |
 | GET | `/api/fx?from=USD&to=CNY` | 汇率（Frankfurter）|
 
+### 飞猪 FlyAI（真实机票/酒店/POI）
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/flyai/flight?from=广州&to=北京&date=2026-08-02` | 真实航班（含中转标注/机场/跳转链接）|
+| GET | `/api/flyai/hotels?city=杭州&checkIn=2026-08-02&checkOut=2026-08-03&stars=&maxPrice=` | 真实在售酒店（体验模式价格脱敏）|
+| GET | `/api/flyai/poi?city=杭州&keyword=西湖` | 真实景点/POI |
+| GET | `/api/flyai/status` | FlyAI 可用状态 |
+
+### 途牛开放平台（真实门票）
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/tuniu/ticket?scenic=xxx` | 真实门票最低价（需 TUNIU_API_KEY）|
+| GET | `/api/tuniu/hotels?city=xxx` | 途牛酒店（需 TUNIU_API_KEY）|
+| GET | `/api/tuniu/flight?from=xxx&to=xxx` | 途牛机票（需 TUNIU_API_KEY）|
+| GET | `/api/tuniu/status` | 途牛 Key 配置状态 |
+
 ### 元信息
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -1213,6 +1261,8 @@ copies of the Software...
 - [Microsoft](https://www.microsoft.com/) - 开发工具与云服务
 - [雷柏](https://www.rapoo.cn/) - 键鼠外设支持
 - [美团](https://www.meituan.com/) - 真实餐厅/酒店数据源
+- [飞猪 FlyAI](https://flyai.open.fliggy.com/) - 真实机票/酒店/POI 数据源
+- [途牛开放平台](https://open.tuniu.com/) - 真实景点门票数据源
 - [千问（通义千问）](https://tongyi.aliyun.com/) - 大模型技术参考
 - [Google](https://www.google.com/) - 搜索与开发工具
 - [Visual Studio Code](https://code.visualstudio.com/) - 代码编辑器
