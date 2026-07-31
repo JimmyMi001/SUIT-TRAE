@@ -3653,7 +3653,7 @@ app.post('/api/agent/refine', express.json(), async (req, res) => {
 只输出 JSON，不要其他。`;
     const aiText = await callAI(prompt);
     think(2, 'AI 重新设计', aiText ? 'success' : 'skipped', {
-      model: 'deepseek-chat',
+      model: 'deepseek-v4-flash',
       prompt_tokens_estimate: Math.ceil(prompt.length / 2),
       original_themes: previous.itinerary?.map(d => d.theme) || []
     }, 'deepseek', Date.now()-ts2);
