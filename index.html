@@ -2480,7 +2480,7 @@ const API = {
   destinations:(q={})=>API.get('/api/destinations'+(Object.keys(q).length?'?'+new URLSearchParams(q):'')),
   destination:(city)=>API.get('/api/destination?city='+encodeURIComponent(city||'')),
   poiAggregate:(type,city,limit)=>API.get('/api/poi/aggregate?type='+encodeURIComponent(type||'景点')+'&city='+encodeURIComponent(city||'')+'&limit='+(limit||8)),
-  poiNearby:(type,city,keywords)=>API.get('/api/poi/nearby?type='+encodeURIComponent(type||'生活服务')+'&city='+encodeURIComponent(city||'')+'&keywords='+encodeURIComponent(keywords||'厕所|洗手间')),
+  poiNearby:(type,city,keywords,location)=>API.get('/api/poi/nearby?type='+encodeURIComponent(type||'生活服务')+'&city='+encodeURIComponent(city||'')+'&keywords='+encodeURIComponent(keywords||'厕所|洗手间')+(location?'&location='+encodeURIComponent(location):'')),
   itineraryAI:(city,days,style)=>API.get('/api/itinerary/ai?city='+encodeURIComponent(city||'')+'&days='+(days||3)+'&style='+encodeURIComponent(style||'经典')),
   routeDetail:(o,d,type,city)=>API.get('/api/route/detail?origin='+o+'&destination='+d+'&type='+(type||'driving')+(city?'&city='+encodeURIComponent(city):'')),
   staticMap:(city,zoom,size)=>`/api/amap/staticmap?city=${encodeURIComponent(city||'')}&zoom=${zoom||11}&size=${(size||'600*400').replace(' ','+')}`,
@@ -4585,8 +4585,11 @@ async function compSend(){
     }
     // 3) 其他类型：nearby 优先（带距离），不够回退 aggregate
     let r, pois;
+    // 若已解析详细地址（同城真实坐标）→ 以其为"附近"搜索锚点（精确附近），否则用城市中心
+    const _nearLoc = (window._lastGeocode && compGeoValid(window._lastGeocode) && (!window._lastGeocode.city || window._lastGeocode.city === city))
+      ? (window._lastGeocode.location || `${window._lastGeocode.lng},${window._lastGeocode.lat}`) : '';
     if (type === '生活服务' || keywords) {
-      r = await API.poiNearby(type, city, keywords);
+      r = await API.poiNearby(type, city, keywords, _nearLoc);
       pois = r?.pois || [];
       // 兜底 aggregate
       if (pois.length < 2) {
@@ -4880,6 +4883,47 @@ document.getElementById('compMapToggle')?.addEventListener('click', () => {
 let compMapInstance = null;
 let compMapInfoWindow = null;  // AMap v2.0 使用 InfoWindow.open(map,pos)，无 map.openInfoWindow
 let compMapIWTimer = null;     // 侧栏定位动画完成后延迟打开 InfoWindow 的定时器
+let compUserMarker = null;     // "你的位置"标点（解析详细地址后放置）
+let compUserIW = null;         // "你的位置"信息窗
+// 判断解析结果是否为可用的真实坐标（排除 local-fallback 的 hash 估算）
+const compGeoValid = g => g && typeof g.lng === 'number' && typeof g.lat === 'number' && g.source !== 'local-fallback';
+// 在地图上放置/更新"你的位置"标点（天蓝色圆点 + 信息窗显示解析出的 POI/地址）
+function placeUserMarker(geo, openInfoWindow){
+  if (!compGeoValid(geo) || !compMapInstance) return;
+  if (compUserIW) { try { compUserIW.close(); } catch(e) {} compUserIW = null; }
+  if (compUserMarker) { try { compUserMarker.setMap(null); } catch(e) {} compUserMarker = null; }
+  const name = geo.poi_name || geo.full_address || '';
+  const addr = geo.full_address || '';
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="12" fill="rgba(56,189,248,.92)" stroke="#fff" stroke-width="2.5"/><circle cx="17" cy="17" r="5" fill="#fff"/></svg>';
+  const b64 = btoa(unescape(encodeURIComponent(svg)));
+  const ic = () => '<div style="padding:10px 14px;min-width:190px"><div style="font-size:13px;font-weight:700;color:#fff">📍 你的位置'+(name?'：'+esc(name):'')+'</div>'+(addr && addr !== name ? '<div style="font-size:12px;color:#cbd5e1;margin-top:3px">'+esc(addr)+'</div>':'')+'<div style="font-size:11px;color:#10b981;margin-top:4px">✅ 高德真实坐标</div></div>';
+  compUserMarker = new AMap.Marker({
+    position: [geo.lng, geo.lat],
+    content: '<div style="transform:translate(-17px,-17px);cursor:pointer"><img src="data:image/svg+xml;base64,'+b64+'" width="34" height="34" style="display:block"></div>',
+    offset: new AMap.Pixel(0, 0),
+    zIndex: 300
+  });
+  compUserMarker.setMap(compMapInstance);
+  compUserMarker.on('click', () => {
+    if (compUserIW) { try { compUserIW.close(); } catch(e) {} compUserIW = null; }
+    // autoMove:false — 避免 v2.0 默认 autoMove 在缩放动画期间把地图中心平移出当前位置
+    compUserIW = new AMap.InfoWindow({ content: ic(), offset: new AMap.Pixel(0, -20), autoMove: false });
+    compUserIW.open(compMapInstance, [geo.lng, geo.lat]);
+  });
+  if (openInfoWindow) {
+    compUserIW = new AMap.InfoWindow({ content: ic(), offset: new AMap.Pixel(0, -20), autoMove: false });
+    compUserIW.open(compMapInstance, [geo.lng, geo.lat]);
+  }
+}
+// 解析详细地址成功后：把伴侣地图定位到该坐标并放置"你的位置"标点（若地图已渲染）
+function centerCompanionOnGeo(geo){
+  if (!compGeoValid(geo) || !compMapInstance) return;
+  const wrap = document.getElementById('compMapWrap');
+  if (wrap && wrap.style.display === 'none') wrap.style.display = '';
+  try { compMapInstance.setCenter([geo.lng, geo.lat], true); } catch(e) {}
+  try { compMapInstance.setZoom(16, false, 300); } catch(e) {}
+  placeUserMarker(geo, true);
+}
 async function collectAndRenderMap(tool, city, data){
   const wrap = document.getElementById('compMapWrap');
   const container = document.getElementById('compMapContainer');
@@ -4950,12 +4994,18 @@ async function renderCompanionAMap(city, places, side){
   void container.offsetWidth;
 
   let lng, lat;
-  const cc = (typeof CITY_COORDS !== 'undefined' && CITY_COORDS[city]) ? CITY_COORDS[city] : null;
-  if (cc) { lng = cc[0]; lat = cc[1]; }
+  // 锚点优先级：已解析的详细地址（同城、真实坐标）> 城市中心。
+  // 之前地图始终以城市中心为基准，导致"解析了详细地址但地图没反应/附近结果不在该位置"。
+  const _lgAnchor = (typeof window !== 'undefined' && window._lastGeocode && compGeoValid(window._lastGeocode) && (!window._lastGeocode.city || window._lastGeocode.city === city)) ? window._lastGeocode : null;
+  if (_lgAnchor) { lng = _lgAnchor.lng; lat = _lgAnchor.lat; }
   else {
-    const r = await API.cityResolve(city);
-    if (r && r.lng && r.lat) { lng = r.lng; lat = r.lat; }
-    else { lng = 116.4074; lat = 39.9042; }
+    const cc = (typeof CITY_COORDS !== 'undefined' && CITY_COORDS[city]) ? CITY_COORDS[city] : null;
+    if (cc) { lng = cc[0]; lat = cc[1]; }
+    else {
+      const r = await API.cityResolve(city);
+      if (r && r.lng && r.lat) { lng = r.lng; lat = r.lat; }
+      else { lng = 116.4074; lat = 39.9042; }
+    }
   }
 
   await new Promise(res => setTimeout(res, 80));
@@ -4975,6 +5025,9 @@ async function renderCompanionAMap(city, places, side){
     side.innerHTML = '<div class="comp__map-side-empty">⚠️ 地图初始化失败</div>';
     return;
   }
+
+  // 锚点若来自已解析的详细地址 → 放置"你的位置"标点（工具结果与用户位置同图展示）
+  if (_lgAnchor) placeUserMarker(_lgAnchor, false);
 
   // 对所有地点获取真实坐标：优先使用后端已透传的真实坐标（POI_DB/高德解析），
   // 否则按 地址+城市 → 名称+城市 → 纯名称 三级尝试调后端 /api/address/geocode（服务端已做城市校验）；
@@ -5860,10 +5913,18 @@ function setupAddressGeocode() {
       result.innerHTML = `⚠️ 解析失败（${esc(r.message || '未找到')})，可继续输入或用文本提问`;
       result.className = 'comp__address-result err';
     } else {
-      result.innerHTML = `✅ <b>${esc(r.full_address || addr)}</b><br><small>坐标: ${r.lng.toFixed(4)}, ${r.lat.toFixed(4)} · ${esc(r.source || '')}</small>`;
+      // 展示解析结果：优先显示高德 POI 名称（如"广州塔"），地址/街道为补充行，
+      // 避免"输入名称却只显示一条地址"造成的"解析错误"观感
+      const poiName = r.poi_name && r.poi_name !== r.full_address ? r.poi_name : '';
+      const addrLine = r.full_address && r.full_address !== (poiName || addr) ? r.full_address : '';
+      result.innerHTML = `✅ <b>${esc(poiName || r.full_address || addr)}</b>` +
+        (addrLine ? `<br><span style="font-size:12px;color:var(--text-2)">📍 ${esc(addrLine)}</span>` : '') +
+        `<br><small>坐标: ${r.lng.toFixed(4)}, ${r.lat.toFixed(4)} · ${esc(r.source || '')}</small>`;
       result.className = 'comp__address-result ok';
-      // 存储到全局，供导航/找附近使用
+      // 存储到全局，供导航/找附近/地图锚定使用
       window._lastGeocode = r;
+      // 解析成功后，把伴侣地图定位到该坐标并放置"你的位置"标点（若地图已渲染）
+      centerCompanionOnGeo(r);
     }
   };
   btn.onclick = doGeocode;

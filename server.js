@@ -1683,7 +1683,7 @@ app.get('/api/destination', (req, res) => {
 /* ---------- 附近 POI 搜索（高德 v3/place/around） ---------- */
 app.get('/api/poi/nearby', async (req, res) => {
   try {
-    const { city = '', keywords = '', type = '生活服务', radius = '2000', limit = '8' } = req.query;
+    const { city = '', keywords = '', type = '生活服务', radius = '2000', limit = '8', location = '' } = req.query;
     if (!city) return res.status(400).json({ error: true, message: 'city is required' });
     const lim = Math.min(20, parseInt(limit) || 8);
     // 关键字映射：type → 精准关键词（如果 caller 没传 keywords）
@@ -1700,7 +1700,13 @@ app.get('/api/poi/nearby', async (req, res) => {
     let source = 'amap';
     if (AMAP_KEY && AMAP_KEY !== 'your_amap_key_here') {
       try {
-        const center = CITY_COORDS[city];
+        // 搜索中心：优先使用前端传入的"用户详细地址解析坐标"（精确附近），否则用城市中心
+        let center = null;
+        if (location && String(location).includes(',')) {
+          const [lon, lat] = String(location).split(',').map(parseFloat);
+          if (isFinite(lon) && isFinite(lat)) center = { lon, lat };
+        }
+        if (!center) center = CITY_COORDS[city];
         if (center) {
           const qs = new URLSearchParams({
             location: `${center.lon},${center.lat}`,
