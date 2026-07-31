@@ -1269,16 +1269,11 @@
   }
 
   @media(max-width:768px){
-    .hero{padding:64px 0 48px}
-    .hero h1{font-size:36px}
     .hero__stats{grid-template-columns:repeat(2,1fr)}
     .hero__stat{border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
     .hero__stat:nth-child(2n){border-right:0}
     .hero__stat:nth-last-child(-n+2){border-bottom:0}
     .grid--3,.grid--2{grid-template-columns:1fr}
-    .section{padding:40px 0 64px}
-    .section h2{font-size:26px}
-    .container{padding:0 20px}
   }
 
   /* ========================================================= 智能规划表单
@@ -1826,8 +1821,11 @@
     50%{box-shadow:0 0 0 12px rgba(240,183,131,0),0 8px 24px rgba(0,0,0,.5)}}
   .comp__map.collapsed .comp__map-body{max-height:0;min-height:0;overflow:hidden}
   @media (max-width: 768px) {
-    .comp__map-body{grid-template-columns:1fr}
-    .comp__map-side{border-left:0;border-top:1px solid var(--line);max-height:240px}
+    .comp__map-body{grid-template-columns:1fr;min-height:280px;max-height:none}
+    .comp__map{min-height:240px}
+    .comp__map-side{border-left:0;border-top:1px solid var(--line);max-height:200px}
+    .comp__map-head{flex-direction:column;align-items:flex-start;gap:8px}
+    .comp__map-legend{margin-left:0}
   }
   .comp__msg{padding:12px 16px;border-radius:12px;margin-bottom:8px;font-size:14px;line-height:1.7;
     border:1px solid var(--line);backdrop-filter:blur(8px)}
@@ -1863,15 +1861,178 @@
     text-align:right;min-width:70px}
 
   @media(max-width:900px){
-    .nav__row{flex-wrap:wrap;gap:10px}
-    .nav__tabs{flex:1;justify-content:flex-start}
-    .nav__time{order:99;flex:1 1 100%;max-width:100%}
+    .nav__row{flex-wrap:wrap;gap:8px}
+    .nav__tabs{flex:1 1 auto;justify-content:flex-start;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
+    .nav__tabs::-webkit-scrollbar{display:none}
+    .nav__time{order:99;flex:1 1 100%;max-width:100%;justify-content:center;gap:6px}
   }
   @media(max-width:768px){
-    .comp__tools{grid-template-columns:repeat(2,1fr)}
+    /* Nav 紧凑 */
+    .nav__row{padding:8px 0}
+    .nav__logo{font-size:17px}
+    .nav__tab{padding:5px 9px;font-size:12px;border-radius:6px}
+    .nav__status{font-size:10px;padding:3px 7px;gap:4px}
+    .nav__time{font-size:11px}
+    .nav__time-tz,.nav__time-clock,.nav__time-date,.nav__time-lunar{font-size:11px}
+    /* Hero */
+    .hero{padding:48px 0 32px}
+    .hero h1{font-size:32px;line-height:1.15}
+    .hero p{font-size:14px;margin-bottom:28px;line-height:1.6}
+    .hero__search{max-width:100%}
+    .hero__search input{padding:15px 16px;font-size:15px}
+    .hero__search button{padding:0 22px;font-size:13px}
+    .hero__stats{margin:40px auto 0}
+    .hero__stat{padding:22px 16px}
+    .hero__stat-num{font-size:32px}
+    .hero__stat-label{font-size:10px}
+    /* 表单移动端单列 */
+    .plan-form{padding:20px 16px}
+    .plan-form__row{gap:12px}
+    .plan-form__field{min-width:100% !important;flex:1 1 100% !important}
+    .plan-form__field--small{flex:0 0 100% !important;min-width:100% !important}
+    .plan-origin{padding:16px}
+    .plan-origin__row{gap:12px}
+    .plan-origin__field{min-width:100% !important;flex:1 1 100% !important}
+    .cascade{flex-direction:row;min-width:100%}
+    .cascade select,.cascade input{font-size:13px;padding:10px 12px}
+    .plan-quick{padding:16px}
+    .plan-quick__row input{font-size:13px;padding:11px 14px}
+    .tag-chip{padding:6px 11px;font-size:12px}
+    .tag-picker{gap:6px}
+    /* 每日推荐 */
+    .daily-reco{padding:16px}
+    .daily-reco__head{flex-direction:column;align-items:flex-start;gap:8px}
+    .daily-reco__title{font-size:14px;line-height:1.45}
+    .daily-reco__refresh{font-size:11px;align-self:flex-end}
+    .dr-today__head{flex-direction:column;align-items:flex-start}
+    .dr-today__score{margin-left:0}
+    .dr-today__weights{grid-template-columns:1fr}
+    .dr-today__aspects{grid-template-columns:1fr}
+    /* 伴侣工具 */
+    .comp__tools{grid-template-columns:repeat(2,1fr);gap:6px}
+    .comp__tool{padding:16px 12px;font-size:12px;gap:5px}
+    .comp__quick{gap:6px}
+    .comp__city,.comp__address{padding:14px}
+    .comp__city input,.comp__address-row input{font-size:14px;padding:10px 12px}
+    .comp__address-row button{padding:0 16px;font-size:12px}
+    /* 出发建议 */
+    .depart-suggest{padding:18px}
+    .depart-suggest__best{font-size:20px}
     .depart-suggest__top3{grid-template-columns:1fr}
-    .cascade{flex-direction:column}
+    .depart-suggest__opt{padding:12px 14px;font-size:12px}
+    /* 交通卡片 */
+    .trans-grid{grid-template-columns:1fr}
+    .trans-card{padding:12px;gap:10px}
+    .trans-card__price{font-size:18px;min-width:60px}
+    /* 社区 */
+    .com__search{margin-bottom:20px}
+    .section{padding:32px 0 48px}
+    .section h2{font-size:24px}
+    .section .sub{font-size:14px;margin-bottom:28px}
+    .container{padding:0 16px}
+    /* 卡片 */
+    .card{padding:20px}
+    .card__title{font-size:18px}
     .hero__temp{font-size:48px}
+  }
+  /* ========================================================= 480px 超小屏（iPhone SE / 小屏安卓）
+     进一步缩放、玻璃降级、确保可触达 */
+  @media(max-width:480px){
+    /* 全局 */
+    body{font-size:14px;background-attachment:scroll}
+    .container{padding:0 12px}
+    /* Nav 超紧凑 */
+    .nav__row{padding:6px 0;gap:6px}
+    .nav__logo{font-size:15px}
+    .nav__tab{padding:4px 7px;font-size:11px;border-radius:5px}
+    .nav__status{font-size:9px;padding:2px 6px}
+    .nav__time{font-size:10px;gap:4px}
+    .nav__time-tz,.nav__time-clock,.nav__time-date,.nav__time-lunar{font-size:10px}
+    .nav__time-huangli{font-size:9px;padding:2px 7px}
+    /* Hero 超小 */
+    .hero{padding:36px 0 24px}
+    .hero h1{font-size:26px}
+    .hero p{font-size:13px;margin-bottom:20px}
+    .hero__search input{padding:13px 12px;font-size:14px}
+    .hero__search button{padding:0 18px;font-size:12px}
+    .hero__stats{margin:28px auto 0}
+    .hero__stat{padding:16px 10px}
+    .hero__stat-num{font-size:26px}
+    .hero__stat-label{font-size:9px}
+    /* 表单超紧凑 */
+    .plan-form{padding:14px;border-radius:12px}
+    .plan-form__field label{font-size:11px}
+    .plan-form__field input,.plan-form__field select{font-size:13px;padding:10px 12px}
+    .plan-origin{padding:12px}
+    .plan-origin__field label{font-size:11px}
+    .plan-origin__field input{padding:10px 12px;font-size:13px}
+    .cascade{gap:4px}
+    .cascade select,.cascade input{padding:9px 10px;font-size:12px}
+    .tag-chip{padding:5px 9px;font-size:11px}
+    .tag-picker{gap:4px}
+    /* 每日推荐 */
+    .daily-reco{padding:12px;border-radius:14px}
+    .daily-reco__title{font-size:13px}
+    /* 伴侣工具超小 */
+    .comp__tools{gap:4px}
+    .comp__tool{padding:12px 10px;font-size:11px;gap:4px;border-radius:10px}
+    .comp__city,.comp__address{padding:10px}
+    .comp__city > label,.comp__address > label{font-size:11px}
+    .comp__city input,.comp__address-row input{font-size:13px;padding:9px 10px}
+    .comp__address-row button{padding:0 14px;font-size:11px}
+    .comp__city-quick{gap:4px;max-height:80px}
+    .city-chip{padding:4px 10px;font-size:12px}
+    /* 对话区 */
+    .plan-chat{padding:14px}
+    .plan-chat__msgs{max-height:240px;padding:10px}
+    .plan-chat__msg{max-width:90%;font-size:13px}
+    .plan-chat__input input{padding:11px 14px;font-size:13px}
+    .plan-quick{padding:12px}
+    .plan-quick__row input{padding:10px 12px;font-size:13px}
+    /* Section */
+    .section{padding:24px 0 36px}
+    .section h2{font-size:21px}
+    .section .sub{font-size:13px;margin-bottom:22px}
+    /* 卡片 */
+    .card{padding:16px;border-radius:14px}
+    .card__title{font-size:16px}
+    .card__body{font-size:13px}
+    .card__meta{font-size:11px}
+    /* 酒店/餐厅卡片 */
+    .hotel-grid{grid-template-columns:1fr}
+    .hotel-card{padding:12px}
+    .hotel-card__name{font-size:13px}
+    .rest-card{padding:10px 12px}
+    .rest-card__name{font-size:13px}
+    .specials-grid{grid-template-columns:1fr}
+    /* 进度条/步骤 */
+    .plan-chat__step{font-size:12px;padding:8px 10px}
+    .plan-chat__step-name{font-size:12px}
+    /* 按钮通用 */
+    .btn{padding:8px 16px;font-size:11px;border-radius:9px}
+    /* 出行建议 */
+    .depart-suggest{padding:14px}
+    .depart-suggest__best{font-size:18px}
+    /* Modal */
+    .modal__box{padding:24px 18px;border-radius:16px;max-width:95vw}
+    .modal__close{top:14px;right:14px;width:30px;height:30px;font-size:16px}
+    /* 玻璃全面降级：关闭液化滤镜节省 GPU */
+    .plan-form::before,.plan-origin::before,.plan-chat::before,
+    .pre__weather::before,.itin__day::before,
+    .depart-suggest::before,.transfer-suggest::before,
+    .verify__reasons::before,.post__item::before,
+    .comp__city::before,.comp__address::before,
+    .verify__risk::before,.comp__poi::before,.comp__tool::before,
+    .comp__address-result::before{filter:none !important;-webkit-filter:none !important;backdrop-filter:blur(6px) saturate(120%) !important}
+    .card::before{filter:none !important;-webkit-filter:none !important;backdrop-filter:blur(6px) saturate(120%) !important}
+    /* 简化阴影（省电） */
+    .plan-form,.plan-origin,.plan-chat,
+    .pre__weather,.itin__day,
+    .depart-suggest,.transfer-suggest,
+    .verify__reasons,.post__item,
+    .comp__city,.comp__address,
+    .verify__risk,.comp__poi,.comp__tool{
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 0 0 1px rgba(255,255,255,.03),inset 0 -8px 14px -4px rgba(0,0,0,.18),0 8px 20px rgba(0,0,0,.16) !important}
   }
 </style>
 </head>
@@ -2062,7 +2223,7 @@
   <div class="container">
     <div class="hero">
     <h1><span class="hero__icon">🎯</span> 一句话，<em>AI</em> 帮你搞定全行程</h1>
-      <p style="white-space:nowrap">选城市/天数/预算/爱好 → AI 搜索 POI + 路径 + 风险评估 → 完整地图路线（可缩放/拖动）+ 可继续对话修改</p>
+      <p>选城市/天数/预算/爱好 → AI 搜索 POI + 路径 + 风险评估 → 完整地图路线（可缩放/拖动）+ 可继续对话修改</p>
     </div>
 
     <!-- 每日推荐目的地（基于天气+季节+标签综合评估） -->
