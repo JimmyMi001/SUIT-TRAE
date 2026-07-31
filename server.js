@@ -640,22 +640,120 @@ const LUNAR_HOLIDAYS_2026 = {
   '2025-10-06': '乙巳年 八月十五（中秋）'
 };
 
-/* ---------- 省级→地级市级联 API ---------- */
-app.get('/api/city/cascading', (_req, res) => {
-  // 转为 [{province, cities:[]}] 格式，按行政区划代码顺序
-  const list = Object.entries(PROVINCE_CITY_MAP).map(([province, cities]) => ({ province, cities }));
-  res.json({ error: false, count: list.length, total_cities: Object.keys(CITY_PROVINCE_INDEX).length, data: list });
+/* ---------- 高德行政区域查询（真实省市区，7 天缓存，避免刷配额） ---------- */
+const DISTRICT_CACHE_FILE = path.join(__dirname, '.cache', 'district_amap.json');
+
+// 城市名归一化：去掉尾部"市"（广州市→广州）；省级归一化只留主体（新疆维吾尔自治区→新疆）
+const normCityName = (s) => String(s || '').replace(/市$/, '');
+const provinceKey = (p) => String(p || '')
+  .replace(/省|市|自治区|特别行政区/g, '')
+  .replace(/壮族|回族|维吾尔|族/g, '');
+
+async function fetchAmapDistricts(force = false) {
+  // 1) 读 7 天内缓存，避免每次都刷配额
+  if (!force && fs.existsSync(DISTRICT_CACHE_FILE)) {
+    try {
+      const c = JSON.parse(fs.readFileSync(DISTRICT_CACHE_FILE, 'utf8'));
+      if (c && c.ts && Date.now() - c.ts < 7 * 864e5 && Array.isArray(c.data)) return c.data;
+    } catch (e) { /* 缓存损坏则重新拉取 */ }
+  }
+  if (!AMAP_KEY || AMAP_KEY === 'your_amap_key_here') return null;
+  // keywords=中国 & subdistrict=2 → 省级 + 地级市（一次调用覆盖全国）
+  const r = await callAmapRetry('/v3/config/district',
+    new URLSearchParams({ keywords: '中国', subdistrict: '2', extensions: 'base', output: 'json' }).toString(),
+    resp => !(resp && Array.isArray(resp.districts) && resp.districts.length));
+  if (!r || r.status !== '1') return null;
+  const root = (r.districts || [])[0];
+  if (!root || !Array.isArray(root.districts)) return null;
+  const data = [];
+  for (const prov of root.districts) {
+    if (!prov || !prov.name) continue;
+    const pname = normCityName(prov.name);
+    // 直辖市 / 特别行政区：本身就是"城市"，无需取下级区县
+    const muni = /北京|天津|上海|重庆|香港|澳门/.test(prov.name);
+    const cities = muni
+      ? [pname]
+      : (prov.districts || [])
+          .filter(d => d && d.level === 'city' && d.name)
+          .map(d => normCityName(d.name))
+          .filter((v, i, a) => v && a.indexOf(v) === i);
+    if (pname) data.push({ province: pname, adcode: prov.adcode || '', cities });
+  }
+  try {
+    fs.mkdirSync(path.join(__dirname, '.cache'), { recursive: true });
+    fs.writeFileSync(DISTRICT_CACHE_FILE, JSON.stringify({ ts: Date.now(), data }), 'utf8');
+  } catch (e) { /* 缓存写入失败不影响返回 */ }
+  return data;
+}
+
+// 高德真实数据 + 本地库合并：以高德为主、本地补缺（含县级热门），city 统一去尾部"市"
+function mergeProvinceCities(amapData) {
+  const local = Object.entries(PROVINCE_CITY_MAP).map(([p, c]) => ({ province: p, cities: c.slice() }));
+  if (!Array.isArray(amapData) || !amapData.length) return local;
+  const merged = new Map();
+  amapData.forEach(a => {
+    const k = provinceKey(a.province);
+    if (!k) return;
+    const cur = merged.get(k) || { province: a.province, cities: [] };
+    const cs = new Set(cur.cities.map(normCityName));
+    (a.cities || []).forEach(c => { const n = normCityName(c); if (n) cs.add(n); });
+    cur.cities = [...cs];
+    merged.set(k, cur);
+  });
+  local.forEach(l => {
+    const k = provinceKey(l.province);
+    const cur = merged.get(k);
+    if (cur) {
+      const cs = new Set(cur.cities.map(normCityName));
+      l.cities.forEach(c => cs.add(normCityName(c)));
+      cur.cities = [...cs];
+    } else {
+      merged.set(k, { province: l.province, cities: l.cities.map(normCityName) });
+    }
+  });
+  return [...merged.values()];
+}
+
+/* IP 定位（真实所在城市，用于自动识别出发地） */
+app.get('/api/amap/ip', async (_req, res) => {
+  try {
+    if (!AMAP_KEY || AMAP_KEY === 'your_amap_key_here') {
+      return res.json({ error: false, source: 'none', province: '', city: '', adcode: '' });
+    }
+    const r = await callAmapRaw('/v3/ip', new URLSearchParams({ output: 'json' }).toString());
+    const ok = r && r.status === '1' && r.city && r.city !== '[]';
+    res.json({
+      error: false, source: ok ? 'amap' : 'none',
+      province: ok ? String(r.province || '').replace(/省|市|自治区/g, '') : '',
+      city: ok ? normCityName(r.city) : '',
+      adcode: ok ? r.adcode : ''
+    });
+  } catch (e) {
+    res.json({ error: false, source: 'none', province: '', city: '', adcode: '' });
+  }
+});
+
+/* 省级→地级市级联 API（优先高德真实行政区划，失败回退本地库） */
+app.get('/api/city/cascading', async (_req, res) => {
+  let amapData = null;
+  try { amapData = await fetchAmapDistricts(); } catch (e) { amapData = null; }
+  const list = mergeProvinceCities(amapData);
+  const total = list.reduce((n, p) => n + p.cities.length, 0);
+  res.json({ error: false, count: list.length, total_cities: total, source: amapData ? 'amap' : 'local', data: list });
 });
 
 /* ---------- 扁平城市列表 API（用于 datalist 自动补全） ---------- */
-app.get('/api/city/list', (_req, res) => {
-  // 拉平所有省/直辖市的地级市 + 县级市热门（如九寨沟、阳朔）
+app.get('/api/city/list', async (_req, res) => {
+  // 拉平所有省/直辖市的地级市 + 县级市热门（如九寨沟、阳朔）；地级市优先取高德真实行政区划
   const countyCities = ['九寨沟','阳朔','婺源','宏村','周庄','乌镇','西塘','腾冲','莫干山','北戴河','阿坝','香格里拉','雨崩','稻城','喀什','吐鲁番','额济纳','长白山','漠河','凤凰','千岛湖','黄山','张家界','敦煌','平遥','曲阜','丽江','大理','都江堰','峨眉山','武当山','庐山','五台山','普陀山','九华山','井冈山','延安','遵义','井陉','西沙','西塘','南浔','平遥古城','丽江古城'];
+  let merged = null;
+  try { merged = mergeProvinceCities(await fetchAmapDistricts()); } catch (e) { merged = null; }
+  if (!merged) merged = Object.entries(PROVINCE_CITY_MAP).map(([p, c]) => ({ province: p, cities: c.slice() }));
   const seen = new Set();
   const list = [];
-  Object.entries(PROVINCE_CITY_MAP).forEach(([province, cities]) => {
-    cities.forEach(c => {
-      if (!seen.has(c)) { seen.add(c); list.push({ name: c, province, level: '地级市' }); }
+  merged.forEach(p => {
+    p.cities.forEach(c => {
+      if (!seen.has(c)) { seen.add(c); list.push({ name: c, province: p.province, level: '地级市' }); }
     });
   });
   countyCities.forEach(c => {

@@ -1394,6 +1394,9 @@
   .plan-origin__tip{font-size:11px;color:var(--text-2);margin-top:6px;letter-spacing:.02em;
     padding-left:14px;position:relative;line-height:1.6;opacity:.85}
   .plan-origin__tip::before{content:"💡";position:absolute;left:0;top:0;font-size:11px}
+  .plan-origin__iptip{font-size:11px;color:#7ee0a3;margin-top:6px;letter-spacing:.02em;line-height:1.6;
+    display:flex;align-items:center;gap:6px}
+  .plan-origin__iptip::before{content:"📍";font-size:12px;flex-shrink:0}
   .plan-origin__field label{font-size:12px;color:var(--accent);font-weight:500;
     font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;
     display:flex;align-items:center;gap:6px}
@@ -2259,6 +2262,7 @@
         </div>
       </div>
       <div class="plan-origin__tip">💡 选择所在城市后，将自动计算到你规划城市的 6 种交通方式（火车/高铁/飞机/大巴/自驾/打车）价格</div>
+      <div id="originIpTip" class="plan-origin__iptip" style="display:none"></div>
     </div>
 
     <!-- 步骤 1：参数选择 -->
@@ -2489,6 +2493,7 @@ const API = {
   cityCascading:()=>API.get('/api/city/cascading'),
   cityResolve:(name)=>API.get('/api/city/resolve?name='+encodeURIComponent(name)),
   addressGeocode:(address,city)=>API.get('/api/address/geocode?address='+encodeURIComponent(address)+'&city='+encodeURIComponent(city||'')),
+  ipLocate:()=>API.get('/api/amap/ip'),
   timeNow:(city,days)=>API.get('/api/time/now'+(city?'?city='+encodeURIComponent(city)+'&days='+(days||3):'')),
   ticket:(city, poi)=>API.get('/api/ticket?city='+encodeURIComponent(city||'')+(poi?'&poi='+encodeURIComponent(poi):'')),
   hotel:(city, stars, maxPrice)=>API.get('/api/hotel?city='+encodeURIComponent(city||'')+'&stars='+(stars||0)+'&maxPrice='+(maxPrice||9999)),
@@ -5992,8 +5997,46 @@ function setupOriginChangeRefresh(){
       if (typeof loadDailyRecommendations === 'function') loadDailyRecommendations();
     }, 600);  // 防抖 600ms
   };
-  if (textInput) textInput.addEventListener('input', refresh);
-  if (originCitySel) originCitySel.addEventListener('change', refresh);
+  if (textInput) textInput.addEventListener('input', () => {
+    // 用户手动输入出发地 → 永久记录，IP 定位不再覆盖（程序化赋值不触发 input 事件，不会误记录）
+    localStorage.setItem('origin_manual_override', '1');
+    refresh();
+  });
+  if (originCitySel) originCitySel.addEventListener('change', () => {
+    // 通过级联手动选择出发地 → 同样视为手动修改
+    localStorage.setItem('origin_manual_override', '1');
+    refresh();
+  });
+}
+
+// IP 定位自动识别出发城市（来源：高德 IP 定位；仅自动填一次，用户改过后不再覆盖，始终可手动修改）
+async function autoDetectOriginCity(){
+  try {
+    if (localStorage.getItem('origin_manual_override')) return;
+    const r = await API.ipLocate();
+    if (r.__error || !r.city) return;
+    const city = String(r.city).trim();
+    if (!city) return;
+    const input = document.getElementById('userOriginCity');
+    const tip = document.getElementById('originIpTip');
+    if (!input) return;
+    // 用户已填写其他城市则不覆盖
+    const cur = (input.value || '').trim();
+    if (cur && cur !== city) return;
+    input.value = city;
+    // 尽量同步选中级联下拉（能匹配则选中；程序化赋值不触发 change，不会误记手动修改）
+    const sel = document.getElementById('originCitySel');
+    if (sel) {
+      const hit = Array.from(sel.options).find(o => o.value === city);
+      if (hit) sel.value = city;
+    }
+    if (tip) {
+      tip.style.display = '';
+      tip.innerHTML = `已通过 <b>IP 定位</b> 自动识别你所在城市：<b>${esc(city)}</b>（数据来源：高德 IP 定位 · 可手动修改）`;
+    }
+    // 触发每日推荐刷新（按所在地权重）
+    if (typeof loadDailyRecommendations === 'function') loadDailyRecommendations();
+  } catch (e) { /* 静默失败，不影响页面 */ }
 }
 
 /* ========== 13. 启动 ========== */
@@ -6028,6 +6071,8 @@ function setupOriginChangeRefresh(){
   setupAddressGeocode();
   setupDepartDaysTracking();
   setupOriginChangeRefresh();
+  // IP 定位自动识别出发城市（异步，不阻塞页面；用户可手动修改）
+  autoDetectOriginCity();
   // 默认伴侣页空状态
   const cc = document.getElementById('compChat');
   if(cc && !cc.innerHTML.trim()) cc.innerHTML = `<div class="comp__msg comp__msg--agent">👋 你好！我是旅途伴侣。试试上方的快捷按钮，或直接输入。</div>`;
