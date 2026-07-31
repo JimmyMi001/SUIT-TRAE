@@ -35,6 +35,14 @@ node scripts/setup.js
 # 尝试打开浏览器(Mac / Linux 各自)
 (sleep 2 && (open http://localhost:3000 2>/dev/null || xdg-open http://localhost:3000 2>/dev/null || true)) &
 
+# 启动 12306 真实数据服务（mcp-server-12306，端口 8000，独立进程 + 自动重启）
+if [ -f ".cache/mcp12306-src/start_12306.sh" ]; then
+    nohup bash ".cache/mcp12306-src/start_12306.sh" >/dev/null 2>&1 &
+    echo "[信息] 已启动 12306 数据服务（端口 8000）"
+else
+    echo "[信息] 未找到 12306 数据服务（.cache/mcp12306-src），火车票价将使用参考估算"
+fi
+
 # 自动重启循环
 while true; do
     echo ""

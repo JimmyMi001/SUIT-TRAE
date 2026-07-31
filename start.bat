@@ -41,6 +41,13 @@ if %errorlevel% neq 0 (
 REM 延迟 2 秒后自动打开浏览器
 start /min cmd /c "timeout /t 2 >nul && start http://localhost:3000"
 
+REM 启动 12306 真实数据服务（mcp-server-12306，端口 8000，独立窗口 + 自动重启）
+if exist ".cache\mcp12306-src\start_12306.bat" (
+    start "12306 MCP Server" /min cmd /c ""%~dp0.cache\mcp12306-src\start_12306.bat""
+) else (
+    echo [信息] 未找到 12306 数据服务（.cache\mcp12306-src），火车票价将使用参考估算
+)
+
 :restart
 echo.
 echo ============================================================

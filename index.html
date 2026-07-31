@@ -5319,18 +5319,32 @@ async function runCompTool(tool){
       if(originCity === city){ out.innerHTML = '<div class="state" style="color:#fbbf24">⚠️ 出发地与目的地相同，无需购票</div>'; return; }
       const r = await API.train(originCity, city, '');
       if(r.__error || !r.trains?.length){ out.innerHTML = '<div class="state">暂无数据</div>'; return; }
-      out.innerHTML = `<h3 style="margin:16px 0 8px">🚄 ${esc(originCity)}→${esc(city)} 高铁动车（${r.date}）</h3>
+      const isReal = r.source === '12306 实时';
+      const srcBadge = isReal
+        ? `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(126,224,163,.12);border:1px solid rgba(126,224,163,.35);color:#7ee0a3;font-size:11px;font-weight:600;letter-spacing:.03em;margin-left:8px">📡 12306 实时数据</span>`
+        : `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(240,165,0,.12);border:1px solid rgba(240,165,0,.35);color:#fbbf24;font-size:11px;font-weight:600;letter-spacing:.03em;margin-left:8px">📊 参考估算（12306 官方费率）</span>`;
+      const seatsStr = (t) => {
+        if (!t.seats || !Object.keys(t.seats).length) return '';
+        const map = { business: '商务', first_class: '一等', second_class: '二等', no_seat: '无座' };
+        const parts = Object.entries(t.seats)
+          .map(([k, v]) => `${map[k] || k} ${v === '有' ? '有票' : v === '无' ? '无票' : (v + ' 张')}`)
+          .join(' · ');
+        return `<div style="color:var(--muted);font-size:11px;margin-top:4px">🎫 余票：${esc(parts)}</div>`;
+      };
+      out.innerHTML = `<h3 style="margin:16px 0 8px">🚄 ${esc(originCity)}→${esc(city)} 高铁动车（${r.date}）${srcBadge}</h3>
         <div style="display:flex;flex-direction:column;gap:8px">${r.trains.map(t=>`<div class="card" style="padding:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">
           <div style="flex:1">
             <div style="font-weight:600">${esc(t.no)} · ${esc(t.type)} · ${esc(t.seat)}</div>
             <div class="card__meta">${esc(t.depart)} → ${esc(t.arrive)} · ${esc(t.duration)}</div>
+            ${seatsStr(t)}
           </div>
           <div style="text-align:right">
             <div style="font-size:20px;color:var(--accent);font-weight:700">¥${t.price}</div>
-            <div style="color:var(--muted);font-size:11px">二等座</div>
+            <div style="color:var(--muted);font-size:11px">${esc(t.seat)}</div>
           </div>
         </div>`).join('')}</div>
-        <div style="color:var(--muted);font-size:12px;margin-top:8px">💡 修改出发地：在智能规划页顶部修改「你所在城市」</div>`;
+        ${r.disclaimer ? `<div style="color:var(--muted);font-size:11px;margin-top:8px">${esc(r.disclaimer)}</div>` : ''}
+        <div style="color:var(--muted);font-size:12px;margin-top:4px">💡 修改出发地：在智能规划页顶部修改「你所在城市」</div>`;
     }
   } catch(e){
     out.innerHTML = `<div class="state" style="color:#fca5a5">查询失败：${esc(e.message)}</div>`;

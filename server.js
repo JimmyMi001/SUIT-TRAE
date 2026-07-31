@@ -313,12 +313,15 @@ async function fetchPOIFactsFromAmap(name, city) {
 }
 
 /* ---------- 健康检查 ---------- */
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', async (_req, res) => {
+  let mcp12306 = false;
+  try { mcp12306 = await mcp12306Healthy(); } catch (e) { mcp12306 = false; }
   res.json({
     ok: true,
     time: new Date().toISOString(),
     amap_configured: Boolean(AMAP_KEY) && AMAP_KEY !== 'your_amap_key_here',
     deepseek_configured: Boolean(DEEPSEEK_KEY) && DEEPSEEK_KEY !== 'your_deepseek_key_here',
+    mcp12306: mcp12306,
   });
 });
 
@@ -5037,8 +5040,112 @@ function buildMockFlights(origin, dest, date, sourceTag) {
   };
 }
 
-/* ---------- 高铁/火车（参考价 + 12306 官方查询链接） ----------
- * ⚠️ 价格/车次/时刻为参考，实际以 12306 实时为准
+/* ---------- 12306 MCP 客户端（真实余票/票价/时刻，本地 8000 端口 Streamable HTTP） ----------
+ * 依赖本地运行的 mcp-server-12306（uv 启动，端口 8000）。
+ * 服务不可用时所有函数返回 null / false，调用方回退本地估算（优雅降级，不影响页面）。
+ * 官方接口有反爬，仅供学习研究，实际购票以 12306 官方为准。
+ */
+const MCP12306_URL = (process.env.MCP12306_URL || 'http://localhost:8000').replace(/\/$/, '');
+let mcp12306Session = null;   // 缓存的 MCP 会话 ID
+let mcp12306InitAt = 0;       // 会话初始化时间
+
+// 北京时间（Asia/Shanghai）今天的日期 YYYY-MM-DD（不受服务器时区影响，避免凌晨跨天用错日期）
+const cnDateStr = (offsetDays = 0) => new Date(Date.now() + (8 + offsetDays * 24) * 3600 * 1000).toISOString().slice(0, 10);
+
+// 发送一条 JSON-RPC 到 12306 MCP 端点，返回 { session, json }；失败返回 null
+async function mcp12306Request(payload, session = '') {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const h = { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' };
+    if (session) h['Mcp-Session-Id'] = session;
+    const r = await fetch(MCP12306_URL + '/mcp', {
+      method: 'POST', signal: controller.signal, headers: h,
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) return null;
+    const sid = r.headers.get('mcp-session-id') || session;
+    let text = await r.text();
+    // Streamable HTTP 可能返回 SSE 格式，提取 data: 行
+    if (text.includes('event: message')) {
+      const m = text.match(/data: (\{[\s\S]*\})/);
+      if (m) text = m[1];
+    }
+    let json = null;
+    try { json = JSON.parse(text); } catch (e) { return null; }
+    return { session: sid, json };
+  } catch (e) { return null; } finally { clearTimeout(timer); }
+}
+
+// 确保 MCP 会话已初始化（30 分钟内复用）
+async function ensureMCP12306() {
+  if (mcp12306Session && Date.now() - mcp12306InitAt < 30 * 60 * 1000) return true;
+  const init = await mcp12306Request({
+    jsonrpc: '2.0', id: 1, method: 'initialize',
+    params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'suit-trae', version: '1.0' } }
+  });
+  if (!init || init.json.error || !init.json.result) return false;
+  mcp12306Session = init.session;
+  mcp12306InitAt = Date.now();
+  await mcp12306Request({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }, mcp12306Session);
+  return true;
+}
+
+// 调用 12306 MCP 工具（query-tickets / query-ticket-price / search-stations 等），失败返回 null
+async function call12306Tool(tool, args) {
+  if (!(await ensureMCP12306())) return null;
+  const payload = {
+    jsonrpc: '2.0', id: Math.floor(Math.random() * 1e6) + 1, method: 'tools/call',
+    params: { name: tool, arguments: args || {} }
+  };
+  let res = await mcp12306Request(payload, mcp12306Session);
+  // 会话可能因 8000 端口服务重启而失效：重置会话后重新初始化并重试一次
+  if (!res && mcp12306Session) {
+    mcp12306Session = null;
+    mcp12306InitAt = 0;
+    if (!(await ensureMCP12306())) return null;
+    res = await mcp12306Request(payload, mcp12306Session);
+  }
+  if (!res || res.json.error || !res.json.result) return null;
+  const text = (res.json.result.content || []).map(c => c.text || '').join(' ');
+  try { return JSON.parse(text); } catch (e) { return { __raw: text }; }
+}
+
+// 12306 MCP 服务健康检查
+async function mcp12306Healthy() {
+  try {
+    const r = await fetch(MCP12306_URL + '/health', { signal: AbortSignal.timeout(3000) });
+    return r.ok;
+  } catch (e) { return false; }
+}
+
+/* 12306 真实数据代理端点（供前端按需调用，失败返回 error:true） */
+app.get('/api/12306/status', async (_req, res) => {
+  res.json({ error: false, available: await mcp12306Healthy(), source: 'mcp-server-12306 (本地 8000 端口)' });
+});
+app.get('/api/12306/tickets', async (req, res) => {
+  const data = await call12306Tool('query-tickets', {
+    from_station: req.query.from || '', to_station: req.query.to || '', train_date: req.query.date || cnDateStr()
+  });
+  if (!data) return res.json({ error: true, message: '12306 服务不可用（请确认 mcp-server-12306 已启动）' });
+  res.json({ error: false, source: '12306 实时', ...data });
+});
+app.get('/api/12306/price', async (req, res) => {
+  const data = await call12306Tool('query-ticket-price', {
+    from_station: req.query.from || '', to_station: req.query.to || '', train_date: req.query.date || cnDateStr()
+  });
+  if (!data) return res.json({ error: true, message: '12306 服务不可用（请确认 mcp-server-12306 已启动）' });
+  res.json({ error: false, source: '12306 实时', ...data });
+});
+app.get('/api/12306/stations', async (req, res) => {
+  const data = await call12306Tool('search-stations', { query: req.query.q || '', limit: parseInt(req.query.limit || '10', 10) });
+  if (!data) return res.json({ error: true, message: '12306 服务不可用（请确认 mcp-server-12306 已启动）' });
+  res.json({ error: false, source: '12306 实时', ...data });
+});
+
+/* ---------- 高铁/火车（真实 12306 数据优先，服务不可用回退参考价 + 官方查询链接） ----------
+ * ✅ 优先：本地 mcp-server-12306 → 中国铁路 12306 官方接口（真实余票/车次/时刻/票价）
+ * ⚠️ 回退：车次/价格/时刻为参考（12306 官方费率 0.46/0.74/1.40 元/km + 铁路距离修正），实际以 12306 实时为准
  * 12306 是中国铁路唯一官方购票渠道：
  *   - 官网：https://www.12306.cn/index/
  *   - App：12306（铁路12306）
@@ -5046,12 +5153,70 @@ function buildMockFlights(origin, dest, date, sourceTag) {
  *   - 时刻表查询：https://www.12306.cn/index/zwd_kysj/index.html
  *   - 余票查询：https://www.12306.cn/index/querystation/index.html
  */
-app.get('/api/train', (req, res) => {
+app.get('/api/train', async (req, res) => {
   try {
     const origin = req.query.origin || '北京';
     const dest = req.query.dest || '成都';
-    const date = req.query.date || new Date().toISOString().slice(0,10);
-    // 根据距离动态计算车次时长和票价
+    const date = req.query.date || cnDateStr();
+    const booking_links = {
+      official_12306:       'https://www.12306.cn/index/',
+      // 12306 余票查询（带起终点 + 日期的查询页）
+      query_yupiao:         `https://kyfw.12306.cn/otn/leftTicket/init?linktypeid=dc&fs=${encodeURIComponent(origin)},,&ts=${encodeURIComponent(dest)},,&date=${date}&flag=N,N,Y`,
+      query_timetable:      'https://www.12306.cn/index/zwd_kysj/index.html',
+      query_station:        'https://www.12306.cn/index/querystation/index.html',
+      ctrip_train:          `https://trains.ctrip.com/pages/booking/list/${origin}-${dest}-${date}.html`,
+      fliggy_train:         `https://www.fliggy.com/train/?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(dest)}&date=${date}`,
+      qunar_train:          `https://train.qunar.com/?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(dest)}&date=${date}`
+    };
+    const official_channels = {
+      web: 'https://www.12306.cn/index/',
+      app: '铁路12306（中国铁路官方App）',
+      phone: '12306（铁路客户服务热线）'
+    };
+
+    /* ---- 优先真实 12306 数据（本地 mcp-server-12306）---- */
+    const real = await call12306Tool('query-tickets', { from_station: origin, to_station: dest, train_date: date });
+    if (real && real.success && Array.isArray(real.trains) && real.trains.length) {
+      // 拉取真实票价表（一次调用返回全部车次），按车次号关联
+      const priceRes = await call12306Tool('query-ticket-price', { from_station: origin, to_station: dest, train_date: date });
+      const priceMap = new Map();
+      if (priceRes && priceRes.success && Array.isArray(priceRes.data)) {
+        for (const p of priceRes.data) {
+          if (p.train_code && p.prices && !priceMap.has(p.train_code)) priceMap.set(p.train_code, p.prices);
+        }
+      }
+      const typeOf = (no) => /^G/.test(no) ? '高铁' : (/^[DC]/.test(no) ? '动车' : (/^[KZT]/.test(no) ? '普速' : '列车'));
+      const fmtDur = (s) => { const m = String(s || '').split(':'); if (m.length < 2) return s || ''; const h = +m[0] || 0, mi = +m[1] || 0; return h + 'h' + (mi ? mi + 'm' : ''); };
+      // 按发车时间排序后均匀取样最多 8 趟，覆盖全天时段
+      const sorted = real.trains.slice().sort((a, b) => String(a.start_time || '').localeCompare(String(b.start_time || '')));
+      const want = Math.min(8, sorted.length);
+      const trains = [];
+      for (let i = 0; i < want; i++) {
+        const idx = want === 1 ? 0 : Math.round(i * (sorted.length - 1) / (want - 1));
+        const t = sorted[idx];
+        const prices = priceMap.get(t.train_no) || {};
+        const keys = Object.keys(prices);
+        const seat = keys.includes('二等座') ? '二等座' : (keys[0] || '二等座');
+        const price = prices[seat] != null ? prices[seat] : (keys.map(k => prices[k]).find(v => v != null) || 0);
+        trains.push({
+          no: t.train_no, type: typeOf(t.train_no), origin, dest,
+          depart: t.start_time, arrive: t.arrive_time, duration: fmtDur(t.duration),
+          price: Math.round(Number(price) || 0), seat,
+          seats: t.seats || {}   // 各席别真实余票
+        });
+      }
+      return res.json({
+        error: false,
+        source: '12306 实时',
+        origin, dest, date,
+        trains,
+        disclaimer: '余票/车次/时刻/票价均来自中国铁路 12306 官方接口（实时查询），请以 12306 官方购票为准',
+        booking_links,
+        official_channels
+      });
+    }
+
+    /* ---- 回退：参考估算（12306 官方费率 + 距离修正）---- */
     const o = CITY_COORDS[origin];
     const d = CITY_COORDS[dest];
     let railKm = 1200; // 默认（北京→成都约 1800km 铁路里程）
@@ -5083,21 +5248,8 @@ app.get('/api/train', (req, res) => {
       origin, dest, date,
       trains,
       disclaimer: '车次/价格/时刻为参考（典型二等座 522-862 元），实际以 12306 实时为准',
-      booking_links: {
-        official_12306:       'https://www.12306.cn/index/',
-        // 12306 余票查询（带起终点 + 日期的查询页）
-        query_yupiao:         `https://kyfw.12306.cn/otn/leftTicket/init?linktypeid=dc&fs=${encodeURIComponent(origin)},,&ts=${encodeURIComponent(dest)},,&date=${date}&flag=N,N,Y`,
-        query_timetable:      'https://www.12306.cn/index/zwd_kysj/index.html',
-        query_station:        'https://www.12306.cn/index/querystation/index.html',
-        ctrip_train:          `https://trains.ctrip.com/pages/booking/list/${origin}-${dest}-${date}.html`,
-        fliggy_train:         `https://www.fliggy.com/train/?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(dest)}&date=${date}`,
-        qunar_train:          `https://train.qunar.com/?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(dest)}&date=${date}`
-      },
-      official_channels: {
-        web: 'https://www.12306.cn/index/',
-        app: '铁路12306（中国铁路官方App）',
-        phone: '12306（铁路客户服务热线）'
-      }
+      booking_links,
+      official_channels
     });
   } catch(e){ res.status(500).json({ error:true, message:e.message }); }
 });
