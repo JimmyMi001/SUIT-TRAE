@@ -2362,9 +2362,9 @@
     <h2>💬 旅途伴侣</h2>
     <p class="sub">实时 POI · 实时天气 · 实时汇率 · 路线导航 · 票价酒店查询（与首页行程联动）</p>
     <div class="comp__city">
-      <label>📍 当前城市（与智能规划联动，不可切换）</label>
-      <input id="compCity" placeholder="城市" value="广州" list="cityList" autocomplete="off" readonly style="background:rgba(99,102,241,.06);cursor:default">
-      <div style="color:var(--muted);font-size:12px;margin-top:6px">💡 城市由"智能规划"自动同步，伴侣所有查询（天气/酒店/门票/导航/汇率）都基于该城市</div>
+      <label>📍 当前城市（默认广州；智能规划生成行程后自动同步目的地，可自行修改）</label>
+      <input id="compCity" placeholder="城市" value="广州" list="cityList" autocomplete="off">
+      <div style="color:var(--muted);font-size:12px;margin-top:6px">💡 城市默认与"智能规划"同步，也可直接修改为任意城市；伴侣所有查询（天气/酒店/门票/导航/汇率）都基于当前城市</div>
     </div>
     <!-- 详细地址（可选填）— 用于"导航到..."等功能 -->
     <div class="comp__address">
@@ -4847,7 +4847,14 @@ document.getElementById('planBtn').onclick = loadPlan;
 document.getElementById('planCity').onkeydown = e => { if(e.key==='Enter') loadPlan(); };
 document.getElementById('compBtn').onclick = compSend;
 document.getElementById('compInput').onkeydown = e => { if(e.key==='Enter') compSend(); };
-document.getElementById('compCity').addEventListener('click', e => e.preventDefault());
+// 伴侣城市：支持手动修改 → 持久化到 localStorage（供旅途伴侣独立页读取）+ 联动当前规划城市
+document.getElementById('compCity').addEventListener('change', () => {
+  const c = document.getElementById('compCity').value.trim();
+  if (c) {
+    try { localStorage.setItem('smart_plan_dest', c); } catch (e) {}
+    if (typeof currentPlanCity !== 'undefined') currentPlanCity = c;
+  }
+});
 document.querySelectorAll('#compTools .comp__tool').forEach(el => {
   el.onclick = () => runCompTool(el.dataset.tool);
 });

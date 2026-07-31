@@ -28,8 +28,11 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
         </div>
         <div>
-          <div class="status-bar__city" id="statusCity">广州市 · 越秀区</div>
-          <div class="status-bar__dist">距下一个 POI 1.2 km</div>
+          <div class="status-bar__city-row">
+            <input class="status-bar__city-input" id="statusCity" value="广州" list="companionCityList" autocomplete="off" aria-label="切换城市" title="点击修改城市">
+            <span class="status-bar__city-edit" title="可切换城市">✎</span>
+          </div>
+          <div class="status-bar__dist" id="statusCityDist">当前位置 · 可直接修改城市</div>
         </div>
       </div>
       <div class="status-bar__weather">
@@ -38,6 +41,26 @@
         <span style="font-size: 0.7rem; color: var(--c-text-2)">晴</span>
       </div>
     </div>
+
+    <!-- 可选城市列表（支持输入任意城市） -->
+    <datalist id="companionCityList">
+      <option value="北京"><option value="上海"><option value="广州"><option value="深圳">
+      <option value="成都"><option value="西安"><option value="杭州"><option value="重庆">
+      <option value="南京"><option value="苏州"><option value="厦门"><option value="青岛">
+      <option value="武汉"><option value="长沙"><option value="大理"><option value="丽江">
+      <option value="三亚"><option value="昆明"><option value="拉萨"><option value="桂林">
+      <option value="黄山"><option value="张家界"><option value="敦煌"><option value="哈尔滨">
+      <option value="香港"><option value="澳门"><option value="洛阳"><option value="开封">
+      <option value="平遥"><option value="曲阜"><option value="天津"><option value="沈阳">
+      <option value="大连"><option value="济南"><option value="烟台"><option value="郑州">
+      <option value="太原"><option value="兰州"><option value="无锡"><option value="宁波">
+      <option value="绍兴"><option value="嘉兴"><option value="阳朔"><option value="凤凰">
+      <option value="婺源"><option value="宏村"><option value="周庄"><option value="乌镇">
+      <option value="西塘"><option value="腾冲"><option value="千岛湖"><option value="莫干山">
+      <option value="北戴河"><option value="阿坝"><option value="香格里拉"><option value="雨崩">
+      <option value="稻城"><option value="喀什"><option value="吐鲁番"><option value="额济纳">
+      <option value="长白山"><option value="漠河"><option value="阳江"><option value="珠海">
+    </datalist>
 
     <!-- 快捷操作 2x3 -->
     <section class="quick-section">

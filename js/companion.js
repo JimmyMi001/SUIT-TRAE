@@ -20,9 +20,48 @@
     chat: (msg) => API.get('/api/chat?q=' + encodeURIComponent(msg))
   };
 
-  // 获取当前城市（从URL参数或默认广州）
+  // 获取当前城市（优先级：URL参数 > 智能规划目的地(localStorage) > 默认广州）
   const urlParams = new URLSearchParams(window.location.search);
-  const currentCity = urlParams.get('city') || '广州';
+  let currentCity = (urlParams.get('city') || (function () {
+    try { return localStorage.getItem('smart_plan_dest'); } catch (e) { return null; }
+  })() || '广州').trim() || '广州';
+
+  // 切换城市：更新所有基于城市的显示与查询（快捷按钮/问答都读取 currentCity）
+  function setCity(city, opts) {
+    city = String(city || '').trim();
+    if (!city) { city = '广州'; }
+    currentCity = city;
+    const input = document.getElementById('statusCity');
+    if (input && input.value !== city) input.value = city;
+    document.title = '旅途中 · ' + currentCity + ' — 123就出发';
+    document.querySelectorAll('.template-chip').forEach(chip => {
+      const q = chip.dataset.q;
+      if (q && q.includes('酒店')) {
+        chip.textContent = currentCity + '有什么好吃的？';
+      }
+    });
+    // 手动切换后持久化，刷新页面保持当前城市
+    try { localStorage.setItem('smart_plan_dest', city); } catch (e) {}
+    // 重新拉取天气刷新状态栏
+    API.weather(currentCity).then(r => {
+      const w = r?.data?.lives?.[0];
+      if (w) {
+        const tempEl = document.querySelector('.status-bar__temp');
+        if (tempEl) tempEl.textContent = (w.temperature || '—') + '°';
+        const condEl = tempEl?.parentElement?.querySelector('span:last-child');
+        if (condEl) condEl.textContent = w.weather || '—';
+      }
+    }).catch(() => {});
+    // 初始化完成后的切换提示
+    if (opts && opts.notify) {
+      const distEl = document.getElementById('statusCityDist');
+      if (distEl) distEl.textContent = '已切换到 ' + currentCity + '，可继续修改';
+      const wrapEl = document.getElementById('chatMessages');
+      if (wrapEl && typeof addMsg === 'function') {
+        addMsg(wrapEl, 'agent', '📍 已切换到 <strong>' + currentCity + '</strong>，所有快捷查询与问答均基于该城市', '手动切换');
+      }
+    }
+  }
 
   // 应急按钮
   document.querySelectorAll('.emergency-btn').forEach((btn) => {
@@ -255,14 +294,12 @@
     if (el) el.remove();
   }
 
-  // 初始化：更新状态栏城市
+  // 初始化：更新状态栏城市 + 支持切换
   (function init() {
     const cityEl = document.getElementById('statusCity');
-    if (cityEl) {
-      cityEl.textContent = currentCity + ' · 实时位置';
-      // 也更新 title
-      document.title = '旅途中 · ' + currentCity + ' — 123就出发';
-    }
+    if (cityEl) cityEl.value = currentCity;
+    // 也更新 title
+    document.title = '旅途中 · ' + currentCity + ' — 123就出发';
     // 更新模板中的城市
     document.querySelectorAll('.template-chip').forEach(chip => {
       const q = chip.dataset.q;
@@ -270,6 +307,19 @@
         chip.textContent = currentCity + '有什么好吃的？';
       }
     });
+    // 城市切换：失焦 / 选择变化 / 回车 时生效
+    if (cityEl) {
+      const applyCity = () => {
+        const v = cityEl.value.trim();
+        if (v && v !== currentCity) {
+          setCity(v, { notify: true });
+        } else if (!v) {
+          cityEl.value = currentCity;
+        }
+      };
+      cityEl.addEventListener('change', applyCity);
+      cityEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') cityEl.blur(); });
+    }
     // 尝试获取天气更新状态栏
     API.weather(currentCity).then(r => {
       const w = r?.data?.lives?.[0];
