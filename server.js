@@ -4278,6 +4278,7 @@ app.get('/api/hotel', (req, res) => {
         stars: hStars,
         price,
         lng, lat,
+        location: `${lng},${lat}`,
         distance_km: distance.toFixed(2),
         address: `${city}${district}${street}`,
         tags: (tagsPool[hStars] || []).slice(0, 2 + (i % 2)),
