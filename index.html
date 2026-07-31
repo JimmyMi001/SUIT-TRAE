@@ -1799,6 +1799,8 @@
   .comp__map-side-item__body{flex:1;min-width:0}
   .comp__map-side-item__name{font-size:13px;color:var(--text);font-weight:600;margin-bottom:2px;line-height:1.3}
   .comp__map-side-item__meta{font-size:11px;color:var(--text-2);line-height:1.5}
+  .comp__map-side-item--none{opacity:.5;cursor:default}
+  .comp__map-side-item--none:hover{background:rgba(255,255,255,.02);border-color:var(--line);transform:none}
   /* 高级标点（玻璃光圈 + 浮动动画） */
   .cm-marker{position:absolute;width:32px;height:32px;border-radius:50% 50% 50% 0;
     transform:rotate(-45deg) translate(-50%,-100%);transform-origin:center bottom;
@@ -4971,47 +4973,48 @@ async function renderCompanionAMap(city, places, side){
     return;
   }
 
-  // 对所有地点进行地理编码：优先用 address，无地址则用 POI 名称+城市
-  // 失败时重试不带城市名，再失败用确定性 hash 偏移
+  // 对所有地点获取真实坐标：优先使用后端已透传的真实坐标（POI_DB/高德解析），
+  // 否则按 地址+城市 → 名称+城市 → 纯名称 三级尝试调后端 /api/address/geocode（服务端已做城市校验）；
+  // 全部失败则标记"无坐标"（宁缺毋滥，跳过标点），绝不用 hash 估算冒充精确位置
+  const nearCity = (a, b) => Math.abs(a - lng) < 1.0 && Math.abs(b - lat) < 1.0;
   const gps = places.map(async (p) => {
     if (p.location && p.location.includes(',')) {
       const parts = p.location.split(',');
-      p._lng = parseFloat(parts[0]); p._lat = parseFloat(parts[1]); return;
+      p._lng = parseFloat(parts[0]); p._lat = parseFloat(parts[1]);
+      p._geoSource = p._geoSource || 'amap';
+      return;
     }
     const query = p.address || p.name;
     if (!query) return;
-    // 结果合理性校验：解析出的坐标必须仍在目标城市周边（±1.5°），
-    // 防止高德把名称模糊匹配到其他城市/同名地点导致标点位置错误
-    const nearCity = (a, b) => Math.abs(a - lng) < 1.5 && Math.abs(b - lat) < 1.5;
-    // 第一次尝试：城市+名称
     try {
+      const nameOnly = p.name.replace(/[（(].*?[）)]/g, '').trim();
+      // 1) 地址（或名称）+ 城市
       let r = await API.addressGeocode(query, city);
       if (r && r.lng && r.lat && r.source !== 'local-fallback' && nearCity(r.lng, r.lat)) { p._lng = r.lng; p._lat = r.lat; p._geoSource = r.source; return; }
-      // 第二次尝试：纯名称（不带城市前缀）
-      const nameOnly = p.name.replace(/[（(].*?[）)]/g, '').trim();
+      // 2) 纯名称 + 城市
       if (nameOnly && nameOnly !== query) {
+        r = await API.addressGeocode(nameOnly, city);
+        if (r && r.lng && r.lat && r.source !== 'local-fallback' && nearCity(r.lng, r.lat)) { p._lng = r.lng; p._lat = r.lat; p._geoSource = r.source; return; }
+      }
+      // 3) 纯名称（不带城市，最后手段；结果仍需在城市周边 ±1.0° 内才接受）
+      if (nameOnly && (query === p.name || query === p.address)) {
         r = await API.addressGeocode(nameOnly, '');
         if (r && r.lng && r.lat && r.source !== 'local-fallback' && nearCity(r.lng, r.lat)) { p._lng = r.lng; p._lat = r.lat; p._geoSource = r.source; return; }
       }
-      // 第三次尝试：只用城市+前4个字
-      const short = query.replace(/[（(].*?[）)]/g, '').replace(/[·•·\.\-,，、。！!？?\s]+/g, '').slice(0, 4);
-      if (short && short !== query && short !== nameOnly) {
-        r = await API.addressGeocode(short, city);
-        if (r && r.lng && r.lat && nearCity(r.lng, r.lat)) { p._lng = r.lng; p._lat = r.lat; p._geoSource = r.source; return; }
-      }
     } catch(e) {}
-    // 所有重试失败 → 用确定性 hash 偏移（比随机圆好）
-    let h = 0;
-    for (let j = 0; j < query.length; j++) h = ((h << 5) - h + query.charCodeAt(j)) | 0;
-    p._lng = lng + ((h % 200) - 100) * 0.0005;
-    p._lat = lat + ((h * 7 % 150) - 75) * 0.0004;
-    p._geoSource = 'fallback';
+    // 所有尝试失败 → 无坐标（宁缺毋滥：不画标点，侧栏标注"无坐标"）
+    p._geoSource = 'none';
   });
   await Promise.all(gps);
 
   const markerPositions = [];
   const markers = [];
   places.forEach((p, i) => {
+    // 无坐标的地点不画标点（宁缺毋滥），markerPositions 对应位置留 null 保持索引对齐
+    if (p._geoSource === 'none' || typeof p._lng !== 'number' || typeof p._lat !== 'number') {
+      markerPositions.push(null);
+      return;
+    }
     p.lng = p._lng; p.lat = p._lat;
     markerPositions.push([p.lng, p.lat]);
   });
@@ -5021,6 +5024,7 @@ async function renderCompanionAMap(city, places, side){
   const esc2 = s => String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   markerPositions.forEach((pos, i) => {
+    if (!pos) return; // 无坐标地点跳过标点
     const p = places[i];
     const ptype = p.type || 'poi';
     const color = TC[ptype] || '#10b981';
@@ -5043,9 +5047,10 @@ async function renderCompanionAMap(city, places, side){
     });
   });
 
-  if (markerPositions.length > 0) {
+  const validPos = markerPositions.filter(Boolean);
+  if (validPos.length > 0) {
     // 自适应视野：全部坐标落在城市周边（<2°）才 fit，避免个别错误坐标把视野拉出地球
-    const lngs = markerPositions.map(p => p[0]), lats = markerPositions.map(p => p[1]);
+    const lngs = validPos.map(p => p[0]), lats = validPos.map(p => p[1]);
     const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
     const minLat = Math.min(...lats), maxLat = Math.max(...lats);
     if (isFinite(minLng) && isFinite(maxLat) && Math.abs(maxLng - minLng) < 2 && Math.abs(maxLat - minLat) < 1.5 && Math.abs(maxLng - lng) < 2 && Math.abs(maxLat - lat) < 1.5) {
@@ -5059,8 +5064,10 @@ async function renderCompanionAMap(city, places, side){
   try { compMapInstance.addControl(new AMap.Scale()); } catch(e) {}
   try { compMapInstance.addControl(new AMap.ToolBar({ position: 'RB' })); } catch(e) {}
 
-  side.innerHTML = '<div style="padding:0 0 8px;text-align:left;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--text)">📍 '+esc2(city)+' 地点列表</div><div style="font-size:10px;color:var(--text-2);letter-spacing:.02em">共 '+places.length+' 个地点 · <span style="color:#10b981">●</span> 精确定位 <span style="color:#f59e0b">●</span> 近似估算 · 点击定位</div></div>' + places.map((p,i) =>
-    '<div class="comp__map-side-item" data-i="'+i+'"><div class="comp__map-side-item__icon">'+(p.icon||'📍')+'</div><div class="comp__map-side-item__body"><div class="comp__map-side-item__name">'+esc2(p.name)+(p._geoSource==='fallback'?' <span style="font-size:9px;color:#f59e0b" title="坐标由hash估算，非精确位置">≈</span>':'')+'</div><div class="comp__map-side-item__meta">'+esc2(p.meta||p.address||'')+'</div></div></div>'
+  const cntGeo = places.filter(p => p._geoSource !== 'none').length;
+  const cntNone = places.length - cntGeo;
+  side.innerHTML = '<div style="padding:0 0 8px;text-align:left;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--text)">📍 '+esc2(city)+' 地点列表</div><div style="font-size:10px;color:var(--text-2);letter-spacing:.02em">共 '+places.length+' 个地点 · <span style="color:#10b981">●</span> 高德真实坐标 '+cntGeo+''+(cntNone?' · <span style="color:#64748b">⛔ 无坐标 '+cntNone+'（高德未检索到，未标点）</span>':'')+' · 点击定位</div></div>' + places.map((p,i) =>
+    '<div class="comp__map-side-item'+(p._geoSource==='none'?' comp__map-side-item--none':'')+'" data-i="'+i+'"><div class="comp__map-side-item__icon">'+(p.icon||'📍')+'</div><div class="comp__map-side-item__body"><div class="comp__map-side-item__name">'+esc2(p.name)+(p._geoSource==='none'?' <span style="font-size:9px;color:#64748b" title="高德未检索到该地点坐标，未在地图标点">无坐标</span>':'')+'</div><div class="comp__map-side-item__meta">'+esc2(p.meta||p.address||'')+'</div></div></div>'
   ).join('');
   side.querySelectorAll('.comp__map-side-item').forEach((el) => {
     el.addEventListener('click', () => {
@@ -5093,9 +5100,9 @@ async function renderCompanionAMap(city, places, side){
           }, 300);
         }
       }
-      // 深色信息窗内容（提前构造）
+      // 深色信息窗内容（提前构造）— 坐标一律为高德真实坐标（无坐标地点已跳过标点）
       const p = places[i];
-      const ic = '<div style="padding:10px 14px;min-width:200px"><div style="font-size:14px;font-weight:700;margin-bottom:4px;color:#fff">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#cbd5e1;line-height:1.5">'+esc2(p.meta||p.address||'无更多信息')+'</div><div style="font-size:10px;color:'+(p._geoSource==='fallback'?'#f59e0b':'#10b981')+';margin-top:4px">'+(p._geoSource==='fallback'?'⚠️ 近似坐标（hash估算）':'✅ 高德精确坐标')+'</div></div>';
+      const ic = '<div style="padding:10px 14px;min-width:200px"><div style="font-size:14px;font-weight:700;margin-bottom:4px;color:#fff">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#cbd5e1;line-height:1.5">'+esc2(p.meta||p.address||'无更多信息')+'</div><div style="font-size:10px;color:#10b981;margin-top:4px">✅ 高德真实坐标</div></div>';
       compMapIWTimer = setTimeout(() => {
         compMapIWTimer = null;
         if (compMapInfoWindow) { try { compMapInfoWindow.close(); } catch(e) {} compMapInfoWindow = null; }

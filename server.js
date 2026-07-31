@@ -70,6 +70,35 @@ async function callAmapRaw(pathname, qs) {
   return r.json();
 }
 
+/* 高德调用节流器：全局串行 + 每次间隔 150ms，避免瞬时并发触发高德 QPS 限流
+   （限流时 place/text 会静默返回空 pois，导致真实坐标解析偶发失败） */
+let _amapQueue = Promise.resolve();
+let _amapLastCall = 0;
+function callAmapThrottled(pathname, qs) {
+  const run = _amapQueue.then(async () => {
+    const wait = Math.max(0, 150 - (Date.now() - _amapLastCall));
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    _amapLastCall = Date.now();
+    return await callAmapRaw(pathname, qs);
+  });
+  _amapQueue = run.catch(() => {});
+  return run;
+}
+
+/** 带重试的高德调用：限流/瞬时失败时重试 1 次 */
+async function callAmapRetry(pathname, qs, emptyCheck = () => false) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await callAmapThrottled(pathname, qs);
+      if (r && !emptyCheck(r)) return r;
+      await new Promise(res => setTimeout(res, 400));
+    } catch (e) {
+      await new Promise(res => setTimeout(res, 400));
+    }
+  }
+  return null;
+}
+
 /* ---------- 从高德 API 拉取真实 POI（用于补充不足的 POI 池，绝不虚构） ---------- */
 async function fetchRealPOIsFromAmap(city, desiredCount = 24) {
   if (!AMAP_KEY || AMAP_KEY === 'your_amap_key_here') return [];
@@ -118,6 +147,123 @@ async function fetchRealPOIsFromAmap(city, desiredCount = 24) {
     } catch (_) { /* 单个关键词失败不影响其他 */ }
   }
   return pois;
+}
+
+/* ==================================================================
+ * 🔑 真实坐标解析：POI 名称/地址 → 高德真实坐标
+ * 用途：景点/酒店/附近 POI 在本地库无坐标时，直接调用高德 API 获取真实坐标，
+ *       绝不用 hash 估算/城市中心偏移冒充精确位置。
+ * 缓存：内存 Map（key=city|name），避免同一 POI 重复打高德接口。
+ * ================================================================== */
+const _geoCache = new Map();
+const _geoQueue = new Map(); // 相同 key 并发去重：复用进行中的 Promise
+
+/** 并发限制执行器：items 中的每个元素以 limit 并发调用 fn，返回 Promise.all 结果 */
+async function runConcurrent(items, limit, fn) {
+  const results = new Array(items.length);
+  let idx = 0;
+  async function worker() {
+    while (idx < items.length) {
+      const i = idx++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+  return results;
+}
+
+/** 城市名校验：高德返回的 POI 是否属于目标城市（兼容直辖市/县级市/下辖区县）
+ * 先做名称匹配；对县级市（如都江堰市隶属成都市，cityname 为"都江堰市"）则用
+ * 与城市中心 ±1.5° 的距离校验兜底，避免误杀真实 POI，同时拦截跨城同名地点 */
+function isInCity(poi, city) {
+  if (!city) return true;
+  const norm = String(city).replace(/[省市自治地区]+$/g, '');
+  if (!norm) return true;
+  const pname = poi.pname || '';
+  const cname = poi.cityname || poi.city || '';
+  if (cname.includes(norm) || pname.includes(norm)) return true;
+  if (poi.location) {
+    const c = CITY_COORDS[city];
+    if (c) {
+      const [lon, lat] = poi.location.split(',').map(parseFloat);
+      if (Math.abs(lon - c.lon) < 1.5 && Math.abs(lat - c.lat) < 1.5) return true;
+    }
+  }
+  return false;
+}
+
+/** ① POI 名称 → 高德真实坐标（place/text 城市限定检索，优先精确匹配） */
+async function resolvePOIFromAmap(name, city) {
+  if (!name) return null;
+  if (!AMAP_KEY || AMAP_KEY === 'your_amap_key_here') return null;
+  const key = `p|${city}|${name}`;
+  if (_geoCache.has(key)) return _geoCache.get(key);
+  if (_geoQueue.has(key)) return _geoQueue.get(key);
+  const task = (async () => {
+    try {
+      // 检索词清洗：去掉"附近的酒店/附近的"等限定词，保留主体（如"杜甫草堂附近的酒店"→"杜甫草堂"）
+      const cleanName = String(name)
+        .replace(/[（(].*?[）)]/g, '')
+        .replace(/(附近|周边的)?的?(酒店|民宿|旅馆|客栈)$/, '')
+        .replace(/附近$/, '')
+        .trim() || name;
+      const qs = new URLSearchParams({
+        keywords: cleanName, city: city || '', offset: '8', page: '1',
+        extensions: 'base', output: 'json'
+      }).toString();
+      const r = await callAmapRetry('/v3/place/text', qs, resp => !(resp && Array.isArray(resp.pois) && resp.pois.length));
+      if (!r) return null;
+      const hits = (r.pois || [])
+        .filter(p => p.name && p.location && isInCity(p, city));
+      if (!hits.length) return null;
+      const clean = String(name).replace(/[（(].*?[）)]/g, '').trim();
+      // 匹配优先级：名称完全相等 > 名称包含 > 高德相关性排序首位（城市已校验）
+      let hit = hits.find(p => p.name === clean)
+        || hits.find(p => p.name === cleanName)
+        || hits.find(p => clean && (p.name.includes(clean) || clean.includes(p.name)));
+      if (!hit) hit = hits[0];
+      const [lon, lat] = hit.location.split(',').map(parseFloat);
+      return { lng: lon, lat, poi_name: hit.name, address: hit.address || '' };
+    } catch (e) {
+      return null;
+    } finally {
+      _geoQueue.delete(key);
+    }
+  })();
+  _geoQueue.set(key, task);
+  const result = await task;
+  if (result) _geoCache.set(key, result);
+  return result;
+}
+
+/** ② 完整地址 → 高德真实坐标（geocode/geo，供酒店等带门牌地址的实体使用） */
+async function geocodeAddressFromAmap(fullAddress, city) {
+  if (!fullAddress) return null;
+  if (!AMAP_KEY || AMAP_KEY === 'your_amap_key_here') return null;
+  const key = `a|${city}|${fullAddress}`;
+  if (_geoCache.has(key)) return _geoCache.get(key);
+  if (_geoQueue.has(key)) return _geoQueue.get(key);
+  const task = (async () => {
+    try {
+      const qs = new URLSearchParams({
+        address: fullAddress, city: city || '', output: 'json'
+      }).toString();
+      const r = await callAmapRetry('/v3/geocode/geo', qs, resp => !(resp && Array.isArray(resp.geocodes) && resp.geocodes.length));
+      if (!r) return null;
+      const geo = (r.geocodes || []).find(g => g.location && isInCity(g, city)) || (r.geocodes || [])[0];
+      if (!geo || !geo.location) return null;
+      const [lon, lat] = geo.location.split(',').map(parseFloat);
+      return { lng: lon, lat, full_address: geo.formatted_address || '' };
+    } catch (e) {
+      return null;
+    } finally {
+      _geoQueue.delete(key);
+    }
+  })();
+  _geoQueue.set(key, task);
+  const result = await task;
+  if (result) _geoCache.set(key, result);
+  return result;
 }
 
 /* ---------- 健康检查 ---------- */
@@ -558,10 +704,16 @@ app.get('/api/address/geocode', async (req, res) => {
     if (AMAP_KEY && AMAP_KEY !== 'your_amap_key_here') {
       try {
         const pr = await callAmapRaw('/v3/place/text', new URLSearchParams({
-          keywords: address, city, offset: '5', page: '1', extensions: 'base', output: 'json'
+          keywords: address, city, offset: '8', page: '1', extensions: 'base', output: 'json'
         }).toString());
-        const plist = (pr.pois || []).filter(p => p.name && p.location);
-        const hit = plist.find(p => p.name.includes(address) || address.includes(p.name)) || plist.find(p => p.name.includes(address.slice(0, 4)));
+        // 城市校验：带 city 参数时只接受该城市内的结果，杜绝跨城同名地点
+        const plist = (pr.pois || []).filter(p => p.name && p.location && isInCity(p, city));
+        const clean = address.replace(/[（(].*?[）)]/g, '').trim();
+        // 匹配优先级：名称完全相等 > 名称包含（双向）> 高德相关性排序首位（城市已校验）
+        const hit = plist.find(p => p.name === clean)
+          || plist.find(p => p.name === address)
+          || plist.find(p => clean && (p.name.includes(clean) || clean.includes(p.name)))
+          || plist[0];
         if (hit) {
           const [lon, lat] = hit.location.split(',').map(parseFloat);
           return res.json({
@@ -574,12 +726,12 @@ app.get('/api/address/geocode', async (req, res) => {
         }
       } catch (e) {}
     }
-    // 2) 高德地理编码
+    // 2) 高德地理编码（城市限定 + 城市校验）
     if (AMAP_KEY && AMAP_KEY !== 'your_amap_key_here') {
       try {
         const full = city ? `${city}${address}` : address;
         const r = await callAmapRaw('/v3/geocode/geo', new URLSearchParams({ address: full, city, output: 'json' }).toString());
-        const geo = (r.geocodes || [])[0];
+        const geo = (r.geocodes || []).find(g => g.location && isInCity(g, city)) || (r.geocodes || [])[0];
         if (geo) {
           const [lon, lat] = geo.location.split(',').map(parseFloat);
           return res.json({
@@ -1314,6 +1466,12 @@ const POI_GENERIC = {
 POI_GENERIC['历史'] = POI_GENERIC['文化'];
 POI_GENERIC['文艺'] = POI_GENERIC['文化'];
 POI_GENERIC['自然'] = POI_GENERIC['景点'];
+POI_GENERIC['餐饮'] = POI_GENERIC['美食'];
+POI_GENERIC['饮品'] = POI_GENERIC['美食'];
+POI_GENERIC['咖啡'] = POI_GENERIC['美食'];
+POI_GENERIC['奶茶'] = POI_GENERIC['美食'];
+POI_GENERIC['甜品'] = POI_GENERIC['美食'];
+POI_GENERIC['生活服务'] = ['卫生间','洗手间','便利店','银行','药店','加油站','停车场','医院','邮局','洗衣店'];
 
 // 把 CITIES_DATA 里的 pois 也注入到 POI_GENERIC['景点']（使每个城市有真实 POI 兜底）
 // 增强：所有城市都有 POI 池（无 pois 字段的用 POI_GENERIC 兜底）
@@ -2350,13 +2508,15 @@ const POI_DB = {
     { name:'哈尔滨大剧院', type:'网红', lng:126.573, lat:45.803, tag:'网红' }
   ]
 };
+// 兜底通用 POI 池：⚠️ 故意不带坐标（历史上曾硬编码成都坐标导致其他城市标点错误），
+// 坐标统一由 /api/ticket 内的高德 resolvePOIFromAmap 按目标城市实时解析真实坐标
 const POI_DEFAULT = [
-  { name:'市中心', type:'地标', lng:104.066, lat:30.572, tag:'地标' },
-  { name:'老城步行街', type:'美食', lng:104.075, lat:30.661, tag:'美食' },
-  { name:'博物馆', type:'文化', lng:104.063, lat:30.580, tag:'文化' },
-  { name:'人民公园', type:'自然', lng:104.061, lat:30.660, tag:'自然' },
-  { name:'老市场', type:'美食', lng:104.080, lat:30.652, tag:'美食' },
-  { name:'文创园', type:'文艺', lng:104.077, lat:30.568, tag:'文艺' }
+  { name:'市中心', type:'地标', tag:'地标' },
+  { name:'老城步行街', type:'美食', tag:'美食' },
+  { name:'博物馆', type:'文化', tag:'文化' },
+  { name:'人民公园', type:'自然', tag:'自然' },
+  { name:'老市场', type:'美食', tag:'美食' },
+  { name:'文创园', type:'文艺', tag:'文艺' }
 ];
 
 /* ---------- 餐厅数据库：5 档价位（小馆子 → 米其林） ----------
@@ -4015,7 +4175,7 @@ function buildLocalMultiDimTips(city, region, cityTags, cd, days, budget, pax, s
   return { culture, customs, safety, timing };
 }
 
-app.get('/api/ticket', (req, res) => {
+app.get('/api/ticket', async (req, res) => {
   try {
     const city = req.query.city || '成都';
     const db = POI_DB[city] || POI_DEFAULT;
@@ -4071,12 +4231,27 @@ app.get('/api/ticket', (req, res) => {
         price_disclaimer: '价格为参考区间，最终以官方/平台实时报价为准'
       };
     });
+    // 无坐标的 POI（非 POI_DB 城市的兜底池）：直接调高德 API 解析真实坐标，绝不用估算/别的城市坐标冒充
+    // 并发 4，缓存命中则立即返回；解析失败保留空 location（前端标记"无坐标"宁缺毋滥，不再 hash 估算）
+    const needGeo = list.filter(t => !t.location).map(t => t.poi);
+    let geoResults = [];
+    if (needGeo.length) {
+      geoResults = await runConcurrent(needGeo, 4, (name) => resolvePOIFromAmap(name, city));
+      needGeo.forEach((name, i) => {
+        const g = geoResults[i];
+        if (g) {
+          const hit = list.find(t => t.poi === name);
+          if (hit) { hit.location = `${g.lng},${g.lat}`; hit.geo_source = 'amap-poi'; hit.geo_name = g.poi_name; }
+        }
+      });
+    }
     res.json({
       error: false,
       source: 'local+reference',
       city,
       count: list.length,
       tickets: list,
+      geo_resolved: needGeo.filter((n, i) => !!geoResults[i]).length,
       disclaimer: '本数据为基于历史票价的参考估算，请通过上方 booking_links 跳转官方平台查询实时价格',
       official_channels: {
         ctrip:   'https://piao.ctrip.com/',
@@ -4089,7 +4264,7 @@ app.get('/api/ticket', (req, res) => {
   } catch(e){ res.status(500).json({ error:true, message:e.message }); }
 });
 
-app.get('/api/hotel', (req, res) => {
+app.get('/api/hotel', async (req, res) => {
   try {
     const city = req.query.city || '成都';
     const stars = parseInt(req.query.stars) || 0;
@@ -4267,7 +4442,7 @@ app.get('/api/hotel', (req, res) => {
       const [name, hStars, district, street] = row;
       const base = starBase[hStars] || 300;
       const price = Math.round(base * cityPriceFactor * (0.85 + (i * 0.07) % 0.30));
-      // 真实坐标：基于城市中心 + 区域偏移（确定性，无随机）
+      // 兜底坐标：基于城市中心 + 区域偏移（确定性，无随机）——仅在高德 geocode 失败时使用
       const offsetLng = ((i * 73) % 200 - 100) * 0.0008;
       const offsetLat = ((i * 47) % 150 - 75) * 0.0007;
       const lng = center.lon + offsetLng;
@@ -4277,10 +4452,12 @@ app.get('/api/hotel', (req, res) => {
         name,
         stars: hStars,
         price,
+        address: `${city}${district}${street}`,
+        _district: district,
+        geo_status: 'pending', // pending → amap / synthetic
         lng, lat,
         location: `${lng},${lat}`,
         distance_km: distance.toFixed(2),
-        address: `${city}${district}${street}`,
         tags: (tagsPool[hStars] || []).slice(0, 2 + (i % 2)),
         rating: (ratingPool[hStars] || ['4.5'])[i % (ratingPool[hStars] || ['4.5']).length],
         booking: bookings[i % bookings.length],
@@ -4296,12 +4473,31 @@ app.get('/api/hotel', (req, res) => {
         price_disclaimer: '价格为按"星级基数×城市系数×浮动"估算的参考价，最终以官方/平台实时报价为准'
       };
     }).filter(h => (stars === 0 || h.stars >= stars) && h.price <= maxPrice);
+    // 用高德解析酒店真实坐标（并发 4，带缓存），优先级：① 酒店名 place/text（多为真实 POI，最准）
+    // ② 完整地址 geocode ③ 城市+区 中心；全部失败才保留合成坐标（城市中心+确定性偏移）
+    await runConcurrent(hotels, 4, async (h) => {
+      let g = await resolvePOIFromAmap(h.name, city);
+      if (!g) g = await geocodeAddressFromAmap(h.address, city);
+      if (!g && h._district) {
+        g = await geocodeAddressFromAmap(`${city}${h._district}`, city);
+      }
+      if (g) {
+        h.lng = g.lng; h.lat = g.lat;
+        h.location = `${g.lng},${g.lat}`;
+        h.geo_status = 'amap';
+        h.geo_full_address = g.full_address || '';
+        h.distance_km = (Math.hypot((g.lng - center.lon) * Math.cos(center.lat * Math.PI / 180), g.lat - center.lat) * 111).toFixed(2);
+      } else {
+        h.geo_status = 'synthetic';
+      }
+    });
     res.json({
       error: false,
       source: 'local+reference',
       city,
       count: hotels.length,
       hotels,
+      geo_resolved: hotels.filter(h => h.geo_status === 'amap').length,
       disclaimer: '酒店价格为基于星级/城市系数的参考估算，请通过 booking_links 跳转官方平台查询实时价格与房态',
       official_channels: {
         ctrip:   'https://hotels.ctrip.com/',

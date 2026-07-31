@@ -31,6 +31,10 @@ server.log
 server.err.log
 server.err
 
+# 本地备份（不入库）
+*_backup_*.html
+*_backup_*.js
+
 # 系统
 .DS_Store
 Thumbs.db
