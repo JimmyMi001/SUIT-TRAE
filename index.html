@@ -4890,16 +4890,18 @@ async function collectAndRenderMap(tool, city, data){
     data.tickets.slice(0, 12).forEach(t => places.push({
       name: t.poi, type: 'poi', icon: '🎫',
       meta: (t.type || '景点') + ' · ¥' + (t.prices || []).join('/'),
-      address: t.address || '',
-      location: t.location || ''
+      address: t.geo_address || t.address || '',
+      location: t.location || '',
+      geo_source: t.geo_source || ''
     }));
   }
   if (tool === 'hotel' && data.hotels?.length) {
     data.hotels.slice(0, 12).forEach(h => places.push({
       name: h.name, type: 'hotel', icon: '🏨',
       meta: '★'.repeat(h.stars || 3) + ' · ¥' + h.price + '/晚 · 距市中心 ' + h.distance_km + 'km',
-      address: h.address || '',
-      location: h.location || ''
+      address: h.geo_full_address || h.address || '',
+      location: h.location || '',
+      geo_source: h.geo_status === 'amap' ? 'amap' : (h.geo_status === 'synthetic' ? 'synthetic' : '')
     }));
   }
   if (data.restaurants && Array.isArray(data.restaurants)) {
@@ -4907,7 +4909,8 @@ async function collectAndRenderMap(tool, city, data){
       name: r.name, type: 'rest', icon: '🍜',
       meta: '¥' + (r.price_per_person || r.price || '?') + '/位 · ' + (r.district || ''),
       address: r.address || '',
-      location: r.location || ''
+      location: r.location || '',
+      geo_source: r.geo_source || ''
     }));
   }
   if (places.length === 0) {
@@ -4981,7 +4984,8 @@ async function renderCompanionAMap(city, places, side){
     if (p.location && p.location.includes(',')) {
       const parts = p.location.split(',');
       p._lng = parseFloat(parts[0]); p._lat = parseFloat(parts[1]);
-      p._geoSource = p._geoSource || 'amap';
+      // 尊重后端来源标注：amap-poi/amap（高德真实坐标）、poi-db（本地库粗略坐标）、synthetic（区中心估算）
+      p._geoSource = p.geo_source || 'amap';
       return;
     }
     const query = p.address || p.name;
@@ -5040,7 +5044,7 @@ async function renderCompanionAMap(city, places, side){
     markers.push(marker);
     marker.on('click', () => {
       // 深色信息窗：避免默认白底 + 灰字在地图上难以看清
-      const ic = '<div style="padding:10px 14px;min-width:200px"><div style="font-size:14px;font-weight:700;margin-bottom:4px;color:#fff">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#cbd5e1;line-height:1.5">'+esc2(p.meta||p.address||'无更多信息')+'</div></div>';
+      const ic = '<div style="padding:10px 14px;min-width:200px"><div style="font-size:14px;font-weight:700;margin-bottom:4px;color:#fff">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#cbd5e1;line-height:1.5">'+esc2(p.meta||p.address||'无更多信息')+'</div>'+srcLine(p._geoSource)+'</div>';
       if (compMapInfoWindow) { try { compMapInfoWindow.close(); } catch(e) {} }
       compMapInfoWindow = new AMap.InfoWindow({ content: ic, offset: new AMap.Pixel(0, -30) });
       compMapInfoWindow.open(compMapInstance, pos);
@@ -5064,10 +5068,23 @@ async function renderCompanionAMap(city, places, side){
   try { compMapInstance.addControl(new AMap.Scale()); } catch(e) {}
   try { compMapInstance.addControl(new AMap.ToolBar({ position: 'RB' })); } catch(e) {}
 
-  const cntGeo = places.filter(p => p._geoSource !== 'none').length;
-  const cntNone = places.length - cntGeo;
-  side.innerHTML = '<div style="padding:0 0 8px;text-align:left;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--text)">📍 '+esc2(city)+' 地点列表</div><div style="font-size:10px;color:var(--text-2);letter-spacing:.02em">共 '+places.length+' 个地点 · <span style="color:#10b981">●</span> 高德真实坐标 '+cntGeo+''+(cntNone?' · <span style="color:#64748b">⛔ 无坐标 '+cntNone+'（高德未检索到，未标点）</span>':'')+' · 点击定位</div></div>' + places.map((p,i) =>
-    '<div class="comp__map-side-item'+(p._geoSource==='none'?' comp__map-side-item--none':'')+'" data-i="'+i+'"><div class="comp__map-side-item__icon">'+(p.icon||'📍')+'</div><div class="comp__map-side-item__body"><div class="comp__map-side-item__name">'+esc2(p.name)+(p._geoSource==='none'?' <span style="font-size:9px;color:#64748b" title="高德未检索到该地点坐标，未在地图标点">无坐标</span>':'')+'</div><div class="comp__map-side-item__meta">'+esc2(p.meta||p.address||'')+'</div></div></div>'
+  const cntAmap = places.filter(p => p._geoSource === 'amap' || p._geoSource === 'amap-poi').length;
+  const cntLocal = places.filter(p => p._geoSource === 'poi-db' || p._geoSource === 'synthetic').length;
+  const cntNone = places.length - cntAmap - cntLocal;
+  // 坐标来源角标：高德真实坐标（绿）/ 本地库·估算坐标（橙）/ 无坐标（灰）
+  const srcBadge = (s) => {
+    if (s === 'amap' || s === 'amap-poi') return '<span style="font-size:9px;color:#10b981" title="高德 place/text 实时解析的真实坐标">高德坐标</span>';
+    if (s === 'poi-db') return '<span style="font-size:9px;color:#f59e0b" title="本地库人工取点坐标，可能偏差数百米">本地坐标</span>';
+    if (s === 'synthetic') return '<span style="font-size:9px;color:#f59e0b" title="城市+区中心估算坐标，仅参考">估算坐标</span>';
+    return '<span style="font-size:9px;color:#64748b" title="高德未检索到该地点坐标，未在地图标点">无坐标</span>';
+  };
+  const srcLine = (s) => {
+    if (s === 'poi-db') return '<div style="font-size:10px;color:#f59e0b;margin-top:4px">⚠ 本地库坐标（参考，可能偏差）</div>';
+    if (s === 'synthetic') return '<div style="font-size:10px;color:#f59e0b;margin-top:4px">⚠ 估算坐标（区中心，仅参考）</div>';
+    return '<div style="font-size:10px;color:#10b981;margin-top:4px">✅ 高德真实坐标</div>';
+  };
+  side.innerHTML = '<div style="padding:0 0 8px;text-align:left;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--text)">📍 '+esc2(city)+' 地点列表</div><div style="font-size:10px;color:var(--text-2);letter-spacing:.02em">共 '+places.length+' 个地点 · <span style="color:#10b981">● 高德真实坐标 '+cntAmap+'</span>'+(cntLocal?' · <span style="color:#f59e0b">◐ 本地/估算坐标 '+cntLocal+'</span>':'')+(cntNone?' · <span style="color:#64748b">⛔ 无坐标 '+cntNone+'</span>':'')+' · 点击定位</div></div>' + places.map((p,i) =>
+    '<div class="comp__map-side-item'+(p._geoSource==='none'?' comp__map-side-item--none':'')+'" data-i="'+i+'"><div class="comp__map-side-item__icon">'+(p.icon||'📍')+'</div><div class="comp__map-side-item__body"><div class="comp__map-side-item__name">'+esc2(p.name)+' '+srcBadge(p._geoSource)+'</div><div class="comp__map-side-item__meta">'+esc2(p.meta||p.address||'')+'</div></div></div>'
   ).join('');
   side.querySelectorAll('.comp__map-side-item').forEach((el) => {
     el.addEventListener('click', () => {
@@ -5100,9 +5117,9 @@ async function renderCompanionAMap(city, places, side){
           }, 300);
         }
       }
-      // 深色信息窗内容（提前构造）— 坐标一律为高德真实坐标（无坐标地点已跳过标点）
+      // 深色信息窗内容（提前构造）— 坐标来源按后端标注如实显示（无坐标地点已跳过标点）
       const p = places[i];
-      const ic = '<div style="padding:10px 14px;min-width:200px"><div style="font-size:14px;font-weight:700;margin-bottom:4px;color:#fff">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#cbd5e1;line-height:1.5">'+esc2(p.meta||p.address||'无更多信息')+'</div><div style="font-size:10px;color:#10b981;margin-top:4px">✅ 高德真实坐标</div></div>';
+      const ic = '<div style="padding:10px 14px;min-width:200px"><div style="font-size:14px;font-weight:700;margin-bottom:4px;color:#fff">'+(p.icon||'📍')+' '+esc2(p.name)+'</div><div style="font-size:12px;color:#cbd5e1;line-height:1.5">'+esc2(p.meta||p.address||'无更多信息')+'</div>'+srcLine(p._geoSource)+'</div>';
       compMapIWTimer = setTimeout(() => {
         compMapIWTimer = null;
         if (compMapInfoWindow) { try { compMapInfoWindow.close(); } catch(e) {} compMapInfoWindow = null; }
