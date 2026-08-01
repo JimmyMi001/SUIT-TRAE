@@ -3197,7 +3197,7 @@ async function renderItinerary(data, params){
     <h3 style="margin:28px 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <span>💡 多维度旅行贴士</span>
       <span style="font-size:12px;color:var(--muted);font-weight:normal">
-        ${data.tips_meta.source === 'deepseek' ? '🤖 DeepSeek V4 预览版 AI · 4 维度' : data.tips_meta.source === 'local' ? '🧠 本地知识库 · 4 维度' : '🤖 AI+🧠 知识库 · 4 维度'}
+        ${data.tips_meta.source === 'deepseek' ? '🤖 DeepSeek V4 正式版 AI · 6 维度' : data.tips_meta.source === 'local' ? '🧠 本地知识库 · 6 维度' : '🤖 AI+🧠 知识库 · 6 维度'}
       </span>
       <span style="font-size:11px;color:var(--text-3);font-weight:normal;margin-left:auto">思考过程已公开 ↓</span>
     </h3>
@@ -3208,9 +3208,9 @@ async function renderItinerary(data, params){
         <span style="font-size:10px;color:var(--text-3);font-weight:normal;margin-left:auto;padding:1px 6px;background:rgba(155,139,224,.15);border-radius:3px">已公开</span>
       </div>
       <div style="line-height:1.7">
-        <div>📌 <b>生成策略</b>：DeepSeek V4 预览版 AI 多维度提示词工程 + 本地知识库兜底（4 维度）</div>
+        <div>📌 <b>生成策略</b>：DeepSeek V4 正式版 AI 多维度提示词工程 + 本地知识库兜底（6 维度）</div>
         <div>📌 <b>实际数据源</b>：<code style="background:rgba(0,0,0,.25);padding:1px 6px;border-radius:3px">${esc(data.tips_meta.source)}</code>
-          ${data.tips_meta.source === 'deepseek' ? '· DeepSeek 完整生成 4 维度' : data.tips_meta.source === 'local' ? '· 城市数据库 + 区域知识图谱' : '· DeepSeek 主生成 + 知识库补全'}
+          ${data.tips_meta.source === 'deepseek' ? '· DeepSeek 完整生成 6 维度' : data.tips_meta.source === 'local' ? '· 城市数据库 + 区域知识图谱' : '· DeepSeek 主生成 + 知识库补全'}
         </div>
         <div>📌 <b>覆盖维度</b>：${data.tips_meta.dimensions.map(d => `${d.icon}${d.label} ×${d.tips.length}（${d.source}）`).join(' · ')}</div>
         <div>📌 <b>总贴士数</b>：${data.tips_meta.dimensions.reduce((s, d) => s + d.tips.length, 0)} 条
@@ -3227,7 +3227,7 @@ async function renderItinerary(data, params){
           <div class="tip-card__head">
             <span class="tip-card__icon">${dim.icon}</span>
             <span class="tip-card__label">${esc(dim.label)}</span>
-            <span class="tip-card__src" title="${dim.source === 'deepseek' ? '由 DeepSeek V4 预览版 AI 生成' : dim.source === 'local' ? '由本地知识库生成' : '由 DeepSeek + 本地知识库合并生成'}">${dim.source === 'deepseek' ? 'AI' : dim.source === 'local' ? '知识库' : 'AI+知识库'}</span>
+            <span class="tip-card__src" title="${dim.source === 'deepseek' ? '由 DeepSeek V4 正式版 AI 生成' : dim.source === 'local' ? '由本地知识库生成' : '由 DeepSeek + 本地知识库合并生成'}">${dim.source === 'deepseek' ? 'AI' : dim.source === 'local' ? '知识库' : 'AI+知识库'}</span>
           </div>
           <ul class="tip-card__list">
             ${dim.tips.map(t => `<li>${esc(t)}</li>`).join('')}
@@ -3643,7 +3643,7 @@ function buildExportTemplate(data, params){
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
           <div style="font-size:16px;font-weight:700;color:#1a1a1a">💡 多维度旅行贴士</div>
           <div style="font-size:11px;color:#888;font-weight:normal;padding:1px 8px;background:#eee;border-radius:8px">
-            ${data.tips_meta.source === 'deepseek' ? '🤖 DeepSeek AI' : data.tips_meta.source === 'local' ? '🧠 本地知识库' : '🤖🧠 AI+知识库'} · 4 维度 · ${data.tips_meta.dimensions.reduce((s,d)=>s+d.tips.length,0)} 条
+            ${data.tips_meta.source === 'deepseek' ? '🤖 DeepSeek AI' : data.tips_meta.source === 'local' ? '🧠 本地知识库' : '🤖🧠 AI+知识库'} · 6 维度 · ${data.tips_meta.dimensions.reduce((s,d)=>s+d.tips.length,0)} 条
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">`;
@@ -3662,8 +3662,8 @@ function buildExportTemplate(data, params){
       html += `</div>
         <div style="padding:10px 12px;background:linear-gradient(135deg,rgba(155,139,224,.08),rgba(212,165,116,.05));border:1px dashed rgba(155,139,224,.4);border-radius:6px;font-size:11px;color:#555;line-height:1.7">
           <div style="font-weight:700;color:#7b6cb0;margin-bottom:4px">🧠 思考过程：贴士是怎么生成的？</div>
-          <div>📌 生成策略：DeepSeek V4 预览版 AI 多维度提示词工程 + 本地知识库兜底（4 维度）</div>
-          <div>📌 实际数据源：<b>${esc(data.tips_meta.source)}</b> ${data.tips_meta.source === 'deepseek' ? '· DeepSeek 完整生成 4 维度' : data.tips_meta.source === 'local' ? '· 城市数据库 + 区域知识图谱' : '· DeepSeek 主生成 + 知识库补全'}</div>
+          <div>📌 生成策略：DeepSeek V4 正式版 AI 多维度提示词工程 + 本地知识库兜底（6 维度）</div>
+          <div>📌 实际数据源：<b>${esc(data.tips_meta.source)}</b> ${data.tips_meta.source === 'deepseek' ? '· DeepSeek 完整生成 6 维度' : data.tips_meta.source === 'local' ? '· 城市数据库 + 区域知识图谱' : '· DeepSeek 主生成 + 知识库补全'}</div>
           <div>📌 覆盖维度：${data.tips_meta.dimensions.map(d => `${d.icon}${d.label} ×${d.tips.length}（${d.source}）`).join(' · ')}</div>
           <div>📌 总贴士数：${data.tips_meta.dimensions.reduce((s, d) => s + d.tips.length, 0)} 条 · 生成时间：${new Date(data.tips_meta.generated_at).toLocaleString('zh-CN', { hour12: false })}</div>
           <div>📌 AI 模型：${esc(data.tips_meta.ai_model)}</div>
@@ -3840,7 +3840,7 @@ function exportTxt(data, params){
     const normTip = (t) => (typeof t === 'string' ? t : (t && t.text) ? t.text : '');
     // 优先用多维度结构展示（与主页面、PDF 一致）
     if (data.tips_meta?.dimensions?.length) {
-      lines.push(`  数据源：${data.tips_meta.source === 'deepseek' ? 'DeepSeek V4 预览版 AI' : '本地知识库'} · 4 维度 · ${data.tips_meta.dimensions.reduce((s,d)=>s+d.tips.length,0)} 条`);
+      lines.push(`  数据源：${data.tips_meta.source === 'deepseek' ? 'DeepSeek V4 正式版 AI' : '本地知识库'} · 6 维度 · ${data.tips_meta.dimensions.reduce((s,d)=>s+d.tips.length,0)} 条`);
       data.tips_meta.dimensions.forEach(dim => {
         lines.push(`  ${dim.icon} ${dim.label}（${dim.source === 'deepseek' ? 'AI' : '知识库'}）`);
         (dim.tips||[]).forEach(t => lines.push(`    - ${normTip(t)}`));

@@ -4239,7 +4239,7 @@ ${typesStr}
       think(7, 'AI 总体评估', ai ? 'success' : 'skipped', {
         model: 'deepseek-v4-flash',
         summary: ai_summary,
-        note: ai ? null : 'DeepSeek V4 预览版 AI 暂不可用（已尝试调用，返回空或超时）'
+        note: ai ? null : 'DeepSeek V4 正式版 AI 暂不可用（已尝试调用，返回空或超时）'
       }, 'deepseek', dt);
     }
 
@@ -4264,7 +4264,7 @@ ${typesStr}
       const dt = Date.now() - ts;
       think(7.5, '多维度旅行贴士', tipsEnhanced.source === 'deepseek' ? 'success' : 'fallback', {
         method: '6 维度智能生成：① 文化背景 ② 风俗习惯 ③ 安全提示 ④ 最佳游览时间 ⑤ 交通出行 ⑥ 餐饮购物',
-        primary_source: 'DeepSeek V4 预览版 AI（多维度提示词工程）',
+        primary_source: 'DeepSeek V4 正式版 AI（多维度提示词工程）',
         fallback_source: '本地启发式（基于城市数据库 + 区域知识图谱）',
         actually_used: tipsEnhanced.source,
         dimensions: tipsEnhanced.dimensions.map(dim => ({ key: dim.key, label: dim.label, count: dim.tips.length, source: dim.source })),
@@ -4296,11 +4296,11 @@ ${typesStr}
         source: tipsEnhanced.source,
         dimensions: tipsEnhanced.dimensions,
         generated_at: new Date().toISOString(),
-        ai_model: DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here' ? 'DeepSeek V4 预览版' : 'DeepSeek V4 预览版（未启用 Key）'
+        ai_model: DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here' ? 'DeepSeek V4 正式版' : 'DeepSeek V4 正式版（未启用 Key）'
       },
       // 数据源 attribution — 用于前端炫酷展示
       data_sources: {
-        model: DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here' ? 'DeepSeek V4 预览版' : 'DeepSeek V4 预览版（未启用 Key）',
+        model: DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here' ? 'DeepSeek V4 正式版' : 'DeepSeek V4 正式版（未启用 Key）',
         map: '高德地图 API v3.0',
         weather: '高德天气 + 中央气象台',
         transport: '12306 实时票价 + 飞猪 FlyAI 实时航班（多源预取）',
@@ -4314,8 +4314,8 @@ ${typesStr}
               poiSource === 'city_poi_list' ? '城市专属 POI 池（动态生成坐标）' :
               '通用 POI 兜底池（高德兜底）',
         ai_search: '内置 AI 搜索 + 启发式规则',
-        tips: tipsEnhanced.source === 'deepseek' ? 'DeepSeek V4 预览版 AI 多维度生成' : '本地启发式（城市知识库 + 区域文化图谱）',
-        attribution_summary: '此结果由 ' + (DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here' ? 'DeepSeek V4 预览版 大模型' : 'DeepSeek V4 预览版（需配置 Key）') + ' + 智能 AI 搜索 + 高德地图 + 美团/飞猪/途牛/12306 多源联合生成'
+        tips: tipsEnhanced.source === 'deepseek' ? 'DeepSeek V4 正式版 AI 多维度生成' : '本地启发式（城市知识库 + 区域文化图谱）',
+        attribution_summary: '此结果由 ' + (DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here' ? 'DeepSeek V4 正式版 大模型' : 'DeepSeek V4 正式版（需配置 Key）') + ' + 智能 AI 搜索 + 高德地图 + 美团/飞猪/途牛/12306 多源联合生成'
       },
       thinking,  // 思考链 — 关键字段，前端展示
       took_ms: Date.now() - t0
@@ -4492,8 +4492,8 @@ app.post('/api/agent/refine', express.json(), async (req, res) => {
  */
 
 /* ---------- 多维度旅行贴士生成（DeepSeek + 本地兜底） ----------
- * 4 个维度：① 目的地文化背景 ② 当地风俗习惯 ③ 旅行安全提示 ④ 最佳游览时间
- * 优先调用 DeepSeek V4 预览版 AI；失败时降级到本地多维度知识库
+ * 6 个维度：① 目的地文化背景 ② 当地风俗习惯 ③ 旅行安全提示 ④ 最佳游览时间 ⑤ 交通出行 ⑥ 餐饮购物
+ * 优先调用 DeepSeek V4 正式版 AI；失败时降级到本地多维度知识库
  */
 async function generateMultiDimTips(city, cd, days, budget, pax, tagList) {
   const region = cd?.region || '未分类';
