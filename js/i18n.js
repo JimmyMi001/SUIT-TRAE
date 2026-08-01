@@ -434,7 +434,8 @@
     if (!host) return;
     busyEl = document.createElement('div');
     busyEl.className = 'lang-switch__busy';
-    busyEl.textContent = lang === 'en' ? 'Translating…' : (lang === 'zh-TW' ? '翻譯中…' : '翻译中…');
+    busyEl.textContent = lang === 'en' ? 'Deepseek V4 Flash Translating...'
+      : (lang === 'zh-TW' ? 'Deepseek V4 Flash 翻譯中...' : 'Deepseek V4 Flash 翻译中...');
     host.appendChild(busyEl);
   }
   function hideBusy() {
@@ -456,7 +457,9 @@
       pendingSet = null;
       showBusy();
 
-      var CH = 120, chunks = [];
+      /* 每批 30 条：单请求输出量小，flash 数秒内完成，避免大批量触发
+         max_tokens 截断 → 译文残留中文被拒 → 60s 重试死循环（表现为一直"翻译中"） */
+      var CH = 30, chunks = [];
       for (var i = 0; i < list.length; i += CH) chunks.push(list.slice(i, i + CH));
 
       var done = 0;
@@ -471,11 +474,17 @@
       function worker() {
         if (idx >= chunks.length) return;
         var chunk = chunks[idx++];
+        /* 前端超时兜底：服务器 callAI 45s + 网络抖动，30s 无响应即放弃本批并继续，
+           防止 translating 锁被永不返回的请求卡死（busy 一直"翻译中"） */
+        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timer = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 30000) : null;
         fetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lang: lang, texts: chunk })
+          body: JSON.stringify({ lang: lang, texts: chunk }),
+          signal: ctrl ? ctrl.signal : undefined
         }).then(function (r) { return r.json(); }).then(function (j) {
+          if (timer) clearTimeout(timer);
           if (gen === myGen && j && j.ok && Array.isArray(j.texts)) {
             for (var k = 0; k < chunk.length && k < j.texts.length; k++) {
               var zh = chunk[k], t = j.texts[k];
@@ -490,7 +499,7 @@
             }
           }
           finishChunk();
-        }).catch(function () { finishChunk(); });
+        }).catch(function () { if (timer) clearTimeout(timer); finishChunk(); });
       }
       var n = Math.min(5, chunks.length);
       for (var c = 0; c < n; c++) worker();

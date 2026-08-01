@@ -3955,13 +3955,14 @@ function scoreItinerary(itinerary, params, weather){
 async function callAI(prompt, opts){
   if(!DEEPSEEK_KEY || DEEPSEEK_KEY === 'your_deepseek_key_here') return null;
   const maxTokens = (opts && opts.max_tokens) || 16384;
+  const timeoutMs = (opts && opts.timeout) || 150000;
   const system   = (opts && opts.system) || '你是专业旅行规划师，输出简洁、实用、可执行。直接输出最终 JSON 结果，不要展示任何思考过程或解释。';
   try {
     const t0 = Date.now();
     const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${DEEPSEEK_KEY}`},
-      signal: AbortSignal.timeout(150000),
+      signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify({
         model:'deepseek-v4-flash',
         messages:[
@@ -4044,7 +4045,7 @@ app.post('/api/translate', async (req, res) => {
 
 ${input}`;
 
-    const out = await callAI(prompt, { system, max_tokens: 16384 });
+    const out = await callAI(prompt, { system, max_tokens: 8192, timeout: 45000 });
     if (!out) return res.json({ ok: true, texts: cleaned.map(s => fallback(s) || s) });
 
     // 解析 %% 分隔的译文；数量不足时用兜底补齐
