@@ -2525,7 +2525,7 @@
     <!-- 步骤 2：对话（AI 思考过程 + 增量修改） -->
     <div class="plan-chat" id="planChat" style="display:none">
       <div class="plan-chat__header">💬 AI 思考过程（可继续对话修改）</div>
-      <div class="plan-chat__msgs" id="planChatMsgs"></div>
+      <div class="plan-chat__msgs" id="planChatMsgs" data-no-i18n></div>
       <div class="plan-chat__input">
         <input id="planChatInput" placeholder="例：第二天太赶，减少 1 个景点 / 换成夜生活主题 / 酒店预算降到 300">
         <button class="btn btn--pri" id="planChatBtn">发送</button>
@@ -2533,7 +2533,7 @@
     </div>
 
     <!-- 步骤 3：结果（行程 + 验证 + 地图） -->
-    <div id="planResult"></div>
+    <div id="planResult" data-no-i18n></div>
   </div>
 </section>
 
@@ -2564,7 +2564,7 @@
       <div class="comp__tool" data-tool="train">🚄 高铁</div>
       <div class="comp__tool" data-tool="consensus" style="border-color:rgba(240,165,0,.45)">🔀 多源比价</div>
     </div>
-    <div id="compToolResult"></div>
+    <div id="compToolResult" data-no-i18n></div>
     <!-- 任务5：旅途伴侣地图（显示查询到的地点标点） -->
     <div class="comp__map-wrap" id="compMapWrap" style="display:none">
       <div class="comp__map-head">
@@ -2588,7 +2588,7 @@
       <input id="compInput" placeholder="例如：附近美食 / 明天天气 / 当前汇率 / 导航到 [地址] / 100人民币换美元 / 闲聊">
       <button class="btn btn--pri" id="compBtn">发送</button>
     </div>
-    <div class="comp__chat" id="compChat"></div>
+    <div class="comp__chat" id="compChat" data-no-i18n></div>
   </div>
 </section>
 
@@ -2602,7 +2602,7 @@
       <button class="btn btn--pri" id="comBtn">搜索</button>
       <button class="btn btn--ghost" id="comAll">全部</button>
     </div>
-    <div class="grid grid--3" id="comResult"></div>
+    <div class="grid grid--3" id="comResult" data-no-i18n></div>
   </div>
 </section>
 
@@ -7002,5 +7002,6 @@ function bindWeatherPop(){
   console.log('%c🌍 123就出发 · 一站式智能规划已就绪', 'color:#d4a574;font-size:14px;font-weight:400;font-family:Georgia,serif');
 })();
 </script>
+<script src="js/i18n.js"></script>
 </body>
 </html>
