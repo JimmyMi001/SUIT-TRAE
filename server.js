@@ -966,6 +966,125 @@ async function suggestDeparture(city, days, weather) {
   return { best, top3: scores.slice(0, 3), forecast_available: !!forecast, reasons };
 }
 
+/* ==================================================================
+ * 🌟 今日推荐 · 多源天气交叉验证（高德实时 + Open-Meteo 实时 + 中国气象局官方预报）
+ * 借鉴 breezy-weather 多 Provider 设计：对候选池城市做三源精查，
+ * 天气维度(45分) = 温度适宜(16) + 天气现象(12) + 风力(7) + 多源可信度(10)。
+ * 多数源判雨/雪/雾时降级现象分，多数源判晴且全一致时现象分满分。
+ * ================================================================== */
+// 高德实时天气缓存（10min）+ 令牌桶限速（免费配额 ~3 QPS：发起间隔 ≥350ms 且并发 ≤3，
+// 实测 15 并发会触发 CUQPS_HAS_EXCEEDED_THE_LIMIT，350ms 间隔串行 10/10 全部成功）
+const _amapWxCache = new Map();
+let _amapActive = 0;
+let _amapLastStart = 0;
+async function amapWeatherSafe(city){
+  const hit = _amapWxCache.get(city);
+  if (hit && Date.now() - hit.t < 10 * 60e3) return hit.data;
+  const minGap = 350;
+  while (true) {
+    const since = Date.now() - _amapLastStart;
+    if (_amapActive < 3 && since >= minGap) break;
+    await new Promise(r => setTimeout(r, 30));
+  }
+  _amapActive++;
+  _amapLastStart = Date.now();
+  try {
+    const qs = new URLSearchParams({ city, extensions: 'base', output: 'json' }).toString();
+    const d = await callAmapRaw('/v3/weather/weatherInfo', qs);
+    const live = d.lives?.[0] || null;
+    if (live) _amapWxCache.set(city, { data: live, t: Date.now() });
+    return live;
+  } finally {
+    _amapActive--;
+  }
+}
+async function fetchMultiWeather(city, omData){
+  const out = { om: omData, amap: null, cma: null, cats: [], tempList: [], sources: [], verdict: '', matched: 0, total: 0 };
+  // 1) 高德实时观测（AMAP_KEY 可用时；带缓存 + 限流）
+  if (AMAP_KEY && AMAP_KEY !== 'your_amap_key_here') {
+    try {
+      const live = await amapWeatherSafe(city);
+      if (live) {
+        out.amap = { temperature: parseFloat(live.temperature_float || live.temperature), condition: live.weather, reporttime: live.reporttime };
+        out.cats.push(weatherCategory(live.weather));
+        if (out.amap.temperature != null) out.tempList.push(out.amap.temperature);
+        out.sources.push({ id: 'amap', name: '高德天气', kind: '实时观测', temperature: out.amap.temperature, condition: out.amap.condition });
+      }
+    } catch (e) { /* 高德失败跳过 */ }
+  }
+  // 2) 中国气象局今日官方预报
+  try {
+    const c = await cmaWeather(city);
+    const t0 = c.daily?.[0];
+    if (t0 && t0.dayText) {
+      out.cma = { condition: t0.dayText, high: t0.high, low: t0.low };
+      out.cats.push(weatherCategory(t0.dayText));
+      out.sources.push({ id: 'cma', name: '中国气象局', kind: '官方预报', condition: t0.dayText, high: t0.high, low: t0.low });
+    }
+  } catch (e) { /* CMA 失败跳过 */ }
+  // 3) Open-Meteo 实时（第一级已拉取）
+  if (omData && omData.weather_code != null) {
+    out.cats.push(weatherCategory(WMO_DESC[omData.weather_code] || ''));
+    if (omData.temperature_2m != null) out.tempList.push(omData.temperature_2m);
+    out.sources.push({ id: 'open-meteo', name: 'Open-Meteo', kind: '实时', temperature: omData.temperature_2m, condition: WMO_DESC[omData.weather_code] || '' });
+  }
+  out.cats = out.cats.filter(Boolean);
+  out.total = out.cats.length;
+  if (out.cats.length) {
+    const tally = {};
+    out.cats.forEach(c => { tally[c] = (tally[c] || 0) + 1; });
+    const top = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
+    out.matched = top[1];
+    const label = { sunny: '晴', cloudy: '多云', rainy: '雨', snow: '雪', fog: '雾', other: '其他' }[top[0]] || top[0];
+    out.verdict = top[1] === out.cats.length ? `${out.cats.length}源一致·${label}` : `${top[1]}/${out.cats.length}源一致·${label}`;
+  }
+  return out;
+}
+
+// 多源天气综合评分（0-45）：温度16 + 现象12 + 风力7 + 多源可信10
+function scoreWeatherMulti(om, multi){
+  const t = om?.temperature_2m ?? (multi && multi.tempList.length ? multi.tempList.reduce((a, b) => a + b, 0) / multi.tempList.length : 20);
+  const wind = om?.wind_speed_10m ?? 0;
+  let tempScore = 0;
+  if (t >= 18 && t <= 25) tempScore = 16;
+  else if (t >= 15 && t <= 28) tempScore = 11;
+  else if (t >= 10 && t <= 32) tempScore = 6;
+  let weatherScore = 0;
+  const code = om?.weather_code ?? 0;
+  if (code === 0) weatherScore = 12;
+  else if (code <= 3) weatherScore = 10;
+  else if (code >= 45 && code <= 48) weatherScore = 5;
+  else if (code >= 51 && code <= 67) weatherScore = 3;
+  else if (code >= 71 && code <= 77) weatherScore = 4;
+  else if (code >= 80 && code <= 82) weatherScore = 3;
+  else weatherScore = 6;
+  // 多源修正：多数源判雨/雪/雾 → 现象分降级；多数源判晴且全一致 → 现象分满分
+  if (multi && multi.cats && multi.cats.length) {
+    const tally = {};
+    multi.cats.forEach(c => { tally[c] = (tally[c] || 0) + 1; });
+    const top = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
+    if (top[0] === 'rainy' && top[1] >= 2) weatherScore = Math.min(weatherScore, 3);
+    else if (top[0] === 'snow' && top[1] >= 2) weatherScore = Math.min(weatherScore, 4);
+    else if (top[0] === 'fog' && top[1] >= 2) weatherScore = Math.min(weatherScore, 5);
+    else if (top[0] === 'sunny' && top[1] === multi.cats.length) weatherScore = Math.max(weatherScore, 12);
+  }
+  const windScore = wind < 15 ? 7 : (wind < 30 ? 3 : 0);
+  // 多源可信度加分（最多 10）：源越多越可信，一致再加成
+  let trust = 0;
+  if (multi) {
+    if (multi.matched >= 3) trust = /一致/.test(multi.verdict) ? 10 : 6;
+    else if (multi.matched === 2) trust = /一致/.test(multi.verdict) ? 8 : 4;
+  }
+  const score = Math.min(45, Math.round(tempScore + weatherScore + windScore + trust));
+  return {
+    score, max: 45, temp: Math.round(t * 10) / 10, code, wind,
+    condition: WMO_DESC[code] || '',
+    sources: (multi && multi.sources) || [{ id: 'open-meteo', name: 'Open-Meteo', kind: '实时' }],
+    matched: multi ? multi.matched : 0, total: multi ? multi.total : 1,
+    verdict: (multi && multi.verdict) || '单源', trust
+  };
+}
+
 /* ---------- 每日推荐目的地：基于天气+多因素（轮换去重） ---------- */
 app.get('/api/destinations/recommend', async (req, res) => {
   try {
@@ -1086,15 +1205,61 @@ app.get('/api/destinations/recommend', async (req, res) => {
       score += food.score;
       scored.push({ city, score, factors, data });
     }
-    // 3) 排序 + 选 Top 5（不重复：城市名精确去重 + 同 region 不连续出现 + 标签集合去重）
+    // 3) 排序 + 用 seed 做小幅扰动（避免每天都一样）
     scored.sort((a, b) => b.score - a.score);
-    // 4) 用 seed 做小幅扰动，避免每天都一样
     const swap = (arr) => {
-      // 按天轻洗
       const offset = seed % arr.length;
       return [...arr.slice(offset), ...arr.slice(0, offset)];
     };
     const rotated = swap(scored);
+    // 3.5) 第二级：多源天气精查（高德 + 中国气象局 + Open-Meteo 三源交叉验证）
+    // 候选池 = 轮换后前 15（保证每日多样性）∪ 第一级前 8（保证高分城市必被精查），
+    // 并发 5、整体 10s 预算，最终 Top5 必然都带多源字段
+    const candidateMap = new Map();
+    for (const s of rotated.slice(0, 15)) candidateMap.set(s.city, s);
+    for (const s of scored.slice(0, 8)) candidateMap.set(s.city, s);
+    const candidates = [...candidateMap.values()];
+    const multiMap = {};
+    const mStart = Date.now();
+    for (let i = 0; i < candidates.length; i += 5) {
+      if (Date.now() - mStart > 10000) break;
+      await Promise.all(candidates.slice(i, i + 5).map(async (s) => {
+        if (multiMap[s.city] !== undefined) return;
+        try { multiMap[s.city] = await fetchMultiWeather(s.city, weatherResults[s.city]); }
+        catch (e) { multiMap[s.city] = null; }
+      }));
+    }
+    for (const s of scored) {
+      const mw = multiMap[s.city];
+      if (!mw) continue;
+      const ws = scoreWeatherMulti(weatherResults[s.city], mw);
+      s.score = s.score - (s.factors.weather?.score || 0) + ws.score;
+      s.factors.weather = { ...ws, max: 45, note: '多源' };
+    }
+    // 4) 多源分数生效后重新排序（覆盖部分候选被多源扣/加分的情况）
+    scored.sort((a, b) => b.score - a.score);
+    // 4.5) Top-up：确保最终 Top5 全部带多源字段——重排后前 8 中缺多源数据的补拉，
+    // 多轮循环直至稳定（最多 3 轮 / 12s 预算），补拉后再重排
+    const tUp = Date.now();
+    for (let pass = 0; pass < 3; pass++) {
+      let changed = false;
+      for (const s of scored.slice(0, 8)) {
+        if (Date.now() - tUp > 12000) break;
+        if (multiMap[s.city] !== undefined && multiMap[s.city] !== null) continue;
+        try {
+          const mw = await fetchMultiWeather(s.city, weatherResults[s.city]);
+          multiMap[s.city] = mw;
+          if (mw) {
+            const ws = scoreWeatherMulti(weatherResults[s.city], mw);
+            s.score = s.score - (s.factors.weather?.score || 0) + ws.score;
+            s.factors.weather = { ...ws, max: 45, note: '多源' };
+            changed = true;
+          }
+        } catch (e) { multiMap[s.city] = null; }
+      }
+      if (!changed) break;
+      scored.sort((a, b) => b.score - a.score);
+    }
     // ===== 强化去重 =====
     // 维度 A: 城市名精确去重
     // 维度 B: 同一 region 不连续 2 个（保证地理多样性）
@@ -1103,7 +1268,7 @@ app.get('/api/destinations/recommend', async (req, res) => {
     const lastRegion = [];
     const seenTagCombo = new Set();
     const top = [];
-    for (const s of rotated) {
+    for (const s of scored) {
       if (top.length >= 5) break;
       // A) 城市名去重
       if (seenCity.has(s.city)) continue;
@@ -1119,7 +1284,7 @@ app.get('/api/destinations/recommend', async (req, res) => {
     }
     // 如果上面算法填不足 5 个（数据稀疏），用排序结果兜底
     if (top.length < 5) {
-      for (const s of rotated) {
+      for (const s of scored) {
         if (top.length >= 5) break;
         if (seenCity.has(s.city)) continue;
         seenCity.add(s.city);
@@ -1132,7 +1297,7 @@ app.get('/api/destinations/recommend', async (req, res) => {
       user_city: userCity || null,
       date: new Date().toISOString().slice(0, 10),
       total_evaluated: scored.length,
-      method: '六维加权：天气(45%)+季节(15%)+交通可达(12%)+旅游热度(10%)+美食丰富度(10%)+标签丰富度(8%)',
+      method: '六维加权·天气含三源交叉验证：多源天气(45%：温度16+现象12+风力7+多源可信10)+季节(15%)+交通可达(12%)+旅游热度(10%)+美食丰富度(10%)+标签丰富度(8%)',
       recommendations: top.map(s => ({
         city: s.city,
         score: Math.round(s.score),

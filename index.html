@@ -687,7 +687,9 @@
 
   /* ========================================================= Hero
      Aceternity 招牌：大字号渐变 + spotlight + 浮动 stats */
-  .hero{padding:120px 0 40px;text-align:center;position:relative}
+  .hero{padding:28px 0 36px;text-align:center;position:relative}
+  /* 首页首屏压缩顶部留白（nav 之下更紧凑） */
+  #s-home.section{padding-top:16px}
   .hero::before{content:"";position:absolute;top:0;left:50%;width:600px;height:600px;
     transform:translateX(-50%);background:radial-gradient(circle,rgba(240,183,131,.20),transparent 65%);
     pointer-events:none;z-index:-1;filter:blur(40px);animation:float-glow 6s ease-in-out infinite}
@@ -2267,7 +2269,7 @@
     <!-- 每日推荐目的地（天气+季节+交通+热度+美食+标签 六维多源综合评估） -->
     <div class="daily-reco" id="dailyReco">
       <div class="daily-reco__head">
-        <div class="daily-reco__title">🌟 今日推荐 · 六维多源综合评估（实时天气+季节+交通可达+热度+美食+标签）</div>
+        <div class="daily-reco__title">🌟 今日推荐 · 六维多源综合评估（三源实时天气×3 + 季节+交通可达+热度+美食+标签）</div>
         <button class="daily-reco__refresh" id="drRefresh" title="换一个推荐">🔄 换一批</button>
       </div>
       <div id="dailyRecoWrap"><div class="dr-skeleton">⏳ 正在综合评估全国热门城市的天气/季节/交通/热度/美食数据…</div></div>
@@ -4065,17 +4067,17 @@ async function loadDailyRecommendations(){
             <div class="dr-aspect"><b>🍜 美食：</b>${(today1.food || []).join('、')}</div>
             <div class="dr-aspect"><b>🏯 历史：</b>${(today1.history || []).join('、')}</div>
           </div>
-          ${today1.weather ? `<div class="dr-today__weather">🌡 当前 ${esc(today1.weather.condition || '未知')} · ${Math.round(today1.weather.temp || 0)}°C · 风速 ${Math.round(today1.weather.wind || 0)} km/h · 天气 ${weatherActual}/45 · 季节 ${seasonActual}/15 · 交通 ${transportActual}/12 · 热度 ${hotActual}/10 · 美食 ${foodActual}/10 · 标签 ${tagsActual}/8</div>` : ''}
+          ${today1.weather ? `<div class="dr-today__weather">🌡 ${esc(today1.weather.condition || '未知')} · ${Math.round(today1.weather.temp || 0)}°C · 风速 ${Math.round(today1.weather.wind || 0)} km/h ${today1.weather.matched > 1 ? `· <b style="color:var(--accent)">🛰 ${today1.weather.matched}/${today1.weather.total}源交叉验证 · ${esc(today1.weather.verdict || '')}</b>` : ''} · 天气 ${weatherActual}/45 · 季节 ${seasonActual}/15 · 交通 ${transportActual}/12 · 热度 ${hotActual}/10 · 美食 ${foodActual}/10 · 标签 ${tagsActual}/8</div>` : ''}
           <details class="dr-today__method" open>
             <summary>📊 六维多源智能计算方法（已展开 · 实时评分依据）</summary>
             <div class="dr-today__method-body">
-              <div class="dr-method-line"><b>① 实时天气（权重 45%）</b>：调用 <span class="dr-method-src">Open-Meteo</span> 实时天气 API 并行获取全国 280+ 城市当前温度/天气码/风速，按人体舒适度（18-25°C 满分）+天气现象（晴 15 / 多云 13 / 阴 7 / 雨雪 3-5）+风速（&lt;15 km/h 满分 10）三维加权；气温区间、天气现象、风速任一异常都会扣分。</div>
+              <div class="dr-method-line"><b>① 多源实时天气（权重 45%）</b>：第一级调用 <span class="dr-method-src">Open-Meteo</span> 并行获取全国 280+ 城市温度/天气码/风速；第二级对初步 Top 城市做 <span class="dr-method-src">高德实时</span> + <span class="dr-method-src">中国气象局 CMA</span> + <span class="dr-method-src">Open-Meteo</span> <b>三源交叉验证</b>（借鉴 Breezy Weather 多源设计）。天气得分 = 温度适宜(16) + 天气现象(12) + 风速(7) + 多源可信度(10)：源数越多、结论越一致可信分越高；多数源判雨/雪/雾时现象分降级，多数源判晴且全一致时现象分满分。</div>
               <div class="dr-method-line"><b>② 季节适宜性（权重 15%）</b>：基于该城市的物候与最佳旅游季（避暑型 6-8 月 / 避寒型 11-2 月 / 春秋型 3-5/9-11 月）匹配当前月份打分；处于最佳季 +15、平季 +11、过渡季 +9、常规 +8、淡季 +4。</div>
               <div class="dr-method-line"><b>③ 交通可达性（权重 12%）</b>：结合你所在城市（${esc(userCity)}）判断——同属一个区域（高铁/城际网络密集）+8；两城间有直达高铁（真实铁路干线邻接表，如京沪/京广/沪昆）直接 +12；未提供出发城市按中性 +6。</div>
               <div class="dr-method-line"><b>④ 旅游热度（权重 10%）</b>：基于本地真实知识库收录完备度代理评估——真实景点收录数（POI_DB）+本地攻略数（tips）+玩法标签覆盖数（tags），收录越完备代表该城市越热门、玩法越成熟。</div>
               <div class="dr-method-line"><b>⑤ 美食丰富度（权重 10%）</b>：本地真实数据库覆盖度——当地特色美食库（LOCAL_SPECIALS_DB 53 城）+餐厅库（RESTAURANT_DB，数据来自美团/大众点评/携程美食林/黑珍珠/米其林）收录越多，当地觅食体验越好。</div>
               <div class="dr-method-line"><b>⑥ 标签丰富度（权重 8%）</b>：根据城市 POI 类型覆盖度（历史/自然/美食/文化/夜生活/亲子/文艺等）评分；多标签城市意味着可一站式体验多类玩法。</div>
-              <div class="dr-method-line"><b>📡 数据源</b>：<span class="dr-method-src">Open-Meteo</span>（实时天气）+ <span class="dr-method-src">真实铁路干线邻接表</span>（交通可达）+ <span class="dr-method-src">POI_DB / LOCAL_SPECIALS_DB / RESTAURANT_DB</span>（热度与美食，真实数据库）+ <span class="dr-method-src">CITIES_DATA 知识库</span>（280+ 城市结构化数据）+ <span class="dr-method-src">local fallback</span>（无坐标城市使用区域均值兜底）。</div>
+              <div class="dr-method-line"><b>📡 数据源</b>：<span class="dr-method-src">高德实时</span> + <span class="dr-method-src">Open-Meteo</span> + <span class="dr-method-src">中国气象局 CMA</span>（三源天气交叉验证，灵感来自 Breezy Weather）+ <span class="dr-method-src">真实铁路干线邻接表</span>（交通可达）+ <span class="dr-method-src">POI_DB / LOCAL_SPECIALS_DB / RESTAURANT_DB</span>（热度与美食，真实数据库）+ <span class="dr-method-src">CITIES_DATA 知识库</span>（280+ 城市结构化数据）+ <span class="dr-method-src">local fallback</span>（无坐标城市使用区域均值兜底）。</div>
             </div>
           </details>
         </div>
