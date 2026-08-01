@@ -724,73 +724,152 @@ function mergeProvinceCities(amapData) {
 }
 
 /* ---------- IP 定位（真实所在城市，用于自动识别出发地） ----------
- * 多源回退：① 高德 /v3/ip（主源）→ ② 太平洋网络 whois（免费真实源，高德 Key 缺失/白名单/限流时兜底）
- * 结果内存缓存 30 分钟（IP 归属城市变化极慢），避免重复请求浪费配额；
- * 返回 message 字段，前端可据此展示失败原因（如 Sealos 控制台未配置 AMAP_KEY） */
-let _ipLocateCache = null;
-let _ipLocateCacheAt = 0;
+ * 关键：按【访客真实公网 IP】（X-Forwarded-For → req.ip）查询，而非服务器自身 IP。
+ *   Sealos/k8s 网关会注入 X-Forwarded-For → 定位的是访客所在城市（本地开发无代理时回退定位服务器出口 IP）。
+ * 多源回退：① 高德 /v3/ip（需 Key + IP 白名单）→ ② 太平洋网络 whois（免费真实源，无需 Key，GBK）
+ *           → ③ 百度 IP 归属（免费真实源，无需 Key，UTF-8）
+ * 结果按 IP 内存缓存 30 分钟（LRU，最多 32 条），避免重复请求浪费配额；
+ * 返回 message + detail 字段，前端可据此展示失败原因（如 Sealos 未配置 AMAP_KEY / 外网受限） */
+const _ipLocateCache = new Map();
 const IP_LOCATE_TTL = 30 * 60 * 1000;
 
-async function locateCity() {
-  const now = Date.now();
-  if (_ipLocateCache && now - _ipLocateCacheAt < IP_LOCATE_TTL) return _ipLocateCache;
-  const out = { error: false, source: 'none', province: '', city: '', adcode: '', message: '' };
+// 带超时的 fetch（兼容旧版 Node：不用 AbortSignal.timeout）
+async function fetchTimeout(url, opts, timeoutMs = 6000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const r = await fetch(url, Object.assign({}, opts, { signal: ctrl.signal }));
+    if (!r.ok) throw new Error(`http ${r.status}`);
+    return Buffer.from(await r.arrayBuffer());
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
-  // ① 高德 IP 定位（主源）
+// 是否为公网 IPv4（排除本机/内网/CGNAT）
+function isPublicIPv4(ip) {
+  const m = String(ip || '').match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return false;
+  const [a, b, c, d] = m.slice(1).map(Number);
+  if ([a, b, c, d].some(n => n > 255)) return false;
+  if (a === 0 || a === 10 || a === 127) return false;
+  if (a === 169 && b === 254) return false;
+  if (a === 172 && b >= 16 && b <= 31) return false;
+  if (a === 192 && b === 168) return false;
+  if (a === 100 && b >= 64 && b <= 127) return false;   // CGNAT 运营商大内网
+  return true;
+}
+
+// 提取访客真实公网 IP：X-Forwarded-For 首个合法公网 IPv4，否则直连 IP
+function visitorPublicIp(req) {
+  const fwd = req.headers['x-forwarded-for'];
+  if (fwd) {
+    const first = String(fwd).split(',')[0].trim();
+    if (isPublicIPv4(first)) return first;
+  }
+  return isPublicIPv4(req.ip || (req.socket && req.socket.remoteAddress)) ? (req.ip || req.socket.remoteAddress) : '';
+}
+
+// 解析中文定位串："江苏省南京市"→{江苏/南京}；直辖市单写"上海市"或百度格式"上海市上海市"→{上海/上海}；
+// 纯省"江苏省"→null（缺城市不可用）
+function parseCnLoc(loc) {
+  const s = String(loc || '').replace(/[\s\u3000]+.*$/, '');
+  if (!s) return null;
+  const mu = s.match(/^(北京|上海|天津|重庆|香港|澳门)(?:市(?:\1市)?)?$/);
+  if (mu) return { province: mu[1], city: mu[1] };
+  const m = s.match(/^(.*?(?:省|自治区|特别行政区))(.+?)$/);
+  if (!m) return null;
+  const province = m[1].replace(/省|自治区|特别行政区$/, '');
+  const city = String(m[2] || '').replace(/市|地区|自治州|盟$/, '');
+  if (!city) return null;
+  return { province, city };
+}
+
+async function locateCity(userIp) {
+  const now = Date.now();
+  const key = userIp || 'self';
+  const cached = _ipLocateCache.get(key);
+  if (cached && now - cached.at < IP_LOCATE_TTL) {
+    _ipLocateCache.delete(key); _ipLocateCache.set(key, cached);   // LRU 刷新
+    return cached.out;
+  }
+  const detail = [];
+  const out = { error: false, source: 'none', ip: userIp || '', province: '', city: '', adcode: '', message: '', detail };
+  const ipQuery = userIp ? `&ip=${encodeURIComponent(userIp)}` : '';
+
+  // ① 高德 IP 定位（主源，需 Key + 服务器 IP 白名单）
   if (AMAP_KEY && AMAP_KEY !== 'your_amap_key_here') {
     try {
-      const r = await callAmapRaw('/v3/ip', new URLSearchParams({ output: 'json' }).toString());
-      if (r && r.status === '1' && r.city && r.city !== '[]') {
+      const r = await callAmapRaw('/v3/ip', new URLSearchParams({ output: 'json' }).toString() + ipQuery);
+      if (r && r.status === '1' && typeof r.city === 'string' && r.city && r.city !== '[]') {
         Object.assign(out, {
           source: 'amap',
           province: String(r.province || '').replace(/省|市|自治区/g, ''),
           city: normCityName(r.city),
           adcode: r.adcode || ''
         });
-        _ipLocateCache = out; _ipLocateCacheAt = now;
+        detail.push({ source: 'amap', ok: true, city: out.city });
+        _ipLocateCache.set(key, { at: now, out });
+        if (_ipLocateCache.size > 32) _ipLocateCache.delete(_ipLocateCache.keys().next().value);
         return out;
       }
-      out.message = `高德 IP 定位失败（${r && r.info ? r.info : 'status=' + (r && r.status)}，可能是 Key 未通过校验或 IP 白名单未包含本服务器）`;
-    } catch (e) {
-      out.message = '高德 IP 定位接口异常';
-    }
+      detail.push({ source: 'amap', ok: false, msg: `status=${r && r.status} ${(r && r.info) || ''}`.trim() });
+    } catch (e) { detail.push({ source: 'amap', ok: false, msg: '接口异常' }); }
   } else {
-    out.message = '高德 Key 未配置（Sealos 部署请在控制台环境变量设置 AMAP_KEY）';
+    detail.push({ source: 'amap', ok: false, msg: 'AMAP_KEY 未配置' });
   }
 
-  // ② 太平洋网络 whois 兜底（免费真实 IP 定位，无需 Key）
+  // ② 太平洋网络 whois（免费真实源，无需 Key，GBK 编码）
   try {
-    const r2 = await fetch('https://whois.pconline.com.cn/ipJson.jsp?json=true', {
-      headers: { 'Referer': 'https://www.pconline.com.cn/', 'User-Agent': 'Mozilla/5.0' },
-      signal: AbortSignal.timeout(6000)
-    });
-    if (r2.ok) {
-      let txt;
-      try { txt = new TextDecoder('gbk').decode(Buffer.from(await r2.arrayBuffer())); }
-      catch (e) { txt = await r2.text(); }
-      const j = JSON.parse(txt);
-      const c = String(j.city || '').trim();
-      if (c) {
-        Object.assign(out, {
-          source: 'pconline',
-          province: String(j.pro || '').replace(/省|市|自治区/g, ''),
-          city: normCityName(c),
-          adcode: String(j.cityCode || '')
-        });
-        _ipLocateCache = out; _ipLocateCacheAt = now;
+    const buf = await fetchTimeout(`https://whois.pconline.com.cn/ipJson.jsp?json=true${ipQuery}`,
+      { headers: { 'Referer': 'https://www.pconline.com.cn/', 'User-Agent': 'Mozilla/5.0' } });
+    let txt;
+    try { txt = new TextDecoder('gbk').decode(buf); } catch (e) { txt = buf.toString('utf8'); }
+    const j = JSON.parse(txt);
+    const c = String(j.city || '').trim();
+    if (c) {
+      Object.assign(out, {
+        source: 'pconline',
+        province: String(j.pro || '').replace(/省|市|自治区/g, ''),
+        city: normCityName(c),
+        adcode: String(j.cityCode || '')
+      });
+      detail.push({ source: 'pconline', ok: true, city: out.city });
+      _ipLocateCache.set(key, { at: now, out });
+      if (_ipLocateCache.size > 32) _ipLocateCache.delete(_ipLocateCache.keys().next().value);
+      return out;
+    }
+    detail.push({ source: 'pconline', ok: false, msg: '未返回城市' });
+  } catch (e) { detail.push({ source: 'pconline', ok: false, msg: e.name === 'AbortError' ? '超时' : '不可达' }); }
+
+  // ③ 百度 IP 归属（免费真实源，无需 Key，UTF-8；需显式指定要查询的 IP）
+  if (userIp) {
+    try {
+      const buf = await fetchTimeout(`https://opendata.baidu.com/api.php?query=${encodeURIComponent(userIp)}&co=&resource_id=6006&ie=utf8&oe=utf8&format=json`,
+        { headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.baidu.com/' } });
+      const j = JSON.parse(buf.toString('utf8'));
+      const loc = j && j.data && j.data[0] && j.data[0].location;
+      const pc = parseCnLoc(loc);
+      if (pc) {
+        Object.assign(out, { source: 'baidu', province: pc.province, city: pc.city, adcode: '' });
+        detail.push({ source: 'baidu', ok: true, city: out.city });
+        _ipLocateCache.set(key, { at: now, out });
+        if (_ipLocateCache.size > 32) _ipLocateCache.delete(_ipLocateCache.keys().next().value);
         return out;
       }
-    }
-  } catch (e) { /* 兜底源失败则保持高德失败原因 */ }
+      detail.push({ source: 'baidu', ok: false, msg: '未解析到城市' });
+    } catch (e) { detail.push({ source: 'baidu', ok: false, msg: e.name === 'AbortError' ? '超时' : '不可达' }); }
+  }
 
+  out.message = detail.map(d => `${d.source} ${d.ok ? '✓' : '✗'}${d.ok ? '' : '（' + (d.msg || '') + '）'}`).join('；');
   return out;
 }
 
-app.get('/api/amap/ip', async (_req, res) => {
+app.get('/api/amap/ip', async (req, res) => {
   try {
-    res.json(await locateCity());
+    res.json(await locateCity(visitorPublicIp(req)));
   } catch (e) {
-    res.json({ error: false, source: 'none', province: '', city: '', adcode: '', message: 'IP 定位失败' });
+    res.json({ error: false, source: 'none', ip: '', province: '', city: '', adcode: '', message: 'IP 定位失败', detail: [] });
   }
 });
 

@@ -6582,7 +6582,10 @@ async function autoDetectOriginCity(){
     const city = String(r.city).trim();
     const province = String(r.province || '').trim();
     if (!city) return;
-    const src = (r.source === 'pconline') ? '太平洋网络 IP 定位' : '高德 IP 定位';
+    const src = (r.source === 'pconline') ? '太平洋网络 IP 定位'
+      : (r.source === 'baidu') ? '百度 IP 定位'
+      : (r.source === 'sohu') ? '搜狐 IP 定位'
+      : '高德 IP 定位';
     // 当前出发地实际值：级联下拉优先，其次文本输入
     const citySel = document.getElementById('originCitySel');
     const cur = (citySel && citySel.options.length > 1 ? (citySel.value || '') : '')
@@ -6654,14 +6657,59 @@ function buildWeatherAdvice(cfg){
   return adv;
 }
 
-/* 高德 IP 定位共享：只向高德发起一次请求，顶部栏天气 + 出发地自动填充复用同一结果，
-   保证两侧显示的"你所在城市"永远一致（数据来源：高德 IP 定位 API） */
+/* IP 定位共享：只向服务端发起一次请求，顶部栏天气 + 出发地自动填充复用同一结果，
+   保证两侧显示的"你所在城市"永远一致。
+   服务端按访客真实 IP（X-Forwarded-For）多源回退（高德→太平洋网络→百度）；
+   服务端全部失败时，浏览器端再用搜狐城市接口（JSONP，UTF-8）兜底——
+   不受服务器外网限制，定位的是用户本机 IP，Sealos 上也能用 */
 let __ipLocatePromise = null;
+function parseCnLoc(loc){
+  const s = String(loc || '').replace(/[\s\u3000]+.*$/, '');
+  if (!s) return null;
+  const mu = s.match(/^(北京|上海|天津|重庆|香港|澳门)(?:市(?:\1市)?)?$/);
+  if (mu) return { province: mu[1], city: mu[1] };
+  const m = s.match(/^(.*?(?:省|自治区|特别行政区))(.+?)$/);
+  if (!m) return null;
+  const province = m[1].replace(/省|自治区|特别行政区$/, '');
+  const city = String(m[2] || '').replace(/市|地区|自治州|盟$/, '');
+  if (!city) return null;
+  return { province, city };
+}
+// 浏览器端兜底定位（搜狐城市接口，<script> 加载免 CORS，UTF-8）：返回 {source:'sohu',province,city} 或 null
+function browserIpLocate(){
+  return new Promise(resolve => {
+    let done = false, timer = null, sc = null;
+    const finish = (v) => {
+      if (done) return;
+      done = true;
+      if (timer) clearTimeout(timer);
+      if (sc) { sc.onload = sc.onerror = null; if (sc.parentNode) sc.parentNode.removeChild(sc); }
+      resolve(v);
+    };
+    try {
+      timer = setTimeout(() => finish(null), 5000);
+      sc = document.createElement('script');
+      sc.src = 'https://pv.sohu.com/cityjson?ie=utf-8';
+      sc.onload = () => {
+        const d = window.returnCitySN;
+        const pc = d && d.cname ? parseCnLoc(d.cname) : null;
+        finish(pc ? { source: 'sohu', province: pc.province, city: pc.city, adcode: '' } : null);
+      };
+      sc.onerror = () => finish(null);
+      document.head.appendChild(sc);
+    } catch (e) { finish(null); }
+  });
+}
 function ipLocateOnce(){
   if (!__ipLocatePromise) {
-    __ipLocatePromise = API.ipLocate()
-      .then(r => { if (!r || r.__error) throw new Error((r && r.message) || 'IP 定位失败'); return r; })
-      .catch(e => { __ipLocatePromise = null; throw e; });
+    __ipLocatePromise = (async () => {
+      let r = null;
+      try { r = await API.ipLocate(); } catch (e) { r = null; }
+      if (r && r.city) return r;
+      const br = await browserIpLocate();            // 服务端定位失败 → 浏览器端搜狐兜底
+      if (br) return Object.assign({}, r || {}, br);
+      return r || { error: false, source: 'none', province: '', city: '', adcode: '', message: 'IP 定位失败' };
+    })().catch(e => { __ipLocatePromise = null; throw e; });
   }
   return __ipLocatePromise;
 }
@@ -6676,7 +6724,7 @@ async function initNavWeather(){
   try {
     const r = await ipLocateOnce();
     const c = (r.city || '').trim();
-    if (c) loadNavWeather(c, r.source === 'pconline' ? 'IP 定位(备用源)' : 'IP 定位');
+    if (c) loadNavWeather(c, r.source === 'pconline' ? 'IP 定位(太平洋网络)' : r.source === 'baidu' ? 'IP 定位(百度)' : r.source === 'sohu' ? 'IP 定位(搜狐兜底)' : 'IP 定位(高德)');
     else {
       el.querySelector('.nw-city').textContent = '定位失败';
       el.querySelector('.nw-temp').textContent = '';
