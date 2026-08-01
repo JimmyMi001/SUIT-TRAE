@@ -2235,16 +2235,16 @@
   <div class="container">
     <div class="hero">
     <h1><span class="hero__icon">🎯</span> 一句话，<em>AI</em> 帮你搞定全行程</h1>
-      <p>选城市/天数/预算/爱好 → AI 搜索 POI + 路径 + 风险评估 → 完整地图路线（可缩放/拖动）+ 可继续对话修改</p>
+      <p>选城市/天数/预算/爱好 → AI 联合高德POI + 美团 + 飞猪 + 途牛 + 12306 + DeepSeek 多源真实数据 → 思考链公开 + 完整地图路线（可缩放/拖动）+ 可继续对话修改</p>
     </div>
 
-    <!-- 每日推荐目的地（基于天气+季节+标签综合评估） -->
+    <!-- 每日推荐目的地（天气+季节+交通+热度+美食+标签 六维多源综合评估） -->
     <div class="daily-reco" id="dailyReco">
       <div class="daily-reco__head">
-        <div class="daily-reco__title">🌟 今日推荐 · 基于实时天气+季节+标签综合评估</div>
+        <div class="daily-reco__title">🌟 今日推荐 · 六维多源综合评估（实时天气+季节+交通可达+热度+美食+标签）</div>
         <button class="daily-reco__refresh" id="drRefresh" title="换一个推荐">🔄 换一批</button>
       </div>
-      <div id="dailyRecoWrap"><div class="dr-skeleton">⏳ 正在基于天气+季节+标签综合评估全国热门城市…</div></div>
+      <div id="dailyRecoWrap"><div class="dr-skeleton">⏳ 正在综合评估全国热门城市的天气/季节/交通/热度/美食数据…</div></div>
     </div>
 
     <!-- 出发城市 + 抵达交通（一次设置，自动计算价格） -->
@@ -2593,12 +2593,21 @@ function getPlanParams(){
     city = (document.getElementById('planCity')?.value || '').trim();
   }
   if (!city) city = '成都';
+  // 出发城市（"你所在城市"级联或文本输入）
+  let originCity = '';
+  const ocBox = document.getElementById('originCascadeBox');
+  const isOCascade = ocBox && ocBox.style.display !== 'none';
+  if (isOCascade) {
+    originCity = (document.getElementById('originCitySel')?.value || document.getElementById('originProvince')?.value || '').trim();
+  } else {
+    originCity = (document.getElementById('userOriginCity')?.value || '').trim();
+  }
   const days = parseInt(document.getElementById('planDays').value) || 3;
   const departDays = Math.min(15, Math.max(0, parseInt(document.getElementById('planDepartDays')?.value) || 0));
   const budget = parseInt(document.getElementById('planBudget').value) || 500;
   const pax = document.getElementById('planPax').value || '独自';
   const tags = Array.from(document.querySelectorAll('#planTags input:checked')).map(c=>c.value);
-  return { city, days, departDays, budget, pax, tags };
+  return { city, days, departDays, budget, pax, tags, originCity };
 }
 
 function appendChat(role, text){
@@ -2781,6 +2790,36 @@ function renderStepBody(s){
       lines.push(k('方法', d.method));
       lines.push(k('增强节点数', d.total_enhanced));
       if (d.fields_added) lines.push(k('新增字段', d.fields_added.join('、')));
+      break;
+    case '多源行情预取':
+      lines.push(k('方法', d.method));
+      lines.push(k('出发城市', d.origin_city));
+      lines.push(k('目标城市', d.target_city));
+      lines.push(k('成功源数', `${d.success_count}/${d.total_jobs}`));
+      if (d.source_status) {
+        lines.push('<b>各源状态：</b>');
+        Object.entries(d.source_status).forEach(([k2, v]) => {
+          if (v && v.ok) {
+            let detail = '';
+            if (v.cheapest && v.cheapest.price != null) {
+              const src = v.airline ? `${v.airline} ${v.flight_no} ` : (v.cheapest.seat ? `${v.cheapest.seat} ` : '');
+              detail = `最低 ${src}¥${v.cheapest.price}${v.cheapest.link ? '（可跳转购票）' : ''}`;
+            }
+            else if (v.tickets) detail = v.tickets.map(t => `${t.name ? esc(t.name) + ' ' : ''}${t.price != null ? '¥' + t.price : ''}${(t.name || t.price) ? ' · ' : ''}<a href="${esc(t.link||'#')}" target="_blank" style="color:#10b981">购票→</a>`).join('、');
+            else if (v.sample) detail = v.sample.map(s => `${s.name} ¥${s.price || '?'}`).join('、');
+            lines.push(`<div style="margin:3px 0"><span style="color:#10b981">✅ ${esc(v.source)}</span> — ${esc(v.scenic || '')} ${detail}</div>`);
+          } else if (v) {
+            lines.push(`<div style="margin:3px 0"><span style="color:#f59e0b">⚠️ ${esc(k2)}</span> — ${esc(v.reason || '未返回数据')}</div>`);
+          }
+        });
+      }
+      break;
+    case '当地特色饮品 & 美食':
+      lines.push(k('方法', d.method));
+      lines.push(k('数据源', d.source));
+      lines.push(k('特色美食', (d.foods || []).join('、') || '（由高德实时美食 POI 兜底）'));
+      lines.push(k('特色饮品', (d.drinks || []).join('、') || '暂无'));
+      if (d.note) lines.push(`<span style="color:var(--text-2);font-size:11px">💡 ${esc(d.note)}</span>`);
       break;
     case '餐厅推荐':
       lines.push(k('方法', d.method));
@@ -3840,7 +3879,7 @@ async function loadDailyRecommendations(){
   const today = new Date();
   const dayIdx = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 86400000);
   try {
-    wrap.innerHTML = `<div class="dr-skeleton">⏳ 正在基于天气+季节+标签综合评估全国城市数据…</div>`;
+    wrap.innerHTML = `<div class="dr-skeleton">⏳ 正在综合评估全国城市天气/季节/交通/热度/美食数据…</div>`;
     const r = await API.get('/api/destinations/recommend?seed=' + dayIdx + '&user_city=' + encodeURIComponent(userCity));
     if (r.__error || !r.recommendations) {
       wrap.innerHTML = `<div class="dr-empty">⚠️ 推荐服务暂不可用，请稍后再试</div>`;
@@ -3855,6 +3894,9 @@ async function loadDailyRecommendations(){
     const weatherActual = parseScore(wd.weather?.actual);
     const seasonActual = parseScore(wd.season?.actual);
     const tagsActual = parseScore(wd.tags?.actual);
+    const transportActual = parseScore(wd.transport?.actual);
+    const hotActual = parseScore(wd.hot?.actual);
+    const foodActual = parseScore(wd.food?.actual);
     wrap.innerHTML = `
       <div class="dr-today">
         <div class="dr-today__head">
@@ -3879,10 +3921,10 @@ async function loadDailyRecommendations(){
           <div class="dr-today__reason">💡 ${esc(today1.reason || '')}</div>
           <div class="dr-today__weights">
             ${Object.entries(today1.weight_breakdown || {}).map(([k, v]) => {
-              const labels = { weather:'天气', season:'季节', tags:'标签' };
+              const labels = { weather:'天气', season:'季节', transport:'交通', hot:'热度', food:'美食', tags:'标签' };
               return `<div class="dr-weight">
                 <div class="dr-weight__lbl">${labels[k] || k}</div>
-                <div class="dr-weight__bar"><div class="dr-weight__fill" style="width:${parseInt(v.actual)/v.weight*100}%"></div></div>
+                <div class="dr-weight__bar"><div class="dr-weight__fill" style="width:${Math.min(100, parseInt(v.actual)/v.weight*100)}%"></div></div>
                 <div class="dr-weight__val">${v.actual}</div>
               </div>`;
             }).join('')}
@@ -3892,16 +3934,17 @@ async function loadDailyRecommendations(){
             <div class="dr-aspect"><b>🍜 美食：</b>${(today1.food || []).join('、')}</div>
             <div class="dr-aspect"><b>🏯 历史：</b>${(today1.history || []).join('、')}</div>
           </div>
-          ${today1.weather ? `<div class="dr-today__weather">🌡 当前 ${esc(today1.weather.condition || '未知')} · ${Math.round(today1.weather.temp || 0)}°C · 风速 ${Math.round(today1.weather.wind || 0)} km/h · 天气评分 ${weatherActual}/60 · 季节评分 ${seasonActual}/20 · 标签评分 ${tagsActual}/20</div>` : ''}
+          ${today1.weather ? `<div class="dr-today__weather">🌡 当前 ${esc(today1.weather.condition || '未知')} · ${Math.round(today1.weather.temp || 0)}°C · 风速 ${Math.round(today1.weather.wind || 0)} km/h · 天气 ${weatherActual}/45 · 季节 ${seasonActual}/15 · 交通 ${transportActual}/12 · 热度 ${hotActual}/10 · 美食 ${foodActual}/10 · 标签 ${tagsActual}/8</div>` : ''}
           <details class="dr-today__method" open>
-            <summary>📊 多维度智能计算方法（已展开 · 实时评分依据）</summary>
+            <summary>📊 六维多源智能计算方法（已展开 · 实时评分依据）</summary>
             <div class="dr-today__method-body">
-              <div class="dr-method-line"><b>① 实时天气（权重 60%）</b>：调用 <span class="dr-method-src">Open-Meteo</span> 实时天气 API 并行获取全国 280+ 城市当前温度/天气码/风速，按人体舒适度（18-25°C 满分）+天气现象（晴 25 / 多云 22 / 阴 12 / 雨雪 5-10）+风速（&lt;15 km/h 满分 10）三维加权；气温区间、天气现象、风速任一异常都会扣分。</div>
-              <div class="dr-method-line"><b>② 季节适宜性（权重 20%）</b>：基于该城市的物候与最佳旅游季（避暑型 6-8 月 / 避寒型 11-2 月 / 春秋型 3-5/9-11 月）匹配当前月份打分；处于最佳季 +20、平季 +15、过渡季 +12、常规 +10、淡季 +5。</div>
-              <div class="dr-method-line"><b>③ 标签丰富度（权重 20%）</b>：根据城市 POI 类型覆盖度（历史/自然/美食/文化/夜生活/亲子/文艺等）评分；标签数量 × 4 封顶 20 分；多标签城市意味着可一站式体验多类玩法。</div>
-              <div class="dr-method-line"><b>④ 用户偏好加权（个性化）</b>：根据你所在城市（${esc(userCity)}）调整区域内城市的优先级（区域内交通便利 → 隐含 +5）；如你在选择目的地时已勾选"兴趣标签"，则 POI 匹配度会被纳入第二阶段行程生成。</div>
-              <div class="dr-method-line"><b>⑤ 历史/口碑数据</b>：城市 tips 数量 ≥3 时获得口碑加成（攻略完备度 +5 分），意味着无需再翻大量攻略，新手友好。</div>
-              <div class="dr-method-line"><b>📡 数据源</b>：<span class="dr-method-src">Open-Meteo</span>（实时天气）+ 本地 <span class="dr-method-src">CITIES_DATA 知识库</span>（280+ 城市结构化数据）+ <span class="dr-method-src">monthly seasonality tags</span>（月度物候标记）+ <span class="dr-method-src">local fallback</span>（无坐标城市使用区域均值兜底）。</div>
+              <div class="dr-method-line"><b>① 实时天气（权重 45%）</b>：调用 <span class="dr-method-src">Open-Meteo</span> 实时天气 API 并行获取全国 280+ 城市当前温度/天气码/风速，按人体舒适度（18-25°C 满分）+天气现象（晴 15 / 多云 13 / 阴 7 / 雨雪 3-5）+风速（&lt;15 km/h 满分 10）三维加权；气温区间、天气现象、风速任一异常都会扣分。</div>
+              <div class="dr-method-line"><b>② 季节适宜性（权重 15%）</b>：基于该城市的物候与最佳旅游季（避暑型 6-8 月 / 避寒型 11-2 月 / 春秋型 3-5/9-11 月）匹配当前月份打分；处于最佳季 +15、平季 +11、过渡季 +9、常规 +8、淡季 +4。</div>
+              <div class="dr-method-line"><b>③ 交通可达性（权重 12%）</b>：结合你所在城市（${esc(userCity)}）判断——同属一个区域（高铁/城际网络密集）+8；两城间有直达高铁（真实铁路干线邻接表，如京沪/京广/沪昆）直接 +12；未提供出发城市按中性 +6。</div>
+              <div class="dr-method-line"><b>④ 旅游热度（权重 10%）</b>：基于本地真实知识库收录完备度代理评估——真实景点收录数（POI_DB）+本地攻略数（tips）+玩法标签覆盖数（tags），收录越完备代表该城市越热门、玩法越成熟。</div>
+              <div class="dr-method-line"><b>⑤ 美食丰富度（权重 10%）</b>：本地真实数据库覆盖度——当地特色美食库（LOCAL_SPECIALS_DB 53 城）+餐厅库（RESTAURANT_DB，数据来自美团/大众点评/携程美食林/黑珍珠/米其林）收录越多，当地觅食体验越好。</div>
+              <div class="dr-method-line"><b>⑥ 标签丰富度（权重 8%）</b>：根据城市 POI 类型覆盖度（历史/自然/美食/文化/夜生活/亲子/文艺等）评分；多标签城市意味着可一站式体验多类玩法。</div>
+              <div class="dr-method-line"><b>📡 数据源</b>：<span class="dr-method-src">Open-Meteo</span>（实时天气）+ <span class="dr-method-src">真实铁路干线邻接表</span>（交通可达）+ <span class="dr-method-src">POI_DB / LOCAL_SPECIALS_DB / RESTAURANT_DB</span>（热度与美食，真实数据库）+ <span class="dr-method-src">CITIES_DATA 知识库</span>（280+ 城市结构化数据）+ <span class="dr-method-src">local fallback</span>（无坐标城市使用区域均值兜底）。</div>
             </div>
           </details>
         </div>
@@ -4032,16 +4075,16 @@ function exportJson(data, params){
 async function loadPlan(){
   const params = getPlanParams();
   currentPlanCity = params.city;
-  loading('planResult','🔍 AI 正在搜索 POI + 规划路径 + 评估风险…');
+  loading('planResult','🔍 AI 正在联合高德/美团/飞猪/途牛/12306 多源搜索 POI + 规划路径 + 评估风险…');
   document.getElementById('planChat').style.display = 'block';
   appendChat('user', `📋 计划：${params.city} ${params.days}天 人均${params.budget}元/天 ${params.pax}${params.tags.length?' 兴趣:'+params.tags.join('/'):''}${params.departDays ? ' · ' + params.departDays + ' 天后出发' : ''}`);
-  // 实时思考链：列出所有 11 步，初始为"排队"状态
+  // 实时思考链：列出所有步骤，初始为"排队"状态（含多源行情预取）
   showLiveProgress([
     '城市解析', 'POI 数据拉取', '兴趣匹配打分', 'AI 行程设计',
-    'POI 详情增强', '餐厅推荐', '酒店推荐',
-    '路线验证评分', '出发日推荐', 'AI 总体评估', '社区路线'
+    'POI 详情增强', '当地美食', '餐厅推荐', '酒店推荐',
+    '多源行情预取', '路线验证评分', '出发日推荐', 'AI 总体评估', '多维度旅行贴士'
   ]);
-  appendChat('ai', '🤔 正在执行：城市解析 → POI 拉取 → 兴趣打分 → AI 行程设计 → 验证评分 → 出发日推荐…');
+  appendChat('ai', '🤔 正在执行：城市解析 → POI 拉取 → AI 行程设计 → 美团/飞猪/途牛/12306 多源预取 → 验证评分 → 出发日推荐…');
   const t0 = Date.now();
   try {
     // 拉出发建议（用于顶部提示）
@@ -4059,7 +4102,8 @@ async function loadPlan(){
     const data = await API.get('/api/agent/plan?'+new URLSearchParams({
       city:params.city||'', days:params.days||3, budget:params.budget||500,
       pax:params.pax||'独自', tags:(params.tags||[]).join(','),
-      depart_in_days: params.departDays || 0
+      depart_in_days: params.departDays || 0,
+      origin: params.originCity || ''
     }));
     if (data.__error) {
       throw new Error(data.message || '服务器连接失败，请稍后重试');
@@ -4107,10 +4151,10 @@ async function sendPlanChat(){
   // 1) 立即识别用户意图 → 给出"我们即将做什么"反馈
   const intent = recognizeUserIntent(msg);
   if (intent) appendChat('ai', `💡 收到：${intent.preview}`);
-  // 2) 实时进度：11 步思考链逐个高亮
+  // 2) 实时进度：多步思考链逐个高亮
   showLiveProgress([
     '读懂需求', '分析当前行程', 'AI 重新设计', '景点增减',
-    '餐厅调整', '酒店复核', '路线验证', '数据源对照',
+    '餐厅调整', '酒店复核', '多源价格对照', '路线验证',
     '渲染行程卡片', '更新地图', '社区对照'
   ]);
   appendChat('ai', '🔄 正在分析反馈 + AI 重新设计…');
