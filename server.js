@@ -1104,22 +1104,27 @@ app.get('/api/destinations/recommend', async (req, res) => {
         break;
       }
       const batch = cityQueue.slice(i, i + concurrency);
-      await Promise.all(batch.map(async (city) => {
-        if (weatherResults[city] !== undefined) return;
-        const coords = CITY_COORDS[city];
-        try {
-          const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto`;
-          const r = await fetch(url, { headers: { 'User-Agent': '123-travel/1.0' }, signal: AbortSignal.timeout(3500) });
-          if (r.ok) {
-            const d = await r.json();
-            weatherResults[city] = d.current || null;
-          } else {
+      // 每批加 4.5s 整体兜底超时：个别请求在弱网/代理环境下 AbortSignal 可能不触发，
+      // 避免整批 fetch 永久挂起拖垮推荐（未完成的城市走后续 mock 兜底）
+      await Promise.race([
+        Promise.all(batch.map(async (city) => {
+          if (weatherResults[city] !== undefined) return;
+          const coords = CITY_COORDS[city];
+          try {
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto`;
+            const r = await fetch(url, { headers: { 'User-Agent': '123-travel/1.0' }, signal: AbortSignal.timeout(3500) });
+            if (r.ok) {
+              const d = await r.json();
+              weatherResults[city] = d.current || null;
+            } else {
+              weatherResults[city] = null;
+            }
+          } catch (e) {
             weatherResults[city] = null;
           }
-        } catch (e) {
-          weatherResults[city] = null;
-        }
-      }));
+        })),
+        new Promise(r => setTimeout(r, 4500))
+      ]);
     }
     // 兜底：给未获取到的城市用季节性 mock 数据（让推荐仍可工作）
     const month = new Date().getMonth() + 1;

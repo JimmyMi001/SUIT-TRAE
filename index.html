@@ -624,6 +624,115 @@
     transition:all .2s}
   .nav__time-huangli:hover{background:rgba(240,183,131,.16);border-color:var(--accent);color:var(--accent)}
 
+  /* ========================================================= 顶部栏天气胶囊 + 详情 Popover
+     液态玻璃 + 毛玻璃，与整体深夜暖金设计统一；数据三源（高德/Open-Meteo/中国气象局） */
+  .nav__time .nav__time-weather{display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;
+    background:rgba(240,183,131,.07);border:1px solid rgba(240,183,131,.18);
+    border-radius:99px;padding:3px 12px;margin-left:6px;
+    backdrop-filter:blur(8px) saturate(150%);-webkit-backdrop-filter:blur(8px) saturate(150%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08),inset 0 0 0 1px rgba(255,255,255,.03);
+    transition:all .2s;white-space:nowrap;letter-spacing:.02em}
+  .nav__time .nav__time-weather:hover{background:rgba(240,183,131,.16);border-color:var(--accent);
+    box-shadow:0 0 14px rgba(240,183,131,.28),inset 0 1px 0 rgba(255,255,255,.10)}
+  .nav__time .nav__time-weather .nw-ico{font-size:13px;line-height:1;filter:drop-shadow(0 0 6px rgba(240,183,131,.55))}
+  .nav__time .nav__time-weather .nw-city{color:var(--accent);font-weight:600;max-width:120px;overflow:hidden;
+    text-overflow:ellipsis}
+  .nav__time .nav__time-weather .nw-temp{color:var(--text);font-weight:600;font-family:var(--mono)}
+  .nav__time .nav__time-weather .nw-temp.loading{color:var(--text-3)}
+  .nav__time .nav__time-weather .nw-src{font-size:9px;color:var(--text-3);opacity:.75}
+
+  .weather-pop{position:fixed;left:0;top:0;z-index:300;width:min(470px,94vw);display:none;
+    pointer-events:none;transform-origin:top right;animation:holiday-pop-in .22s cubic-bezier(.4,0,.2,1)}
+  .weather-pop.open{display:block;pointer-events:auto}
+  .weather-pop__box{position:relative;isolation:isolate;overflow:hidden;background:rgba(15,17,22,.58);
+    border:0;border-radius:16px;padding:18px 20px 16px;backdrop-filter:blur(14px) saturate(170%);
+    -webkit-backdrop-filter:blur(14px) saturate(170%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 0 0 1px rgba(255,255,255,.05),
+      inset 0 -14px 28px -6px rgba(0,0,0,.40),0 22px 48px -12px rgba(0,0,0,.55)}
+  .weather-pop__box::after{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(240,183,131,.55),transparent);z-index:2}
+  .weather-pop__arrow{position:absolute;top:-6px;right:26px;width:12px;height:12px;
+    background:rgba(15,17,22,.65);transform:rotate(45deg);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+  .weather-pop__head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .weather-pop__icon{font-size:22px;line-height:1;filter:drop-shadow(0 0 8px rgba(240,183,131,.5))}
+  .weather-pop__title{flex:1;font-family:var(--serif);font-size:15px;font-weight:600;color:var(--text)}
+  .weather-pop__sub{font-size:11px;color:var(--text-2);margin-top:2px;letter-spacing:.02em}
+  .weather-pop__close{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.04);border:0;
+    color:var(--text-2);font-size:14px;cursor:pointer;display:grid;place-items:center;transition:all .2s;flex-shrink:0}
+  .weather-pop__close:hover{background:rgba(214,139,124,.18);color:var(--err);transform:rotate(90deg)}
+  .weather-pop__loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:26px 0;
+    color:var(--text-2);font-size:12px;letter-spacing:.03em}
+  .weather-pop__body{display:grid;gap:10px}
+  /* 实时大卡 */
+  .wp-now{display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:12px;
+    background:linear-gradient(135deg,rgba(240,183,131,.10),rgba(99,102,241,.06));
+    border:1px solid rgba(240,183,131,.16)}
+  .wp-now__temp{font-family:var(--mono);font-size:42px;font-weight:600;color:var(--text);
+    line-height:1;text-shadow:0 0 22px rgba(240,183,131,.35)}
+  .wp-now__temp small{font-size:16px;color:var(--text-2);font-weight:400;margin-left:2px}
+  .wp-now__meta{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .wp-now__cond{font-size:15px;font-weight:600;color:var(--text);letter-spacing:.02em}
+  .wp-now__cond .wp-now__emoji{font-size:18px;vertical-align:-2px;margin-right:6px}
+  .wp-now__src{font-size:10px;color:var(--text-3);letter-spacing:.02em}
+  .wp-now__src b{color:var(--accent);font-weight:600}
+  /* 实时指标行 */
+  .wp-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .wp-metric{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:10px;
+    padding:8px 10px;text-align:center}
+  .wp-metric__lbl{font-size:10px;color:var(--text-2);letter-spacing:.05em;margin-bottom:3px}
+  .wp-metric__val{font-size:13px;font-weight:600;color:var(--text);font-family:var(--mono)}
+  .wp-metric__val small{font-size:10px;color:var(--text-3);font-weight:400}
+  /* 未来几天预报 */
+  .wp-forecast__title{font-size:11px;color:var(--text-2);letter-spacing:.06em;margin:2px 0 6px;
+    display:flex;justify-content:space-between;align-items:center}
+  .wp-forecast__title b{color:var(--text);font-weight:600}
+  .wp-forecast{display:grid;gap:4px}
+  .wp-fday{display:grid;grid-template-columns:56px 1fr 44px 44px;align-items:center;gap:8px;
+    padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.02);
+    border:1px solid var(--line);transition:background .2s}
+  .wp-fday:hover{background:rgba(255,255,255,.05)}
+  .wp-fday__date{font-size:11px;color:var(--text-2);font-weight:500}
+  .wp-fday__cond{font-size:12px;color:var(--text);display:flex;align-items:center;gap:5px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wp-fday__cond .rain{font-size:10px;color:#60a5fa}
+  .wp-fday__hl{display:flex;justify-content:flex-end;font-family:var(--mono);font-size:12px;gap:6px}
+  .wp-fday__high{color:var(--text);font-weight:600}
+  .wp-fday__low{color:var(--text-3)}
+  /* 活动建议 */
+  .wp-advice{background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.16);border-radius:12px;
+    padding:10px 12px}
+  .wp-advice__title{font-size:11px;font-weight:600;color:#a5b4fc;letter-spacing:.05em;margin-bottom:6px}
+  .wp-advice__list{display:grid;gap:4px}
+  .wp-advice__list div{font-size:12px;color:var(--text-2);line-height:1.5;letter-spacing:.02em}
+  /* 一致性结论 */
+  .wp-consensus{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-2);
+    padding:8px 12px;border-radius:8px;background:rgba(16,185,129,.06);
+    border:1px solid rgba(16,185,129,.18);letter-spacing:.02em}
+  .wp-consensus b{color:var(--ok);font-weight:600}
+  /* 修改城市 */
+  .wp-edit{padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.02);
+    border:1px dashed rgba(255,255,255,.14)}
+  .wp-edit__row{display:flex;gap:8px;align-items:center}
+  .wp-edit__row input{flex:1;min-width:0;background:rgba(0,0,0,.28);border:1px solid var(--line);
+    border-radius:8px;color:var(--text);font-size:12px;padding:7px 10px;outline:none;font-family:inherit;
+    transition:border .2s}
+  .wp-edit__row input:focus{border-color:var(--accent)}
+  .wp-edit__row button{flex-shrink:0}
+  .wp-edit__hint{font-size:10px;color:var(--text-3);margin-top:6px;letter-spacing:.02em}
+  .wp-btn{background:rgba(240,183,131,.12);border:1px solid rgba(240,183,131,.3);color:var(--accent);
+    font-size:11px;font-weight:600;padding:6px 12px;border-radius:99px;cursor:pointer;
+    transition:all .2s;font-family:inherit;letter-spacing:.03em}
+  .wp-btn:hover{background:rgba(240,183,131,.24);box-shadow:0 0 12px rgba(240,183,131,.25)}
+  .wp-btn--ghost{background:transparent;border-color:rgba(255,255,255,.16);color:var(--text-2)}
+  .wp-btn--ghost:hover{background:rgba(255,255,255,.06);color:var(--text)}
+  .weather-pop__foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
+    font-size:10px;color:var(--text-3);margin-top:12px;padding-top:10px;
+    border-top:1px dashed rgba(255,255,255,.08);letter-spacing:.02em}
+  .weather-pop__foot b{color:var(--accent);font-weight:600}
+  .weather-pop__foot .wp-src{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+  @media (max-width: 640px){.wp-metrics{grid-template-columns:repeat(2,1fr)}
+    .wp-now__temp{font-size:34px}.nav__time-weather .nw-temp{display:none}}
+
   /* ========================================================= 日期日历 Popover
      鼠标悬停 navDate 弹出月历，可选某天 → 自动填入 planDepartDays */
   .nav__time-date{cursor:pointer;transition:color .2s}
@@ -2251,6 +2360,30 @@
             <span class="holiday-pop__tip-icon">💡</span>
             <div class="holiday-pop__tip-text"><b>出行小贴士</b><span id="holidayPopTip">—</span></div>
           </div>
+        </div>
+      </div>
+      <!-- 顶部栏天气胶囊：城市+天气+温度（IP 定位，可手动修改城市） -->
+      <span class="nav__time-weather" id="navWeather" title="悬停查看本地天气详情 · 点击修改城市">
+        <span class="nw-ico" id="navWeatherIco">📍</span>
+        <span class="nw-city" id="navWeatherCity">定位中…</span>
+        <span class="nw-temp" id="navWeatherTemp"></span>
+      </span>
+      <!-- 天气详情 Popover：最近几天预报/湿度/风速/活动建议/数据来源 -->
+      <div class="weather-pop" id="weatherPop" role="tooltip" aria-hidden="true">
+        <div class="weather-pop__box">
+          <div class="weather-pop__arrow"></div>
+          <div class="weather-pop__head">
+            <span class="weather-pop__icon">🌦</span>
+            <div>
+              <div class="weather-pop__title" id="weatherPopTitle">本地天气</div>
+              <div class="weather-pop__sub" id="weatherPopSub">数据加载中…</div>
+            </div>
+            <button class="weather-pop__close" id="weatherPopClose" aria-label="关闭">×</button>
+          </div>
+          <div class="weather-pop__body" id="weatherPopBody">
+            <div class="weather-pop__loading">⏳ 正在拉取多源天气数据…</div>
+          </div>
+          <div class="weather-pop__foot" id="weatherPopFoot"></div>
         </div>
       </div>
     </div>
@@ -6449,6 +6582,254 @@ async function autoDetectOriginCity(){
   } catch (e) { /* 静默失败，不影响页面 */ }
 }
 
+/* ========== 顶部栏天气（IP 定位 + 三源详情 + 可修改城市） ========== */
+let navWeatherTimer = null;
+let __cityDatalist = null;
+async function ensureCityDatalist(){
+  if (__cityDatalist) return __cityDatalist;
+  try {
+    const r = await API.get('/api/city/list');
+    __cityDatalist = (r && r.data) || [];
+  } catch (e) { __cityDatalist = []; }
+  return __cityDatalist;
+}
+
+function weatherEmoji(cond){
+  const s = String(cond || '');
+  if (/雷/.test(s)) return '⛈';
+  if (/雨|阵/.test(s)) return '🌧';
+  if (/雪/.test(s)) return '❄️';
+  if (/雾|霾|沙尘/.test(s)) return '🌫';
+  if (/晴/.test(s)) return '☀️';
+  if (/云/.test(s)) return '☁️';
+  return '🌤';
+}
+
+// 依据实时天气自动生成出行活动建议（全部基于真实天气数据规则，不编造）
+function buildWeatherAdvice(cfg){
+  const adv = [];
+  const t = cfg.temp, cond = cfg.condition || '', h = cfg.humidity, w = cfg.windKmh;
+  if (/雨|雷|阵/.test(cond)) adv.push('🌂 有降雨，外出请携带雨具，户外行程可备室内方案');
+  if (/雪/.test(cond)) adv.push('🧣 有降雪，注意防滑保暖，道路可能湿滑结冰');
+  if (/雾|霾|沙尘/.test(cond)) adv.push('😷 能见度较低，减少长时间户外运动，出行佩戴口罩');
+  if (/晴/.test(cond)) adv.push('☀️ 天气晴好，适合户外活动与拍照打卡');
+  if (/云/.test(cond)) adv.push('☁️ 以多云为主，体感舒适，出行基本不受影响');
+  if (t != null && t >= 33) adv.push('🥵 高温预警：正午避免暴晒，及时补水防暑');
+  else if (t != null && t >= 28) adv.push('🧢 天气较热，注意防晒补水');
+  else if (t != null && t <= 8) adv.push('🧥 气温偏低，注意添衣保暖');
+  if (h != null && h >= 80) adv.push('💦 湿度较高，体感闷热，注意通风');
+  if (w != null && w >= 30) adv.push('💨 风力较大，骑行/高空项目注意防风');
+  if (cfg.rainNextDays) adv.push('📅 未来 1-2 天有降水可能，行程可预留室内备选');
+  if (!adv.length) adv.push('🌤 天气平稳，适合按原计划出行');
+  return adv;
+}
+
+async function initNavWeather(){
+  const el = document.getElementById('navWeather');
+  if (!el) return;
+  // 用户手动选择过的城市优先（localStorage 持久化，不再被 IP 覆盖）
+  const manual = localStorage.getItem('tb_weather_city');
+  if (manual && manual.trim()) { loadNavWeather(manual.trim(), '手动选择'); return; }
+  // 否则用 IP 定位（数据来源：高德 IP 定位）
+  try {
+    const r = await API.ipLocate();
+    const c = (r.city || '').trim();
+    if (c) loadNavWeather(c, 'IP 定位');
+    else {
+      el.querySelector('.nw-city').textContent = '定位失败';
+      el.querySelector('.nw-temp').textContent = '';
+    }
+  } catch (e) {
+    el.querySelector('.nw-city').textContent = '定位失败';
+  }
+}
+
+async function loadNavWeather(city, source){
+  const cityEl = document.getElementById('navWeatherCity');
+  const tempEl = document.getElementById('navWeatherTemp');
+  const ico = document.getElementById('navWeatherIco');
+  const title = document.getElementById('weatherPopTitle');
+  const sub = document.getElementById('weatherPopSub');
+  const body = document.getElementById('weatherPopBody');
+  const foot = document.getElementById('weatherPopFoot');
+  if (cityEl) { cityEl.textContent = city; cityEl.title = city; }
+  if (tempEl) { tempEl.textContent = '…'; tempEl.classList.add('loading'); }
+  if (title) title.textContent = `${city} · 本地天气`;
+  if (sub) sub.textContent = `来源：${source} · 正在拉取多源天气…`;
+  if (body) body.innerHTML = `<div class="weather-pop__loading">⏳ 正在拉取多源天气数据…</div>`;
+  if (foot) foot.innerHTML = '';
+  try {
+    const r = await API.weatherCompare(city);
+    if (r.__error || !r.sources || !r.sources.length) {
+      if (body) body.innerHTML = `<div class="weather-pop__loading">⚠️ 天气数据获取失败，请稍后重试</div>`;
+      return;
+    }
+    renderNavWeather(r, city, source);
+  } catch (e) {
+    if (body) body.innerHTML = `<div class="weather-pop__loading">⚠️ ${esc(e.message)}</div>`;
+  }
+}
+
+function renderNavWeather(r, city, source){
+  const cityEl = document.getElementById('navWeatherCity');
+  const tempEl = document.getElementById('navWeatherTemp');
+  const ico = document.getElementById('navWeatherIco');
+  const title = document.getElementById('weatherPopTitle');
+  const sub = document.getElementById('weatherPopSub');
+  const body = document.getElementById('weatherPopBody');
+  const foot = document.getElementById('weatherPopFoot');
+  const amap = r.sources.find(s => s.id === 'amap');
+  const om = r.sources.find(s => s.id === 'open-meteo');
+  const cma = r.sources.find(s => s.id === 'cma');
+  const temp = amap?.temperature ?? om?.temperature;
+  const cond = amap?.condition ?? om?.condition ?? '—';
+  const humidity = amap?.humidity ?? om?.humidity;
+  const windText = amap?.wind || (om?.wind ? om.wind : null);
+  const windKmh = om?.wind ? parseFloat(String(om.wind)) || null : null;
+  const report = amap?.reporttime || om?.reporttime || null;
+  // 预报优先 Open-Meteo（含降水概率），其次中国气象局
+  const forecast = (om?.forecast && om.forecast.length ? om.forecast : cma?.forecast) || [];
+  const rainNextDays = forecast.slice(1, 3).some(f => /雨|雷|雪|阵/.test(String(f.condition || '')));
+  // —— 胶囊：📍城市 + 天气emoji + 温度（📍 提示"定位来源，可点击修改城市"） ——
+  if (cityEl) cityEl.textContent = city;
+  if (ico) ico.textContent = '📍';
+  if (temp != null && tempEl) { tempEl.textContent = `${weatherEmoji(cond)} ${Math.round(temp)}°`; tempEl.classList.remove('loading'); }
+  if (sub) sub.textContent = `${source} · 更新时间 ${report ? report.slice(0, 16) : '—'}`;
+  // —— Popover 主体 ——
+  const dayLabel = (d) => {
+    if (!d || !d.date) return '—';
+    const dt = new Date(String(d.date).slice(0, 10) + 'T00:00:00');
+    if (isNaN(dt.getTime())) return '—';
+    const wd = ['日','一','二','三','四','五','六'][dt.getDay()];
+    return `${String(d.date).slice(5).replace('-','/')} 周${wd}`;
+  };
+  const forecastRows = forecast.slice(0, 5).map((f, i) => `
+    <div class="wp-fday">
+      <div class="wp-fday__date">${dayLabel(f)}${i === 0 ? ' · <b style="color:var(--accent)">今</b>' : ''}</div>
+      <div class="wp-fday__cond">${weatherEmoji(f.condition)}${esc(f.condition || '—')}
+        ${f.precipitation_probability != null && f.precipitation_probability > 10 ? `<span class="rain">💧${f.precipitation_probability}%</span>` : ''}</div>
+      <div class="wp-fday__hl"><span class="wp-fday__high">${f.high ?? '—'}°</span><span class="wp-fday__low">${f.low ?? '—'}°</span></div>
+    </div>`).join('');
+  const advice = buildWeatherAdvice({ temp, condition: cond, humidity, windKmh, rainNextDays });
+  const cons = r.consensus;
+  const sourcesText = r.sources.map(s => `${s.name}（${s.kind}）`).join(' · ');
+  body.innerHTML = `
+    <div class="wp-now">
+      <div class="wp-now__temp">${temp != null ? Math.round(temp) : '—'}<small>°C</small></div>
+      <div class="wp-now__meta">
+        <div class="wp-now__cond"><span class="wp-now__emoji">${weatherEmoji(cond)}</span>${esc(cond)}</div>
+        <div class="wp-now__src">${esc(city)} · 实时数据：<b>${esc(sourcesText)}</b></div>
+      </div>
+    </div>
+    <div class="wp-metrics">
+      <div class="wp-metric"><div class="wp-metric__lbl">湿度</div><div class="wp-metric__val">${humidity != null ? Math.round(humidity) + '<small>%</small>' : '—'}</div></div>
+      <div class="wp-metric"><div class="wp-metric__lbl">风速</div><div class="wp-metric__val">${esc(windText || '—')}</div></div>
+      <div class="wp-metric"><div class="wp-metric__lbl">降水概率</div><div class="wp-metric__val">${om?.forecast?.[0]?.precipitation_probability != null ? om.forecast[0].precipitation_probability + '<small>%</small>' : '—'}</div></div>
+      <div class="wp-metric"><div class="wp-metric__lbl">天气源</div><div class="wp-metric__val">${r.sources.length}<small>/3</small></div></div>
+    </div>
+    <div>
+      <div class="wp-forecast__title"><b>未来 ${Math.min(5, forecast.length)} 天预报</b><span>${esc(om ? 'Open-Meteo' : '中国气象局')} · 高低温</span></div>
+      <div class="wp-forecast">${forecastRows || '<div class="wp-fday"><div class="wp-fday__date">预报不可用</div></div>'}</div>
+    </div>
+    <div class="wp-advice">
+      <div class="wp-advice__title">💡 活动建议</div>
+      <div class="wp-advice__list">${advice.map(a => `<div>${a}</div>`).join('')}</div>
+    </div>
+    ${cons ? `<div class="wp-consensus">🛰 <b>${esc(cons.verdict || '')}</b> · 三源一致 ${cons.match_count}/${cons.match_total} · 评分 ${esc(cons.score_text || (cons.score != null ? cons.score + '分' : '—'))}</div>` : ''}
+    <div class="wp-edit" id="wpEdit" style="display:none">
+      <div class="wp-edit__row">
+        <input id="wpEditInput" list="wpCityList" placeholder="输入城市名，如：广州 / 成都 / 三亚…" />
+        <datalist id="wpCityList"></datalist>
+        <button class="wp-btn" id="wpEditGo">确认</button>
+        <button class="wp-btn wp-btn--ghost" id="wpEditCancel">取消</button>
+      </div>
+      <div class="wp-edit__hint">📍 IP 定位不准确？输入你所在城市，确认后重新拉取天气并记住选择</div>
+    </div>`;
+  // —— 底部：数据来源 + 修改城市 ——
+  foot.innerHTML = `<div class="wp-src"><span>📡 数据源：<b>${esc(sourcesText)}</b></span><span>🕐 ${esc(report ? report.slice(0, 16) : '—')}</span></div>
+    <button class="wp-btn" id="wpModify">📍 修改城市</button>`;
+  // —— 事件绑定 ——
+  const modifyBtn = document.getElementById('wpModify');
+  const editBox = document.getElementById('wpEdit');
+  if (modifyBtn && editBox) {
+    modifyBtn.onclick = (e) => {
+      e.stopPropagation();
+      editBox.style.display = 'block';
+      modifyBtn.style.display = 'none';
+      ensureCityDatalist().then(list => {
+        const dl = document.getElementById('wpCityList');
+        if (dl && list.length) dl.innerHTML = list.map(c => `<option value="${esc(c.name)}"></option>`).join('');
+      });
+      const inp = document.getElementById('wpEditInput');
+      if (inp) { inp.value = city; setTimeout(() => inp.focus(), 30); }
+    };
+    const cancelBtn = document.getElementById('wpEditCancel');
+    if (cancelBtn) cancelBtn.onclick = (e) => {
+      e.stopPropagation();
+      editBox.style.display = 'none';
+      modifyBtn.style.display = '';
+    };
+    const applyCity = (e) => {
+      e.stopPropagation();
+      const inp = document.getElementById('wpEditInput');
+      const v = (inp && inp.value || '').trim();
+      if (!v) return;
+      localStorage.setItem('tb_weather_city', v);
+      loadNavWeather(v, '手动选择');
+    };
+    const goBtn = document.getElementById('wpEditGo');
+    if (goBtn) goBtn.onclick = applyCity;
+    const inpEl = document.getElementById('wpEditInput');
+    if (inpEl) inpEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCity(e); });
+  }
+}
+
+// 天气 Popover：悬停展开 / 点击切换 / 点外部关闭（与 NTP/黄历 Popover 交互一致）
+function bindWeatherPop(){
+  const el = document.getElementById('navWeather');
+  const pop = document.getElementById('weatherPop');
+  if (!el || !pop) return;
+  const open = () => {
+    pop.style.visibility = 'hidden';
+    pop.classList.add('open');
+    pop.setAttribute('aria-hidden', 'false');
+    const rect = el.getBoundingClientRect();
+    const popW = pop.offsetWidth || 470;
+    let left = rect.right - popW;
+    if (left < 8) left = 8;
+    if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+    pop.style.left = left + 'px';
+    pop.style.top = (rect.bottom + 12) + 'px';
+    pop.style.visibility = '';
+  };
+  const close = () => {
+    pop.classList.remove('open');
+    pop.setAttribute('aria-hidden', 'true');
+  };
+  el.onmouseenter = () => { clearTimeout(navWeatherTimer); open(); };
+  el.onmouseleave = (e) => {
+    if (e.relatedTarget && pop.contains(e.relatedTarget)) return;
+    navWeatherTimer = setTimeout(() => { if (!pop.matches(':hover')) close(); }, 220);
+  };
+  pop.onmouseenter = () => clearTimeout(navWeatherTimer);
+  pop.onmouseleave = (e) => {
+    if (e.relatedTarget && el.contains(e.relatedTarget)) return;
+    navWeatherTimer = setTimeout(close, 220);
+  };
+  el.onclick = (e) => { e.stopPropagation(); if (pop.classList.contains('open')) close(); else open(); };
+  const closeBtn = document.getElementById('weatherPopClose');
+  if (closeBtn) closeBtn.onclick = (e) => { e.stopPropagation(); close(); };
+  document.addEventListener('click', (e) => {
+    if (pop.classList.contains('open') && !pop.contains(e.target) && e.target !== el && !el.contains(e.target)) close();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && pop.classList.contains('open')) close();
+  });
+  const reposition = () => { if (pop.classList.contains('open')) open(); };
+  window.addEventListener('scroll', reposition, { passive: true });
+  window.addEventListener('resize', reposition);
+}
+
 /* ========== 13. 启动 ========== */
 (async function init(){
   renderTabs();
@@ -6458,6 +6839,9 @@ async function autoDetectOriginCity(){
   setupCascadeToggle();
   setupOriginCascadeToggle();
   initNavTime();
+  // 顶部栏天气：IP 定位城市 + 三源天气详情（可手动修改城市）
+  bindWeatherPop();
+  initNavWeather();
   loadDailyRecommendations();
   // 每日推荐刷新按钮
   const drRefresh = document.getElementById('drRefresh');
