@@ -221,22 +221,18 @@ flowchart LR
 
 ## 📸 功能展示（三大模块）
 
-> **3 个主模块 · 7 个 HTML 页面 · 8 个 CSS 文件 · 9 个 JS 模块**
-> 主页 `index.html` 以顶部 3 个 Tab 承载三大主模块；点击"生成行程"后跳转到独立 `verify.html` 验证页；每个主模块都有独立全屏子页（旅途伴侣/社区/复盘）。
+> **3 个主模块 · 单页应用（`index.html`，内嵌 CSS/JS）· 三语支持（简体中文默认 / 繁體中文 / English）**
+> 主页 `index.html` 以顶部 3 个 Tab 承载全部功能，无需跳转独立页面；页面右上角语言切换按钮一键切换界面语言（动态数据 / AI 输出保持原文）。
 
 **页面结构概览**：
 
-- **index.html（主页）**：包含 3 个 Tab —— 智能规划（城市级联 + 标签选择 + 一句话生成 + AI 思考链 + 6 种交通比价 + 5 档餐厅 + 4 档酒店 + 特色饮品美食）、旅途伴侣（城市锁死 + 详细地址解析 + 快捷工具 + 实时 POI + 应急拨号）、社区路线（搜索/筛选 + 收藏/评分 + 分享路线 + 评论）
-- **verify.html**：路线验证页，8 维评分
-- **companion.html**：旅途伴侣全屏页
-- **community.html**：社区路线全屏页
-- **posttrip.html**：旅途结束后复盘，可沉淀为社区路线
+- **index.html（唯一页面）**：3 个 Tab —— 智能规划（城市级联 + 标签选择 + 一句话生成 + AI 思考链 + 6 种交通比价 + 5 档餐厅 + 4 档酒店 + 特色饮品美食 + 路线验证评分 + 复盘沉淀）、旅途伴侣（城市联动 + 详细地址解析 + 快捷工具 + 实时 POI + 应急拨号）、社区路线（搜索/筛选 + 收藏/评分 + 分享路线 + 评论）
 
-### 1️⃣ 智能规划（主页 Tab 1 + 验证页 + 复盘页）
+### 1️⃣ 智能规划（主页 Tab 1）
 
 **用户旅程**：输入城市、天数、预算及偏好 → 15 步思考链实时展开 → 8 维评分 → 一键成行
 
-**页面流转**：智能规划页（目的地卡片磁吸效果 + 每日推荐六维多源综合评估 + 省市级联 + 一句话输入 + Three.js 粒子背景）→ 验证页 verify.html（左侧对话打字机效果 + 中央高德地图路线 + 右侧 8 维评分风险清单 + 5 套标记颜色）→ posttrip.html（复盘实际 vs 计划，沉淀为社区路线）
+**页面流转**：智能规划页（目的地卡片磁吸效果 + 每日推荐六维多源综合评估 + 省市级联 + 一句话输入）→ 生成行程（思考链实时展开 + 完整地图路线 + 8 维验证评分 + 多维度旅行贴士）→ 行程后复盘（实际 vs 计划，可沉淀为社区路线）
 
 **15 步思考链**（展开后可查看每步推理过程与数据来源）：
 1. 城市解析（280+ 城市库 / 高德地理编码 fallback）
@@ -296,9 +292,9 @@ flowchart LR
 |:---:|
 | <img src="assets/screenshots/行程导出展示.png" alt="行程导出展示" width="900" /> |
 
-### 2️⃣ 旅途伴侣（主页 Tab 2 + 独立全屏页）
+### 2️⃣ 旅途伴侣（主页 Tab 2）
 
-**用途**：出行途中实时查询，**城市锁定为**智能规划选择的城市，不可切换。
+**用途**：出行途中实时查询，**城市联动**智能规划所选目的地，也可自行修改。
 
 **功能分区**：顶部信息栏显示当前城市（锁死）、农历日期、节假日倒计时。左侧为紧急拨号区（110/120/119/回酒店）。中央为 AI 对话窗口，支持多轮对话并通过高德实时 POI 和 DeepSeek 提供回复。右侧为快捷工具区（景点门票/找酒店/机票/高铁/智能对话/找厕所/商场/ATM）。
 
@@ -322,21 +318,14 @@ flowchart LR
 |:---:|
 | <img src="assets/screenshots/holiday-countdown.png" alt="倒计时" width="600" /> |
 
-### 3️⃣ 社区路线（主页 Tab 3 + 独立全屏页 + 复盘沉淀）
+### 3️⃣ 社区路线（主页 Tab 3）
 
-**用途**：用户众包路线库，以及旅途结束后的复盘沉淀。
+**用途**：用户众包路线库，支持搜索、筛选与路线详情查看。
 
 **主页 Tab 内**：支持按城市、标题、标签、POI 搜索，以 3 列网格卡片展示
-**独立全屏页** (`community.html`)：完整社区广场（2,847 条路线 · 18,452 次验证）
-- 多维筛选：预算（经济/舒适/高端）与天数（2/3/5+）组合
 - 路线详情：行程/费用/经验/评分
-- 收藏 + 评论 + 分享
+- 一键导入智能规划（基于社区路线生成专属行程）
 - 数据来源标注（去哪儿/携程/小红书/马蜂窝/微博）
-
-**复盘页** (`posttrip.html`)：旅途结束后用于
-- 实际花费与计划预算的对比分析
-- AI 评估差异并生成改进建议
-- 一键沉淀为社区路线（+50 经验值）
 
 **📸 社区路线截图：**
 
@@ -1179,10 +1168,10 @@ npm run setup  # 等价于 scripts/setup.js
 | 2 | **票务/酒店/餐厅价格** | 交通/门票/酒店已接入多源实时预取（途牛门票 + 12306 票价 + 飞猪航班 + 美团酒店，行程生成时自动并发拉取、失败静默降级）；但个别冷门景点/酒店仍有兜底估算，未覆盖全量商家 | [server.js:4119-4191](file:///d:/SUIT%20Trae%20CN/server.js#L4119-L4191) · 🔴 高（需扩源 + 合规） |
 | 3 | **测试覆盖** | `test/` 目录**不存在**，仅依赖 CI 语法检查 + 密钥扫描 + 加密校验 | 项目根 · 🟢 低（加 Jest 即可） |
 | 4 | **AI 单点依赖** | 仅 DeepSeek 一个 AI 提供商；Key 缺失降级到本地启发式，无多模型 fallback | [server.js:2680-2700](file:///d:/SUIT%20Trae%20CN/server.js#L2680-L2700) · 🟡 中（加 Anthropic / 通义 / 文心适配） |
-| 5 | **前端工程化** | 纯原生 JS，**无 TypeScript / 无打包 / 无状态管理**；CSS 散落 8 个文件，变量未统一 | [js/](file:///d:/SUIT%20Trae%20CN/js/) · 🟡 中（可选 Vite + TS 渐进迁移） |
+| 5 | **前端工程化** | 纯原生 JS，**无 TypeScript / 无打包 / 无状态管理**；CSS 内嵌于 index.html（单一文件，变量已统一至 `:root`） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（可选 Vite + TS 渐进迁移） |
 | 6 | **可观测性** | 无 APM、无前端性能埋点（LCP/FCP/INP）；错误处理大量 `console.error` 静默 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中（接 Sentry / Prometheus） |
 | 7 | **安全 / 隐私** | 无用户系统、无登录注册、无 GDPR 合规设计、无 Rate Limiting、无 Cookie 同意 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中 |
-| 8 | **国际化** | 仅中文界面；货币仅人民币；字体仅适配简中（繁体/英文 fallback 弱） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（接 i18next） |
+| 8 | **国际化** | 三语界面：简体中文（默认）/ 繁體中文（香港用语）/ English（美式）；DeepSeek flash 批量翻译 + 本地缓存即时切换，动态数据 / AI 输出保持原文；货币仅人民币 | [js/i18n.js](file:///d:/SUIT%20Trae%20CN/js/i18n.js) + [server.js `/api/translate`](file:///d:/SUIT%20Trae%20CN/server.js) · 🟢 低（扩充缓存词条） |
 | 9 | **部署 / 运维** | 强依赖 Vercel，无蓝绿部署、无集中式日志 | 根目录 · 🟡 中（加 docker-compose.yml / 日志聚合） |
 | 10 | **移动端** | 无 PWA / 离线模式 / Service Worker；无 App 包装（Capacitor / RN） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（manifest.json + sw.js） |
 
@@ -1204,7 +1193,7 @@ npm run setup  # 等价于 scripts/setup.js
 - [ ] **第二 AI 提供商 fallback**：通义千问 / 文心一言 / 智谱 GLM（任一可用即接管）
 - [ ] **真实价格聚合**：携程/美团/去哪儿价格抓取（需注意 `robots.txt` 合规及缓存策略）
 - [ ] **PWA 化**：`manifest.json` + Service Worker + 离线行程缓存
-- [ ] **i18n 框架**：接入 `i18next`，优先支持英文（契合团队国际化背景）
+- [x] **三语界面**：简体中文（默认）/ 繁體中文（香港用语）/ English（美式），DeepSeek flash 批量翻译 + 本地缓存即时切换（已完成，见 [js/i18n.js](file:///d:/SUIT%20Trae%20CN/js/i18n.js)）
 - [ ] **可观测性**：Sentry（前端错误监控）+ Prometheus（后端 QPS/延迟）+ Grafana 看板
 
 ### 长期可演进（3 月以上 · 产品级跃迁）
@@ -1221,11 +1210,11 @@ npm run setup  # 等价于 scripts/setup.js
 
 | 方向 | 适合人群 | 入门指南 |
 |------|---------|---------|
-| 🎨 **设计/UX** | 前端 / 设计师 | 修改 [css/](file:///d:/SUIT%20Trae%20CN/css/) 目录下文件 → 运行 `node server.js` 实时预览 |
+| 🎨 **设计/UX** | 前端 / 设计师 | 修改 [index.html](file:///d:/SUIT%20Trae%20CN/index.html) 内嵌 CSS（设计令牌 / 玻璃 / 字体） → 运行 `node server.js` 实时预览 |
 | ⚙️ **后端** | Node.js 工程师 | 查阅 [server.js](file:///d:/SUIT%20Trae%20CN/server.js) 顶部注释 → 新增 API 或测试 |
 | 🧠 **AI / Prompt** | 算法 / Prompt 工程师 | 修改 [server.js:2680-2990](file:///d:/SUIT%20Trae%20CN/server.js#L2680-L2990) 的 prompt 模板 |
 | 📊 **数据** | 数据 / 爬虫工程师 | 在 `data/` 目录增删 JSON，或向 `POI_DB` 添加新城市，或向 `LOCAL_SPECIALS_DB` 补充特色数据 |
-| 🌐 **i18n** | 翻译 / 前端 | 将 [index.html](file:///d:/SUIT%20Trae%20CN/index.html) 中的中文文案抽取至 `i18n/zh.json` |
+| 🌐 **i18n** | 翻译 / 前端 | 扩充 [js/i18n.js](file:///d:/SUIT%20Trae%20CN/js/i18n.js) 的本地兜底字典（繁简映射 / 英文常用词），或优化 [server.js `/api/translate`](file:///d:/SUIT%20Trae%20CN/server.js) 的翻译提示词 |
 | 📱 **移动** | PWA / RN 工程师 | 添加 `manifest.json` + `sw.js`，或使用 Capacitor 打包 |
 | 🧪 **测试** | QA / 后端 | 创建 `test/` 目录及 `*.test.js` 测试文件，CI 将自动执行 |
 
@@ -1358,13 +1347,13 @@ npm run setup  # 等价于 scripts/setup.js
 
 ## 📁 完整目录结构
 
-**核心页面**：index.html（主页，5441 行，内嵌 CSS，3 个 Tab：智能规划/伴侣/社区）、verify.html（验证页，思考链 + 8 维评分）、companion.html（旅途伴侣全屏页）、community.html（社区广场全屏页）、posttrip.html（复盘页）。历史保留页：pretrip.html（行前准备，旧版）、itinerary.html（行程详情，旧版）。
+**核心页面**：index.html（单页应用，内嵌 CSS/JS，3 个 Tab：智能规划/伴侣/社区）。历史独立页面（itinerary/companion/community/pretrip/posttrip/verify.html）已随功能并入主页后移除。
 
-**样式系统（CSS）**：css/ 目录包含 design-system.css（设计令牌 + 玻璃 + 字体）、home.css（首页）、verify.css（验证页）、itinerary.css（行程页）、community.css（社区页）、companion.css（伴侣页）、posttrip.css（复盘页）。
+**样式系统（CSS）**：全部内嵌于 index.html（深夜底 + 暖金强调 + 液态玻璃设计令牌），无独立 css/ 文件。
 
-**前端逻辑（Vanilla JS，无构建）**：js/ 目录包含 home.js、verify.js、itinerary.js、community.js、companion.js、posttrip.js、curated-routes.js（策展路线数据）、particles.js（Three.js 粒子）。
+**前端逻辑（Vanilla JS，无构建）**：核心逻辑内嵌于 index.html；js/ 目录仅含 i18n.js（多语言引擎：简体中文默认 / 繁體中文 / English，DeepSeek flash 批量翻译 + 本地缓存）。
 
-**后端（Node.js + Express）**：server.js（4745 行，100+ API）、env-loader.js（.env.enc 加密加载器）、flight-crawler.js（携程机票爬虫，可选）、api/index.js（Vercel Serverless 入口）。
+**后端（Node.js + Express）**：server.js（100+ API）、env-loader.js（.env.enc 加密加载器）、flight-crawler.js（携程机票爬虫，可选）、api/index.js（Vercel Serverless 入口）。
 
 **工具脚本**：scripts/setup.js（首次启动引导，自动）、scripts/encrypt-env.js（AES-256-CBC 加密 CLI）、scripts/discover-routes.js（策展路线发现）。
 

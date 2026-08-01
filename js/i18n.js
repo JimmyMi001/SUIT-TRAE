@@ -2,9 +2,12 @@
    i18n.js — 多语言支持（简体中文 zh-CN 默认 / 繁體中文 zh-TW / English en）
 
    纯前端增强：不改动任何业务功能逻辑，仅翻译界面静态文案。
+   · 翻译主通道：DeepSeek flash 模型（POST /api/translate）批量翻译，逐条缓存到
+     localStorage（suit_trans_<lang>），二次切换即时生效
+   · 即时兜底：API 未返回前先本地转换（繁简字符映射 / 英文字典），避免页面闪回中文
    · 动态数据 / AI 输出区域（元素带 data-no-i18n 或其祖先带该属性）保持原文，不翻译
+   · MutationObserver 自动翻译 JS 动态注入的界面文案（如社区路线卡片）
    · 语言选择持久化到 localStorage（键 suit_lang）
-   · MutationObserver 自动翻译 JS 动态注入的界面文案
    · 语言切换按钮自动挂载到各页面顶部导航（.nav__actions 或 .nav__row）
    ========================================================= */
 (function () {
@@ -59,7 +62,7 @@
   /* ===================== 英文字典（简体中文原文 → English） ===================== */
   var EN_DICT = {
     /* 顶部导航 / 页签 */
-    '智能规划':'Smart Planner','旅途伴侣':'Travel Companion','社区路线':'Community Routes',
+    '智能规划':'Smart Planning','旅途伴侣':'Travel Companion','社区路线':'Community Routes',
     '完全体':'Complete Edition','行程规划':'Trip Planner','行前准备':'Pre-Trip','社区广场':'Community Plaza',
     '旅途中':'On the Road','旅行复盘':'Trip Review','路线验证':'Route Verification',
     '返回':'Back','设置':'Settings','分享':'Share','下载':'Download','通知':'Notifications','旅人':'Traveler',
@@ -126,7 +129,7 @@
     '紧急求助':'Emergency Help','一键应急':'One-Tap Emergency','最近医院':'Nearest Hospital','报警':'Police',
     '回酒店':'Back to Hotel','切换城市':'Switch city','点击修改城市':'Click to edit city',
     '当前位置 · 可直接修改城市':'Current location · edit freely','晴':'Sunny','多云':'Cloudy','阴':'Overcast',
-    '雨':'Rain','雪':'Snow','雾':'Fog','风':'Wind',
+    '雷阵雨':'Thunderstorms','阵雨':'Showers','中雨':'Rain','大雨':'Heavy Rain','暴雨':'Downpour','小雨':'Drizzle',
     '你好，附近有':'Hi, there are','推荐：':'Recommended: ',
     '地址解析失败':'Address resolution failed','请输入地址':'Please enter an address',
     '正在分析':'Analyzing','正在为你增加更多景点/餐厅...':'Adding more spots/restaurants…',
@@ -168,6 +171,16 @@
     '节日':'Holiday','倒计时':'Countdown','天气':'Weather',
     '✅ 宜':'✅ Good for','❌ 忌':'❌ Avoid','星期天':'Sunday','星期日':'Sunday',
     '星期一':'Monday','星期二':'Tuesday','星期三':'Wednesday','星期四':'Thursday','星期五':'Friday','星期六':'Saturday',
+    '周一':'Mon','周二':'Tue','周三':'Wed','周四':'Thu','周五':'Fri','周六':'Sat','周日':'Sun',
+    /* 黄历 / 天气面板 / 节假日弹层 动态词（本地兜底，API 结果到达后覆盖） */
+    '后端在线':'Backend online','后端离线':'Backend offline',
+    '湿度':'Humidity','风速':'Wind Speed','降水概率':'Precip Chance','体感':'Feels Like',
+    '高低温':'High/Low','紫外线':'UV','能见度':'Visibility','空气质量':'Air Quality',
+    '未来':'Next','预报':'Forecast','更新':'Updated','数据源':'Data Source','来源':'Source','当前':'Current',
+    '本地':'Local','还有':'Only','共 ':'Total ','公共':'Public','今日':'Today','今晚':'Tonight','今年':'This Year',
+    '不宜':'Avoid','值神：':'Star: ','冲：':'Clash: ','煞：':'Sha: ','生肖':'Zodiac',
+    '雷暴':'Thunderstorm','冰雹':'Hail','伴':' with ','阵雨':'Showers','阴天':'Overcast',
+    '出行小贴士':'Travel Tips','请稍候':'Please wait','加载中…':'Loading…','连接中…':'Connecting…',
 
     /* 行程页（itinerary.html） */
     '行程规划助手':'Itinerary Assistant','已为你生成成都 5 日详细行程，':'Generated a 5-day Chengdu itinerary, ',
@@ -272,15 +285,29 @@
   function toEN(text) {
     if (!text || !/[\u4e00-\u9fff]/.test(text)) return text;
     if (!EN_KEYS) EN_KEYS = Object.keys(EN_DICT).sort(function (a, b) { return b.length - a.length; });
+    /* 完全命中的整句键（如长 UI 文案）直接使用，避免逐词替换 */
+    if (EN_DICT[text]) return EN_DICT[text];
+    /* 长文本不做本地逐词替换：逐词替换长句/数据描述会产生"数据Source/公Total"
+       式中英混排，远不如保持完整中文等待 API 整体翻译 */
+    if (text.length > 28) return text;
     var out = text;
+    /* 日期本地化：2026年8月1日 → 8/1/2026（美式习惯） */
+    out = out.replace(/(\d{1,4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/g, function (m, y, mo, d) {
+      return mo + '/' + d + '/' + y;
+    });
     for (var i = 0; i < EN_KEYS.length; i++) {
       var k = EN_KEYS[i];
       if (out.indexOf(k) >= 0) out = out.split(k).join(EN_DICT[k]);
     }
+    /* 逐词替换后仍残留中文（说明未完整覆盖）：返回原文，等待 API 整体翻译，
+       避免把"Total 15 个授时源"这类部分翻译写进 DOM */
+    if (/[\u4e00-\u9fff]/.test(out)) return text;
     return out;
   }
 
-  /* ===================== 翻译入口 ===================== */
+  /* ===================== 翻译入口（即时兜底） ===================== */
+  /* 繁体：本地字符映射 + 短语表；英文：内置 UI 字典（只覆盖常用文案）。
+     API 批量翻译结果到达后会自动覆盖这些兜底译文。 */
   function translateText(text) {
     if (!text) return text;
     if (lang === 'zh-CN') return text;
@@ -297,6 +324,167 @@
     }
     return false;
   }
+
+  /* ===================== 翻译缓存（localStorage，按语言分桶） ===================== */
+  var cache = null;      // { zh原文: 译文 }
+  var cacheKey = null;
+  /* v3：v2 缓存中可能残留逐词替换产生的混排译文（"数据Source"、"公Total"等），
+     升级键名强制重建缓存 */
+  var CACHE_VERSION = 'v3';
+  function cacheKeyOf(l) { return 'suit_trans_' + CACHE_VERSION + '_' + l; }
+  function loadCache() {
+    cacheKey = cacheKeyOf(lang);
+    cache = {};
+    if (lang === 'zh-CN') return;
+    try {
+      /* 清理旧版缓存键，避免污染数据被误用 */
+      ['suit_trans_en', 'suit_trans_zh-TW', 'suit_trans_zh-CN',
+       'suit_trans_v2_en', 'suit_trans_v2_zh-TW', 'suit_trans_v2_zh-CN'].forEach(function (k) {
+        try { window.localStorage.removeItem(k); } catch (e) { /* ignore */ }
+      });
+      var raw = window.localStorage.getItem(cacheKey);
+      if (raw) {
+        var o = JSON.parse(raw);
+        if (o && typeof o === 'object' && !Array.isArray(o)) cache = o;
+      }
+    } catch (e) { /* ignore */ }
+  }
+  function saveCache() {
+    if (lang === 'zh-CN' || !cache) return;
+    try {
+      var keys = Object.keys(cache);
+      if (keys.length > 6000) {           // 容量保护：最多保留 6000 条
+        var keep = {};
+        for (var i = keys.length - 6000; i < keys.length; i++) keep[keys[i]] = cache[keys[i]];
+        cache = keep;
+      }
+      window.localStorage.setItem(cacheKey, JSON.stringify(cache));
+    } catch (e) { /* ignore */ }
+  }
+
+  /* ===================== 待翻译队列（DeepSeek 批量翻译） ===================== */
+  var gen = 0;               // 语言代次：切换语言后旧请求结果作废
+  var pendingList = [];      // 本次待请求的 zh 原文（已去重）
+  var pendingSet = null;
+  var busyEl = null;
+  var debounceTimer = null;
+  var retryMap = null;       // { zh: 上次入队时间戳 }：同一字符串 60s 内最多请求一次，
+                             // 避免"轮询清扫器"对无法翻译/失败的字符串反复打 API
+
+  function hasChinese(s) { return /[\u4e00-\u9fff]/.test(s); }
+
+  function queuePending(zh) {
+    if (!zh || !hasChinese(zh) || (cache && cache[zh])) return;
+    var now = Date.now();
+    if (retryMap && retryMap[zh] && now - retryMap[zh] < 60000) return;
+    if (!retryMap) retryMap = {};
+    retryMap[zh] = now;
+    if (!pendingSet) pendingSet = {};
+    if (pendingSet[zh]) return;
+    pendingSet[zh] = 1;
+    pendingList.push(zh);
+  }
+
+  function showBusy() {
+    if (busyEl) return;
+    var host = document.querySelector('.nav__lang');
+    if (!host) return;
+    busyEl = document.createElement('div');
+    busyEl.className = 'lang-switch__busy';
+    busyEl.textContent = lang === 'en' ? 'Translating…' : (lang === 'zh-TW' ? '翻譯中…' : '翻译中…');
+    host.appendChild(busyEl);
+  }
+  function hideBusy() {
+    if (busyEl) { try { busyEl.remove(); } catch (e) {} busyEl = null; }
+  }
+
+  /* 翻译主循环：分块（每块 120 条）并发 5 路调用 /api/translate，
+     translating 锁防重入；每批完成后立即应用译文并继续消化队列（自驱动），
+     切换语言（gen++）后自动停止。 */
+  var translating = false;
+  function translatePending() {
+    if (lang === 'zh-CN' || translating || !pendingList.length) return;
+    translating = true;
+    (function loop() {
+      var myGen = gen;
+      if (myGen !== gen || !pendingList.length) { hideBusy(); translating = false; return; }
+      var list = pendingList;
+      pendingList = [];
+      pendingSet = null;
+      showBusy();
+
+      var CH = 120, chunks = [];
+      for (var i = 0; i < list.length; i += CH) chunks.push(list.slice(i, i + CH));
+
+      var done = 0;
+      function finishChunk() {
+        done++;
+        if (done >= chunks.length) {
+          if (gen === myGen) { applyCached(); saveCache(); }
+          loop(); // 继续处理新入队文本（同语言代次），直至队列清空
+        }
+      }
+      var idx = 0;
+      function worker() {
+        if (idx >= chunks.length) return;
+        var chunk = chunks[idx++];
+        fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lang: lang, texts: chunk })
+        }).then(function (r) { return r.json(); }).then(function (j) {
+          if (gen === myGen && j && j.ok && Array.isArray(j.texts)) {
+            for (var k = 0; k < chunk.length && k < j.texts.length; k++) {
+              var zh = chunk[k], t = j.texts[k];
+              /* 空/未翻译保留本地兜底；英文目标要求结果中不再含中文（否则视为
+                 部分翻译不缓存，60s 后重试）；结果异常膨胀（>3x+60，模型跑题回复）
+                 也不缓存，防止污染 DOM */
+              var sane = t && t !== zh && t.length <= (zh.length * 3 + 60);
+              if (sane && (lang !== 'en' || !hasChinese(t))) cache[zh] = (lang === 'en' && EN_DICT[zh]) ? EN_DICT[zh] : t;
+            }
+          }
+          finishChunk();
+        }).catch(function () { finishChunk(); });
+      }
+      var n = Math.min(5, chunks.length);
+      for (var c = 0; c < n; c++) worker();
+    })();
+  }
+
+  function scheduleTranslate() {
+    if (lang === 'zh-CN') return;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function () { debounceTimer = null; translatePending(); }, 500);
+  }
+
+  /* ===================== 轮询清扫器 =====================
+     兜底保障：JS 动态写入的文本（时钟/农历/节假日倒计时/状态/下拉/卡片等）
+     可能因快照时机错过翻译。周期性扫描所有仍含中文的文本节点：
+     · 已有缓存 → 立即应用译文
+     · 无缓存 → 应用本地兜底并补入翻译队列（60s 重试保护防 API 轰炸） */
+  function sweepUntranslated() {
+    if (lang === 'zh-CN' || !document.body) return;
+    var changed = false;
+    try {
+      var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+        acceptNode: function (n) {
+          var p = n.parentNode;
+          if (!p || !p.nodeName) return NodeFilter.FILTER_REJECT;
+          var tag = p.nodeName;
+          if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'TEXTAREA') return NodeFilter.FILTER_REJECT;
+          if (isSkipZone(p)) return NodeFilter.FILTER_REJECT;
+          if (!n.nodeValue || !hasChinese(n.nodeValue)) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      while (walker.nextNode()) {
+        translateNode(walker.currentNode);
+        changed = true;
+      }
+      if (changed) scheduleTranslate();
+    } catch (e) { /* ignore */ }
+  }
+  var sweepTimer = setInterval(sweepUntranslated, 3000);
 
   /* ===================== DOM 翻译 ===================== */
   var TEXT_FILTER = {
@@ -328,15 +516,49 @@
     if (obj) ORIG_ATTR.set(el, obj);
   }
 
+  function translateNode(node) {
+    snapText(node);
+    var zh = ORIG_TEXT.get(node);
+    var cur = node.nodeValue;
+    /* JS 可能更新了节点文本（如时钟/日期/倒计时）：当前值既不是原文、兜底译文，
+       也不是缓存译文时，说明文本已被 JS 改写，需重新快照为新文本 */
+    if (zh !== undefined && cur !== zh && cur !== translateText(zh) && !(cache && cache[zh] === cur)) {
+      ORIG_TEXT.set(node, cur);
+      zh = cur;
+    }
+    if (zh === undefined || zh === null) return;
+    if (cache && cache[zh]) {
+      var tv = cache[zh];
+      if (tv !== cur) node.nodeValue = tv;
+    } else {
+      var tt = translateText(zh);
+      if (tt !== cur) node.nodeValue = tt;
+      if (lang !== 'zh-CN') queuePending(zh);
+    }
+  }
+
+  function translateAttrs(el) {
+    snapAttrs(el);
+    var o = ORIG_ATTR.get(el);
+    if (!o) return;
+    for (var a in o) {
+      if (!Object.prototype.hasOwnProperty.call(o, a)) continue;
+      var zh = o[a];
+      if (!zh) continue;
+      if (cache && cache[zh]) {
+        if (el.getAttribute(a) !== cache[zh]) el.setAttribute(a, cache[zh]);
+      } else {
+        var tt = translateText(zh);
+        if (el.getAttribute(a) !== tt) el.setAttribute(a, tt);
+        if (lang !== 'zh-CN') queuePending(zh);
+      }
+    }
+  }
+
   function translateElement(root) {
     if (!root) return;
     if (root.nodeType === 3) {
-      if (!isSkipZone(root)) {
-        snapText(root);
-        var tv = root.nodeValue;
-        var tt = translateText(tv);
-        if (tt !== tv) root.nodeValue = tt;
-      }
+      if (!isSkipZone(root)) translateNode(root);
       return;
     }
     if (root.nodeType !== 1 && root.nodeType !== 9 && root.nodeType !== 11) return;
@@ -344,25 +566,51 @@
     var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, TEXT_FILTER);
     var nodes = [];
     while (walker.nextNode()) nodes.push(walker.currentNode);
-    for (var i = 0; i < nodes.length; i++) {
-      snapText(nodes[i]);
-      var v = nodes[i].nodeValue;
-      var t = translateText(v);
-      if (t !== v) nodes[i].nodeValue = t;
-    }
+    for (var i = 0; i < nodes.length; i++) translateNode(nodes[i]);
     if (root.querySelectorAll) {
       var els = root.querySelectorAll('[placeholder],[title],[aria-label],[alt]');
       for (var j = 0; j < els.length; j++) {
         var el = els[j];
         if (isSkipZone(el)) continue;
-        snapAttrs(el);
-        for (var a = 0; a < ATTR_LIST.length; a++) {
-          var at = ATTR_LIST[a];
-          if (el.hasAttribute(at)) {
-            var av = el.getAttribute(at);
-            var atr = translateText(av);
-            if (atr !== av) el.setAttribute(at, atr);
-          }
+        translateAttrs(el);
+      }
+    }
+  }
+
+  /* 用缓存（DeepSeek 译文）覆盖所有已快照节点：
+     仅当节点当前值仍等于「原文」或「本地兜底译文」时才覆盖，
+     避免覆盖 JS 动态更新的数据（如时钟/倒计时）。 */
+  function applyCached() {
+    if (lang === 'zh-CN') return;
+    if (!document.body) return;
+    if (origTitle !== null && cache[origTitle] && document.title !== cache[origTitle]) {
+      document.title = cache[origTitle];
+    }
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    var nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (!ORIG_TEXT.has(n)) continue;
+      var zh = ORIG_TEXT.get(n);
+      if (zh && cache[zh]) {
+        var fb = translateText(zh);
+        var cur = n.nodeValue;
+        if (cur === zh || cur === fb) n.nodeValue = cache[zh];
+      }
+    }
+    var els = document.body.querySelectorAll('[placeholder],[title],[aria-label],[alt]');
+    for (var j = 0; j < els.length; j++) {
+      var el = els[j];
+      if (!ORIG_ATTR.has(el)) continue;
+      var o = ORIG_ATTR.get(el);
+      for (var k in o) {
+        if (!Object.prototype.hasOwnProperty.call(o, k)) continue;
+        var zh2 = o[k];
+        if (zh2 && cache[zh2]) {
+          var cur2 = el.getAttribute(k);
+          var fb2 = translateText(zh2);
+          if (cur2 === zh2 || cur2 === fb2) el.setAttribute(k, cache[zh2]);
         }
       }
     }
@@ -376,8 +624,10 @@
       if (origTitle === null) origTitle = document.title;
       var nt = translateText(document.title);
       if (nt !== document.title) document.title = nt;
+      if (lang !== 'zh-CN') queuePending(origTitle);
     }
     if (document.body) translateElement(document.body);
+    if (lang !== 'zh-CN') scheduleTranslate();
   }
 
   /* 还原为简体原始文案（切回 zh-CN 或切换语言前调用） */
@@ -412,7 +662,9 @@
     '.lang-switch__menu.open{display:block}\n' +
     '.lang-switch__item{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:7px 11px;border:0;background:transparent;color:var(--text-2,#c8c4ba);font-size:12.5px;cursor:pointer;border-radius:8px;text-align:left;font-family:var(--sans,inherit)}\n' +
     '.lang-switch__item:hover{background:rgba(240,183,131,.12);color:#fff}\n' +
-    '.lang-switch__item.on{color:var(--accent,#f0b783);font-weight:600}\n';
+    '.lang-switch__item.on{color:var(--accent,#f0b783);font-weight:600}\n' +
+    '.lang-switch__busy{position:absolute;top:calc(100% + 4px);right:0;font-size:10px;color:var(--accent,#f0b783);background:rgba(15,17,23,.95);border:1px solid rgba(240,183,131,.3);padding:2px 9px;border-radius:99px;z-index:99999;pointer-events:none;white-space:nowrap;animation:ls-blink 1.1s ease-in-out infinite}\n' +
+    '@keyframes ls-blink{0%,100%{opacity:1}50%{opacity:.4}}\n';
 
   var switcherHost = null;
   var langMenu = null;
@@ -495,9 +747,16 @@
       if (langMenu) langMenu.classList.remove('open');
       return;
     }
+    gen++;                              // 作废在途翻译请求
+    pendingList = [];
+    pendingSet = null;
+    retryMap = null;                    // 重置重试记录，允许新语言立即重新请求
+    if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+    hideBusy();
     if (lang !== 'zh-CN') restoreAll(); // 先还原简体原始文案，避免已翻译文本无法逆映射
     lang = l;
     try { window.localStorage.setItem(LS_KEY, l); } catch (e) { /* ignore */ }
+    loadCache();
     if (langMenu) langMenu.classList.remove('open');
     updateSwitcher();
     apply();
@@ -510,23 +769,27 @@
     if (observer) observer.disconnect();
     observer = new MutationObserver(function (records) {
       if (lang === 'zh-CN') return;
-      var i, j;
-      for (i = 0; i < records.length; i++) {
+      var changed = false;
+      for (var i = 0; i < records.length; i++) {
         var rec = records[i];
         if (rec.type === 'characterData') {
           translateElement(rec.target);
+          changed = true;
         } else if (rec.type === 'childList') {
           var added = rec.addedNodes;
-          for (j = 0; j < added.length; j++) {
+          for (var j = 0; j < added.length; j++) {
             translateElement(added[j]);
+            changed = true;
           }
         }
       }
+      if (changed) scheduleTranslate();
     });
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
   }
 
   function init() {
+    loadCache();
     mountSwitcher();
     apply();
     startObserver();
@@ -541,7 +804,8 @@
     toEN: toEN,
     setLang: setLang,
     apply: apply,
-    init: init
+    init: init,
+    flushTranslate: translatePending
   };
 
   if (document.readyState === 'loading') {

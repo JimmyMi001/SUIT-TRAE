@@ -3955,6 +3955,7 @@ function scoreItinerary(itinerary, params, weather){
 async function callAI(prompt, opts){
   if(!DEEPSEEK_KEY || DEEPSEEK_KEY === 'your_deepseek_key_here') return null;
   const maxTokens = (opts && opts.max_tokens) || 16384;
+  const system   = (opts && opts.system) || '你是专业旅行规划师，输出简洁、实用、可执行。直接输出最终 JSON 结果，不要展示任何思考过程或解释。';
   try {
     const t0 = Date.now();
     const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -3964,7 +3965,7 @@ async function callAI(prompt, opts){
       body: JSON.stringify({
         model:'deepseek-v4-flash',
         messages:[
-          { role:'system', content:'你是专业旅行规划师，输出简洁、实用、可执行。直接输出最终 JSON 结果，不要展示任何思考过程或解释。' },
+          { role:'system', content: system },
           { role:'user', content: prompt }
         ],
         temperature:0.3,
@@ -3990,6 +3991,76 @@ async function callAI(prompt, opts){
     return null;
   }
 }
+
+/* ---------- 多语言翻译（前端 i18n 使用 DeepSeek flash 批量翻译界面文案） ----------
+ * POST /api/translate  { lang:'zh-TW'|'en', texts:[...原始简体文案...] }
+ * 繁体使用中国香港习惯用语；英文使用美式英语。逐条按序返回翻译结果。
+ */
+app.post('/api/translate', async (req, res) => {
+  try {
+    const { lang, texts } = req.body || {};
+    const arr = Array.isArray(texts) ? texts.map(t => String(t == null ? '' : t)) : [];
+    const cleaned = arr.map(s => s.replace(/\s*\n\s*/g, ' ').trim());
+    const N = cleaned.length;
+    if (!N) return res.json({ ok: true, texts: [] });
+
+    // 本地兜底翻译（DEEPSEEK_KEY 未配置 / 请求失败时，返回原文；客户端会保留自己的即时兜底翻译）
+    const fallback = (s) => s;
+
+    if (!DEEPSEEK_KEY || DEEPSEEK_KEY === 'your_deepseek_key_here') {
+      return res.json({ ok: true, texts: cleaned.map(s => fallback(s) || s) });
+    }
+
+    const to = lang === 'zh-TW' ? '繁體中文（中國香港）' : lang === 'en' ? 'English (US)' : null;
+    if (!to) return res.status(400).json({ ok: false, error: 'unsupported lang: ' + lang });
+
+    // 用户提供的翻译提示词模板（单段/多段用 %% 分隔）
+    const system = `You are a professional ${to} native translator who needs to fluently translate text into ${to}.
+
+## Translation Rules
+1. Output only the translated content, without explanations or additional content (such as "Here's the translation:" or "Translation as follows:")
+2. The returned translation must maintain exactly the same number of paragraphs and format as the original text
+3. If the text contains HTML tags, consider where the tags should be placed in the translation while maintaining fluency
+4. For content that should not be translated (such as proper nouns, code, etc.), keep the original text.
+5. If input contains %%, use %% in your output; if input has no %%, don't use %% in your output
+
+## OUTPUT FORMAT:
+- Multi-paragraph input → Use %% as paragraph separator between translations
+- Single paragraph input → Output translation directly (no separators, no extra text)
+
+## 风格要求
+- 信达雅，地道自然，符合当地母语者表达习惯（繁體中文用香港用語，English use American English）
+- 保留原文中的数字、符号、emoji、品牌名、城市名等专有名词
+- 简短的 UI 按钮/占位符译文力求精炼，不冗长
+
+## 关键要求（必须遵守）
+- 输入中每一段（以 %% 分隔）都是**互相独立的界面文案**（按钮/标题/占位符/提示/状态等），
+  翻译时彼此完全独立，严禁把多段联想成同一篇文章或同一主题（例如某一段提到"NTP"，不得因此把其它段也译成时间相关）
+- 严格按输入顺序逐段翻译，段与段之间不得相互参照、补充或联想
+- 保持每条原文的格式（emoji 位置、数字、标点），不做任何解释或额外说明`;
+
+    const input = cleaned.join('\n\n%%\n\n');
+    const prompt = `Translate to ${to} (output translation only):
+
+${input}`;
+
+    const out = await callAI(prompt, { system, max_tokens: 16384 });
+    if (!out) return res.json({ ok: true, texts: cleaned.map(s => fallback(s) || s) });
+
+    // 解析 %% 分隔的译文；数量不足时用兜底补齐
+    const parts = String(out).split('%%').map(s => s.trim());
+    const results = [];
+    for (let i = 0; i < N; i++) {
+      const p = parts[i];
+      if (p === undefined || p === '') results.push(fallback(cleaned[i]) || cleaned[i]);
+      else results.push(p);
+    }
+    res.json({ ok: true, texts: results });
+  } catch (e) {
+    console.warn('[api/translate] 异常:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 app.get('/api/agent/plan', async (req, res) => {
   try {
