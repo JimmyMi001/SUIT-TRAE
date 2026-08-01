@@ -1481,6 +1481,7 @@ const CITY_COORDS = {
   '北京':   { lat: 39.9042, lon: 116.4074 },
   '上海':   { lat: 31.2304, lon: 121.4737 },
   '广州':   { lat: 23.1291, lon: 113.2644 },
+  '惠州':   { lat: 23.1115, lon: 114.4162 },
   '深圳':   { lat: 22.5431, lon: 114.0579 },
   '成都':   { lat: 30.5728, lon: 104.0668 },
   '西安':   { lat: 34.3416, lon: 108.9398 },
@@ -1540,6 +1541,17 @@ const CITY_COORDS = {
   '长白山': { lat: 42.0560, lon: 128.0560 },
   '漠河':   { lat: 52.9700, lon: 122.5400 }
 };
+
+// 两城市直线距离（km）：仅当两市都在 CITY_COORDS 时返回数值，否则返回 null
+function straightKmBetween(a, b) {
+  const o = CITY_COORDS[a], d = CITY_COORDS[b];
+  if (!o || !d) return null;
+  const R = 6371;
+  const rad = x => x * Math.PI / 180;
+  const dLat = rad(d.lat - o.lat), dLon = rad(d.lon - o.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(o.lat)) * Math.cos(rad(d.lat)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
 
 // WMO 天气代码 → 中文描述
 const WMO_DESC = {
@@ -2300,7 +2312,7 @@ app.get('/api/transport/price', async (req, res) => {
     let flyaiFlightErr = null;
     try {
       const raw = await flyaiCall('search_flight', { origin, destination: dest, depDate: flyDate, limit: 10 });
-      const fsList = parseFlyaiFlights(raw, origin, dest, flyDate).filter(f => f.price > 0);
+      const fsList = filterFlyaiRoute(parseFlyaiFlights(raw, origin, dest, flyDate).filter(f => f.price > 0), origin, dest);
       // 优先直达航班；无直达才用中转（避免把"广州→无锡→北京"误当直达报价）
       const direct = fsList.filter(f => !f.transfer);
       const pool = direct.length ? direct : fsList;
@@ -5566,57 +5578,109 @@ app.get('/api/flight', async (req, res) => {
       fliggy:         `https://www.fliggy.com/flight/?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(dest)}&date=${date}`,
       qunar:          `https://flight.qunar.com/site/oneway_list.htm?searchDepartureAirport=${encodeURIComponent(origin)}&searchArrivalAirport=${encodeURIComponent(dest)}&searchDepartureTime=${date}`,
       umetrip:        'https://www.umetrip.com/',
-      airline_search: `https://www.bing.com/search?q=${encodeURIComponent(origin + '到' + dest + ' 机票 ' + date)}`
+      airline_search: `https://www.bing.com/search?q=${encodeURIComponent(origin + '到' + dest + ' 机票 ' + date)}`,
+      train_12306:    `https://kyfw.12306.cn/otn/leftTicket/init?linktypeid=dc&fs=${encodeURIComponent(origin)},,&ts=${encodeURIComponent(dest)},,&date=${date}&flag=N,N,Y`
     };
 
-    // ----- 优先：飞猪 FlyAI 实时航班（真实航班号/时刻/含税价） -----
-    const raw = await flyaiCall('search_flight', { origin, destination: dest, depDate: date, limit: 10 });
-    if (raw) {
-      const fmtDur = (min) => { const m = Number(min) || 0; const h = Math.floor(m / 60), mm = m % 60; return h + 'h' + (mm > 0 ? mm + 'm' : ''); };
-      const parsed = parseFlyaiFlights(raw, origin, dest, date);
-      // 优先直达；若存在中转航班则标注"（中转）"，避免把首段误当直达
-      const hasDirect = parsed.some(f => !f.transfer);
-      const flights = parsed.map(f => ({
-        flight: f.flight_no, airline: f.airline, origin, dest,
-        depart: (f.dep_time || '').slice(11, 16),   // "2026-08-03 21:15:00" → "21:15"
-        arrive: (f.arr_time || '').slice(11, 16),
-        duration: fmtDur(f.duration_min),
-        price: f.price, type: (f.transfer && hasDirect) ? f.seat_class + '·中转' : f.seat_class,
-        dep_station: f.dep_station, arr_station: f.arr_station,
-        dep_term: f.dep_term, arr_term: f.arr_term,
-        transfer: f.transfer, jump_url: f.jump_url
-      })).filter(f => (hasDirect ? !f.transfer : true));
-      if (flights.length) {
-        return res.json({
-          error: false, source: '飞猪 FlyAI 实时',
-          origin, dest, date, flights,
-          disclaimer: '航班时刻/含税价格来自飞猪 FlyAI 实时接口（经济舱），实际以航司/飞猪出票为准',
-          booking_links
-        });
-      }
+    // ① 近距离（<400km）通常无直飞航线：直接建议高铁（附真实 12306 车次），不再查询/虚构航班
+    const distanceKm = straightKmBetween(origin, dest);
+    if (distanceKm !== null && distanceKm < 400) {
+      return res.json(await buildMockFlights(origin, dest, date, 'no-flight'));
     }
 
-    // ----- 真实爬虫（学习自 Suysker/Ctrip-Crawler, Node.js 版） -----
-    // 启用: set ENABLE_FLIGHT_CRAWLER=1
-    // 关闭 / 失败时降级到下方参考价
+    // ② 多平台并发拉取真实航班（飞猪 FlyAI / 途牛 / 美团），各自标注平台，短超时互不影响
+    const withTimeout = (p, ms) => Promise.race([
+      p,
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+    ]);
+    const fmtDur = (min) => { const m = Number(min) || 0; const h = Math.floor(m / 60), mm = m % 60; return h + 'h' + (mm > 0 ? mm + 'm' : ''); };
+
+    const [flyaiRes, tuniuRes, meituanRes] = await Promise.allSettled([
+      // 飞猪 FlyAI：严格校验出发/到达城市，过滤无关航班
+      withTimeout((async () => {
+        const raw = await flyaiCall('search_flight', { origin, destination: dest, depDate: date, limit: 10 });
+        if (!raw) return [];
+        const parsed = filterFlyaiRoute(parseFlyaiFlights(raw, origin, dest, date).filter(f => f.price > 0), origin, dest);
+        const hasDirect = parsed.some(f => !f.transfer);
+        return parsed
+          .map(f => ({
+            flight: f.flight_no, airline: f.airline, origin, dest,
+            depart: (f.dep_time || '').slice(11, 16),   // "2026-08-03 21:15:00" → "21:15"
+            arrive: (f.arr_time || '').slice(11, 16),
+            duration: fmtDur(f.duration_min),
+            price: f.price, type: (f.transfer && hasDirect) ? f.seat_class + '·中转' : f.seat_class,
+            dep_station: f.dep_station, arr_station: f.arr_station,
+            dep_term: f.dep_term, arr_term: f.arr_term,
+            transfer: f.transfer, jump_url: f.jump_url,
+            platform: '飞猪'
+          }))
+          .filter(f => (hasDirect ? !f.transfer : true));
+      })(), 18000),
+      // 途牛开放平台：真实机票（票面价 + 机建燃油）
+      withTimeout((async () => {
+        if (!TUNIU_API_KEY) return [];
+        const d = await tuniuCall('flight', 'searchLowestPriceFlight', { departureCityName: origin, arrivalCityName: dest, departureDate: date });
+        const fl = Array.isArray(d && d.data) ? d.data : [];
+        return fl.slice(0, 8).map(f => ({
+          flight: f.flightNumber || '', airline: f.airlineCompany || '途牛', origin, dest,
+          depart: (f.departureTime || '').slice(11, 16),
+          arrive: (f.arrivalTime || '').slice(11, 16),
+          duration: f.totalDuration || f.flyTime || '',
+          price: Math.round((Number(f.basePrice) || 0) + (Number(f.totalTax) || 0)),
+          type: (f.cabinClass || '经济舱') + (f.type && f.type !== '直飞' ? '·' + f.type : ''),
+          dep_station: f.departureAirport ? `${origin}·${f.departureAirport}${f.departureTerminal ? (/^T/i.test(String(f.departureTerminal)) ? ' ' + f.departureTerminal : ' T' + f.departureTerminal) : ''}` : origin,
+          arr_station: f.arrivalAirport ? `${dest}·${f.arrivalAirport}` : dest,
+          remaining_seats: f.remainingSeats,
+          transfer: /中转|经停/.test(f.type || ''),
+          platform: '途牛',
+          jump_url: `https://www.tuniu.com/flight/search/${encodeURIComponent(origin)}-${encodeURIComponent(dest)}/`
+        })).filter(f => f.flight && f.price > 0);
+      })(), 18000),
+      // 美团酒旅（官方 openapi，AI 生成式真实航班 + dpurl 短链直达购票）
+      withTimeout((async () => {
+        if (!MEITUAN_HT_TOKEN) return [];
+        const mt = await meituanTravelQuery(origin || '北京', `从${origin}到${dest}明天的机票`);
+        if (!mt.ok) return [];
+        return parseMeituanMarkdown(mt.markdown)
+          .filter(it => it.price > 0 && it.link)
+          .slice(0, 8)
+          .map(it => parseMeituanFlightItem(it, origin, dest));
+      })(), 30000)
+    ]);
+
+    const flights = [].concat(
+      flyaiRes.status === 'fulfilled' ? flyaiRes.value : [],
+      tuniuRes.status === 'fulfilled' ? tuniuRes.value : [],
+      meituanRes.status === 'fulfilled' ? meituanRes.value : []
+    ).filter(f => f && f.price > 0).sort((a, b) => a.price - b.price);
+
+    if (flights.length) {
+      const platformCount = {};
+      for (const f of flights) platformCount[f.platform] = (platformCount[f.platform] || 0) + 1;
+      return res.json({
+        error: false, source: '多平台真实票价（飞猪/途牛/美团）',
+        origin, dest, date, flights,
+        platforms: Object.entries(platformCount).map(([name, count]) => ({ name, count })),
+        multisource: true,
+        disclaimer: '航班时刻/含税价格来自 飞猪 FlyAI / 途牛 / 美团 实时接口，实际以航司/平台出票为准',
+        booking_links
+      });
+    }
+
+    // ----- 真实爬虫（学习自 Suysker/Ctrip-Crawler, Node.js 版，可选启用） -----
     const crawlerEnabled = process.env.ENABLE_FLIGHT_CRAWLER === '1';
     if (crawlerEnabled) {
       try {
-        const real = await flightCrawler.searchFlights({
-          origin, dest, date,
-          timeoutMs: 25000
-        });
-        // 补全 booking_links, 与参考价响应结构对齐
+        const real = await flightCrawler.searchFlights({ origin, dest, date, timeoutMs: 25000 });
         real.booking_links = booking_links;
         return res.json(real);
       } catch (e) {
-        console.warn('[flight] crawler 失败, 降级到参考价:', e.message);
-        // 失败时: 返回参考价, 但带上爬虫失败的提示, 方便排查
-        return res.json(buildMockFlights(origin, dest, date, 'crawler-failed:' + e.message));
+        console.warn('[flight] crawler 失败, 降级到诚实提示:', e.message);
       }
     }
 
-    return res.json(buildMockFlights(origin, dest, date, 'reference'));
+    // ③ 无任何真实航班：诚实提示（近距离开启 12306 高铁数据），绝不虚构航班
+    return res.json(await buildMockFlights(origin, dest, date, 'no-data'));
   } catch(e){ res.status(500).json({ error:true, message:e.message }); }
 });
 
@@ -5630,64 +5694,93 @@ function fmtArrive(depart, h, m) {
   return String(ah).padStart(2,'0') + ':' + String(am).padStart(2,'0') + suffix;
 }
 
-// 抽出来的参考价数据(失败/关闭爬虫时返回), 单独成函数便于复用
-function buildMockFlights(origin, dest, date, sourceTag) {
-  // 计算直线距离，短途不提供航班参考（<400km 通常无直飞航线）
-  const o = CITY_COORDS[origin];
-  const d = CITY_COORDS[dest];
-  let tooClose = false;
-  let straightKm = 0;
-  if (o && d) {
-    const R = 6371;
-    const rad = x => x * Math.PI / 180;
-    const dLat = rad(d.lat - o.lat), dLon = rad(d.lon - o.lon);
-    const a = Math.sin(dLat/2)**2 + Math.cos(rad(o.lat))*Math.cos(rad(d.lat))*Math.sin(dLon/2)**2;
-    straightKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    if (straightKm < 400) tooClose = true;
-  }
-  if (tooClose) {
+// 真实 12306 高铁车次（近距离无航班时的备选数据；服务不可用/无车次返回 null）
+// 返回结构对齐 /api/train 的 trains 数组（no/type/depart/arrive/duration/price/seat/seats）
+async function fetchTrains12306(origin, dest, date) {
+  try {
+    const real = await call12306Tool('query-tickets', { from_station: origin, to_station: dest, train_date: date });
+    if (!real || !real.success || !Array.isArray(real.trains) || !real.trains.length) return null;
+    const priceRes = await call12306Tool('query-ticket-price', { from_station: origin, to_station: dest, train_date: date });
+    const priceRows = (priceRes && priceRes.success && Array.isArray(priceRes.data)) ? priceRes.data : [];
+    // 精确匹配票价段：同一车次号可能有多个区段（如 惠州北→广州新塘 / 惠州北→广州东），优先站点一致的那段；
+    // 多段且无法确认时不给价（避免 ¥447 这类错配），宁缺毋滥。
+    const pickPrices = (t) => {
+      const cands = priceRows.filter(p => p.train_code === t.train_no);
+      if (!cands.length) return null;
+      const exact = cands.find(p => p.from_station === t.from_station && p.to_station === t.to_station);
+      if (exact) return exact.prices || null;
+      return cands.length === 1 ? (cands[0].prices || null) : null;
+    };
+    const typeOf = (no) => /^G/.test(no) ? '高铁' : (/^[DC]/.test(no) ? '动车' : (/^[KZT]/.test(no) ? '普速' : '列车'));
+    const fmtDur = (s) => { const m = String(s || '').split(':'); if (m.length < 2) return s || ''; const h = +m[0] || 0, mi = +m[1] || 0; return h + 'h' + (mi ? mi + 'm' : ''); };
+    const sorted = real.trains.slice().sort((a, b) => String(a.start_time || '').localeCompare(String(b.start_time || '')));
+    const want = Math.min(8, sorted.length);
+    const trains = [];
+    for (let i = 0; i < want; i++) {
+      const idx = want === 1 ? 0 : Math.round(i * (sorted.length - 1) / (want - 1));
+      const t = sorted[idx];
+      const prices = pickPrices(t) || {};
+      const keys = Object.keys(prices);
+      const seat = keys.includes('二等座') ? '二等座' : (keys[0] || '二等座');
+      const price = prices[seat] != null ? prices[seat] : (keys.map(k => prices[k]).find(v => v != null) || 0);
+      // 12306 个别车站名会返回站点代码（如 "KBA"），此时不展示站点详情，避免用户看到无意义代号
+      const isCode = (s) => /^[A-Z0-9]{2,5}$/.test(String(s || '').trim());
+      const fst = isCode(t.from_station) ? '' : String(t.from_station || '').trim();
+      const tst = isCode(t.to_station) ? '' : String(t.to_station || '').trim();
+      trains.push({
+        no: t.train_no, type: typeOf(t.train_no), origin, dest,
+        depart: t.start_time, arrive: t.arrive_time, duration: fmtDur(t.duration),
+        price: Math.round(Number(price) || 0), seat,
+        seats: t.seats || {},
+        stations: (fst && tst) ? `${fst} → ${tst}` : ''
+      });
+    }
+    return trains.length ? trains : null;
+  } catch (e) { return null; }
+}
+
+// 近距离无航班兜底（绝不再虚构航班号/票价）：短途(<400km)附真实 12306 高铁车次，其余诚实提示
+async function buildMockFlights(origin, dest, date, sourceTag) {
+  const straightKm = straightKmBetween(origin, dest);
+  const booking_links = {
+    official_12306: 'https://www.12306.cn/index/',
+    ctrip_flight:   `https://flights.ctrip.com/online/list/oneway-${origin}-${dest}?_=1&depdate=${date}`,
+    fliggy:         `https://www.fliggy.com/flight/?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(dest)}&date=${date}`,
+    qunar:          `https://flight.qunar.com/site/oneway_list.htm?searchDepartureAirport=${encodeURIComponent(origin)}&searchArrivalAirport=${encodeURIComponent(dest)}&searchDepartureTime=${date}`,
+    umetrip:        'https://www.umetrip.com/',
+    airline_search: `https://www.bing.com/search?q=${encodeURIComponent(origin + '到' + dest + ' 机票 ' + date)}`,
+    train_12306:    `https://kyfw.12306.cn/otn/leftTicket/init?linktypeid=dc&fs=${encodeURIComponent(origin)},,&ts=${encodeURIComponent(dest)},,&date=${date}&flag=N,N,Y`
+  };
+  // 短途（<400km）：通常无直飞航线 → 建议高铁 + 真实 12306 车次
+  if (straightKm !== null && straightKm < 400) {
+    const trains = await fetchTrains12306(origin, dest, date);
+    // 推荐最便宜的高铁/动车（无则取普速），并带上真实席别，避免误标"二等座"
+    const highSpeed = trains ? trains.filter(t => t.type === '高铁' || t.type === '动车') : [];
+    const pool = (highSpeed.length ? highSpeed : trains || []);
+    const cheapest = pool.filter(t => t.price > 0).sort((a, b) => a.price - b.price)[0] || null;
     return {
       error: false,
       source: sourceTag,
       origin, dest, date,
-      flights: [],
+      flights: [], trains: trains || [], suggestion: 'train',
       distance_km: Math.round(straightKm),
-      message: `${origin}到${dest}直线距离约 ${Math.round(straightKm)} km，距离较近，通常无直飞航班。建议选择高铁/动车出行。`,
-      suggestion: 'train',
+      message: `${origin}到${dest}直线距离约 ${Math.round(straightKm)} km，距离较近，通常无直飞航线。${cheapest ? `已为你查询 12306 真实车次（${cheapest.seat}约 ¥${cheapest.price} 起）。` : '建议选择高铁/动车出行（12306 服务暂不可用，可点击下方链接查询）。'}`,
       disclaimer: '短途出行（<400km）一般不设民航航线，请通过高铁/动车出行',
-      booking_links: {
-        train_12306: `https://kyfw.12306.cn/otn/leftTicket/init?linktypeid=dc&fs=${encodeURIComponent(origin)},,&ts=${encodeURIComponent(dest)},,&date=${date}&flag=N,N,Y`
-      }
+      booking_links
     };
   }
-  // 根据距离调整航班时长
-  const flightHours = Math.max(1, Math.round(straightKm / 800 * 10) / 10); // ~800km/h 巡航
-  const h = Math.floor(flightHours);
-  const m = Math.round((flightHours - h) * 60);
-  const durStr = h + 'h' + (m > 0 ? m + 'm' : '');
-  // 根据距离估算票价（含基建燃油）
-  const basePrice = Math.round(straightKm * 0.65 + 100);
-  const flights = [
-    { flight:'CA1234', airline:'国航', origin, dest, depart:'07:30', arrive: fmtArrive('07:30', h, m), duration: durStr, price: Math.round(basePrice * 1.35), type:'经济舱' },
-    { flight:'3U8888', airline:'川航', origin, dest, depart:'09:50', arrive: fmtArrive('09:50', h, m), duration: durStr, price: Math.round(basePrice * 1.0), type:'经济舱' },
-    { flight:'MU2345', airline:'东航', origin, dest, depart:'14:20', arrive: fmtArrive('14:20', h, m), duration: durStr, price: Math.round(basePrice * 1.1), type:'经济舱' },
-    { flight:'CZ6789', airline:'南航', origin, dest, depart:'19:05', arrive: fmtArrive('19:05', h, m), duration: durStr, price: Math.round(basePrice * 0.83), type:'特价' },
-    { flight:'CA4567', airline:'国航', origin, dest, depart:'21:30', arrive: fmtArrive('21:30', h, m), duration: durStr, price: Math.round(basePrice * 1.98), type:'商务舱' }
-  ];
+  // 无法核实航线（城市未收录坐标）或非短途但无真实航班：诚实提示，绝不虚构航班
   return {
     error: false,
     source: sourceTag,
     origin, dest, date,
-    flights,
-    disclaimer: '航班价格为参考区间（典型经济舱 540-1290 元），实际价格随日期/舱位浮动，请通过下方链接跳转官方平台查询实时报价',
-    booking_links: {
-      official_12306: 'https://www.12306.cn/index/',
-      ctrip_flight:   `https://flights.ctrip.com/online/list/oneway-${origin}-${dest}?_=1&depdate=${date}`,
-      fliggy:         `https://www.fliggy.com/flight/?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(dest)}&date=${date}`,
-      qunar:          `https://flight.qunar.com/site/oneway_list.htm?searchDepartureAirport=${encodeURIComponent(origin)}&searchArrivalAirport=${encodeURIComponent(dest)}&searchDepartureTime=${date}`,
-      umetrip:        'https://www.umetrip.com/',
-      airline_search: `https://www.bing.com/search?q=${encodeURIComponent(origin + '到' + dest + ' 机票 ' + date)}`
-    }
+    flights: [], trains: null, suggestion: 'manual',
+    distance_km: straightKm !== null ? Math.round(straightKm) : null,
+    message: straightKm !== null
+      ? `未查询到 ${origin}→${dest} 的直飞航班（可能无直飞航线或当日无班次）。请通过 12306/飞猪/携程/去哪儿官方渠道核实实时航班。`
+      : `暂无法核实 ${origin}→${dest} 的航线数据（该城市暂未收录坐标）。请通过 12306/飞猪/携程/去哪儿官方渠道查询实时航班。`,
+    disclaimer: '本系统仅展示真实数据源（飞猪 FlyAI/途牛/美团/12306）核实到的航班，未核实到时不提供虚构航班信息',
+    booking_links
   };
 }
 
@@ -6026,6 +6119,49 @@ function parseFlyaiFlights(raw, origin, dest, date) {
   });
 }
 
+// 严格校验 FlyAI 航班是否真的属于"出发→到达"航线
+// （防近距离航线被返回无关航班：如 惠州→广州 被返回 惠州→海口/宁波/成都 的航班）
+function filterFlyaiRoute(flights, origin, dest) {
+  const norm = s => String(s || '').replace(/[市省特别行政区自治区]/g, '').trim();
+  const o = norm(origin), d = norm(dest);
+  return flights.filter(f => {
+    const dep = norm(f.dep_city), arr = norm(f.arr_city);
+    if (dep && arr) {
+      if (!(dep.includes(o) || o.includes(dep))) return false;
+      if (!(arr.includes(d) || d.includes(arr))) return false;
+    } else if (dep) {
+      if (!(dep.includes(o) || o.includes(dep))) return false;
+    }
+    return true;
+  });
+}
+
+// 解析美团酒旅航班条目 → 与 /api/flight flights 统一结构
+// 标题形如：海航｜首都航空JD5922 广州·白云→北京·大兴 2026-08-02 21:55→00:55 3h 经济舱 ¥571
+function parseMeituanFlightItem(it, origin, dest) {
+  const name = it.name || '';
+  const fm = name.match(/^([^\d]+?)\s*([A-Z0-9]{2}\d{3,4})/);
+  const tm = name.match(/(\d{1,2}:\d{2})→(\d{1,2}:\d{2})/);
+  const dm = name.match(/(\d+h\d*m|\d+h)/);
+  const sm = name.match(/([\u4e00-\u9fa5A-Za-z]+)·([^\s→]+)→([\u4e00-\u9fa5A-Za-z]+)·([^\s]+)/);
+  return {
+    flight: fm ? fm[2] : '',
+    airline: fm ? fm[1].replace(/[｜|]/g, '/') : '美团推荐',
+    origin, dest,
+    depart: tm ? tm[1] : '',
+    arrive: tm ? tm[2] : '',
+    duration: dm ? dm[1] : '',
+    price: Number(it.price) || 0,
+    type: /头等/.test(name) ? '头等舱' : (/商务/.test(name) ? '商务舱' : '经济舱'),
+    dep_station: sm ? `${sm[1]}·${sm[2]}` : origin,
+    arr_station: sm ? `${sm[3]}·${sm[4]}` : dest,
+    transfer: /中转|经停/.test(name),
+    platform: '美团',
+    jump_url: it.link || '',
+    note: (it.desc || '').replace(/\[[^\]]*\]\([^)]*\)/g, '').slice(0, 80)
+  };
+}
+
 // 解析 FlyAI 酒店 → 统一酒店列表（匿名模式 price 可能为 ¥1xx 脱敏价）
 function parseFlyaiHotels(raw) {
   const list = (raw && raw.data && Array.isArray(raw.data.itemList)) ? raw.data.itemList : [];
@@ -6053,10 +6189,23 @@ app.get('/api/flyai/flight', async (req, res) => {
     const dest = (req.query.to || req.query.destination || '').trim();
     const date = (req.query.date || cnDateStr(1)).trim();
     if (!origin || !dest) return res.json({ error: true, message: '缺少 from/to（出发/到达城市）参数' });
+    // 近距离（<400km）通常无直飞航线：直接返回建议（前端可引导高铁）
+    const distanceKm = straightKmBetween(origin, dest);
+    if (distanceKm !== null && distanceKm < 400) {
+      return res.json({
+        error: true, suggestion: 'train', distance_km: Math.round(distanceKm),
+        message: `${origin}到${dest}直线距离约 ${Math.round(distanceKm)} km，距离较近，通常无直飞航线。建议选择高铁/动车出行（可在旅途伴侣使用「🚄 高铁」查询真实车次）。`
+      });
+    }
     const raw = await flyaiCall('search_flight', { origin, destination: dest, depDate: date, limit: 10 });
     if (!raw) return res.json({ error: true, message: '飞猪 FlyAI 暂不可用，请稍后重试' });
-    const flights = parseFlyaiFlights(raw, origin, dest, date);
-    if (!flights.length) return res.json({ error: true, message: '未查询到该航线航班', hint: '请检查城市名（如 广州/北京）与日期格式（YYYY-MM-DD）' });
+    // 严格校验航线（防 惠州→广州 被返回 惠州→海口/宁波/成都 的无关航班）
+    const flights = filterFlyaiRoute(parseFlyaiFlights(raw, origin, dest, date), origin, dest);
+    if (!flights.length) return res.json({
+      error: true, suggestion: 'manual', origin, dest,
+      message: `未查询到 ${origin}→${dest} 的真实直飞航班（可能无直飞航线或当日无班次）。请通过 12306/飞猪/携程/去哪儿官方渠道核实。`,
+      hint: '请检查城市名（如 广州/北京）与日期格式（YYYY-MM-DD）'
+    });
     res.json({
       error: false, source: '飞猪 FlyAI 实时', anon_mode: FLYAI_ANON, origin, dest, date, flights,
       query_url: `https://www.fliggy.com/flight/?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(dest)}&date=${date}`,
@@ -6309,7 +6458,7 @@ app.get('/api/consensus', async (req, res) => {
       // ① 飞猪 FlyAI 真实航班
       try {
         const raw = await flyaiCall('search_flight', { origin: from, destination: to, depDate: date, limit: 10 });
-        const list = parseFlyaiFlights(raw, from, to, date).filter(f => f.price > 0);
+        const list = filterFlyaiRoute(parseFlyaiFlights(raw, from, to, date).filter(f => f.price > 0), from, to);
         const direct = list.filter(f => !f.transfer);
         const pool = direct.length ? direct : list;
         if (pool.length) {

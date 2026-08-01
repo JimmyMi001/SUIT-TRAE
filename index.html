@@ -5482,28 +5482,52 @@ async function runCompTool(tool){
       if(!originCity){ out.innerHTML = '<div class="state" style="color:#fbbf24">⚠️ 请先在智能规划页填写「你所在城市」作为出发地</div>'; return; }
       if(originCity === city){ out.innerHTML = '<div class="state" style="color:#fbbf24">⚠️ 出发地与目的地相同，无需机票</div>'; return; }
       const r = await API.flight(originCity, city, '');
+      // 无真实航班：近距离开启真实 12306 高铁车次，其余诚实提示（绝不显示虚构航班）
       if(r.__error || (!r.flights?.length)){
-        // 近距离可能没有航班，建议高铁
-        out.innerHTML = `<div class="state" style="color:#fbbf24">⚠️ ${esc(originCity)}→${esc(city)} 暂无直飞航班（可能距离较近无航线）</div>
+        const trainBadge = `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(126,224,163,.12);border:1px solid rgba(126,224,163,.35);color:#7ee0a3;font-size:11px;font-weight:600;letter-spacing:.03em;margin-left:8px">📡 12306 实时数据</span>`;
+        const trainsHtml = (r.trains && r.trains.length) ? `
+          <div style="margin-top:10px">
+            <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px">🚄 ${esc(originCity)}→${esc(city)} 高铁动车（${r.date || ''}）${trainBadge}</div>
+            <div style="display:flex;flex-direction:column;gap:6px">${r.trains.slice(0,6).map(t=>`<div class="card" style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+              <div style="flex:1">
+                <div style="font-weight:600">${esc(t.no)} · ${esc(t.type)} · ${esc(t.seat)}</div>
+                <div class="card__meta">${esc(t.depart)} → ${esc(t.arrive)} · ${esc(t.duration)}${t.stations ? ' · ' + esc(t.stations) : ''}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:18px;color:var(--accent);font-weight:700">¥${t.price||'—'}</div>
+                <div style="color:var(--muted);font-size:11px">${esc(t.seat)}</div>
+              </div>
+            </div>`).join('')}</div>
+          </div>` : '';
+        out.innerHTML = `<div class="state" style="color:#fbbf24">⚠️ ${esc(originCity)}→${esc(city)} 无直飞航班${r.message ? '：' + esc(r.message) : '（可能距离较近无航线）'}</div>
+          ${trainsHtml}
           <div style="margin-top:8px;padding:10px 14px;background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.25);border-radius:6px;font-size:13px;color:var(--text)">💡 短途出行建议选择<a href="javascript:void(0)" onclick="runCompTool('train')" style="color:var(--accent);text-decoration:underline">高铁/动车</a>，更便捷经济</div>`;
         return;
       }
-      const fReal = r.source === '飞猪 FlyAI 实时';
-      const fBadge = fReal
-        ? `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(126,224,163,.12);border:1px solid rgba(126,224,163,.35);color:#7ee0a3;font-size:11px;font-weight:600;letter-spacing:.03em;margin-left:8px">✈️ 飞猪 FlyAI 实时票价</span>`
+      const fBadge = r.multisource
+        ? `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(126,224,163,.12);border:1px solid rgba(126,224,163,.35);color:#7ee0a3;font-size:11px;font-weight:600;letter-spacing:.03em;margin-left:8px">✈️ 多平台真实票价（飞猪/途牛/美团）</span>`
         : `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(240,165,0,.12);border:1px solid rgba(240,165,0,.35);color:#fbbf24;font-size:11px;font-weight:600;letter-spacing:.03em;margin-left:8px">📊 参考估算</span>`;
+      const platColor = { '飞猪':'#7ee0a3', '途牛':'#93c5fd', '美团':'#fbbf24' };
+      const platChip = (f) => f.platform ? `<span style="display:inline-block;padding:1px 8px;border-radius:10px;background:rgba(240,183,131,.1);border:1px solid ${platColor[f.platform]||'#f0b783'}55;color:${platColor[f.platform]||'#f0b783'};font-size:10px;font-weight:600;margin-right:6px">${esc(f.platform)}</span>` : '';
+      const platFooter = (r.platforms && r.platforms.length)
+        ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${r.platforms.map(p=>`<span style="padding:3px 10px;border-radius:12px;background:rgba(240,183,131,.06);border:1px solid rgba(240,183,131,.25);color:var(--text-2);font-size:11px">${esc(p.name)} ${p.count} 班</span>`).join('')}</div>`
+        : '';
       out.innerHTML = `<h3 style="margin:16px 0 8px">✈️ ${esc(originCity)}→${esc(city)} 航班（${r.date}）${fBadge}</h3>
-        <div style="display:flex;flex-direction:column;gap:8px">${r.flights.map(f=>`<div class="card" style="padding:12px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:8px">${r.flights.map(f=>`<div class="card" style="padding:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:${f.jump_url?'pointer':'default'}${f.jump_url?';border-color:rgba(240,183,131,.28)':''}" ${f.jump_url?`onclick="window.open('${esc(f.jump_url)}','_blank')"`:''}>
           <div style="flex:1">
-            <div style="font-weight:600">${esc(f.airline)} ${esc(f.flight)} · ${esc(f.type)}</div>
-            <div class="card__meta">${esc(f.depart)} → ${esc(f.arrive)} · ${esc(f.duration)}${f.dep_station ? ' · ' + esc(f.dep_station) + '→' + esc(f.arr_station) : ''}</div>
+            <div style="font-weight:600">${platChip(f)}${esc(f.airline)} ${esc(f.flight)} · ${esc(f.type)}${f.transfer?' <span style="color:var(--accent);font-size:11px">（中转）</span>':''}</div>
+            <div class="card__meta">${esc(f.depart)} → ${esc(f.arrive)} · ${esc(f.duration)}${f.dep_station ? ' · ' + esc(f.dep_station) + '→' + esc(f.arr_station) : ''}${f.remaining_seats ? ' · 余票' + esc(f.remaining_seats) + '张' : ''}</div>
+            ${f.note ? `<div style="color:var(--muted);font-size:11px;margin-top:3px">${esc(f.note)}</div>` : ''}
           </div>
           <div style="text-align:right">
             <div style="font-size:20px;color:var(--accent);font-weight:700">¥${f.price}</div>
             <div style="color:var(--muted);font-size:11px">含税</div>
           </div>
         </div>`).join('')}</div>
-        <div style="color:var(--muted);font-size:12px;margin-top:8px">💡 修改出发地：在智能规划页顶部修改「你所在城市」</div>`;
+        ${r.message ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(240,183,131,.06);border-radius:6px;font-size:12px;color:var(--text-2)">${esc(r.message)}</div>` : ''}
+        ${platFooter}
+        <div style="color:var(--muted);font-size:12px;margin-top:8px">${esc(r.disclaimer || '')}${r.multisource ? ' · 点击航班卡片可跳转对应平台购票' : ''}</div>
+        <div style="color:var(--muted);font-size:12px;margin-top:4px">💡 修改出发地：在智能规划页顶部修改「你所在城市」</div>`;
     } else if(tool === 'train'){
       if(!originCity){ out.innerHTML = '<div class="state" style="color:#fbbf24">⚠️ 请先在智能规划页填写「你所在城市」作为出发地</div>'; return; }
       if(originCity === city){ out.innerHTML = '<div class="state" style="color:#fbbf24">⚠️ 出发地与目的地相同，无需购票</div>'; return; }
