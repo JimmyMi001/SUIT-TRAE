@@ -3133,7 +3133,15 @@ async function renderItinerary(data, params){
   // 全路线地图 URL（带所有 POI 坐标）
   const allNodes = data.itinerary.flatMap(d=>d.nodes||[]);
   // 交通价格（如用户填了出发城市）
-  const originCity = (document.getElementById('userOriginCity')?.value || '').trim();
+  // 修复：默认是级联下拉（originCascadeBox），IP 自动定位/级联选择写入的是 originCitySel，
+  // 文本输入 userOriginCity 常为空，导致交通对比不生成。统一按 getPlanParams 同款逻辑读取：
+  //   ① params.originCity（getPlanParams 已正确计算）② 级联下拉 ③ 文本输入
+  const ocBox = document.getElementById('originCascadeBox');
+  const isOCascade = ocBox && ocBox.style.display !== 'none';
+  const originCity = ((params && params.originCity) || '').trim()
+    || (isOCascade
+        ? ((document.getElementById('originCitySel')?.value || document.getElementById('originProvince')?.value || '').trim())
+        : ((document.getElementById('userOriginCity')?.value || '').trim()));
   let transportBlock = '';
   if (originCity && originCity !== city) {
     try {
@@ -3265,7 +3273,7 @@ async function renderItinerary(data, params){
               <div class="rest-card__name">${esc(r.name)}</div>
               <div class="rest-card__sig">🍴 ${esc(r.signature || '本地特色')}</div>
               <div class="rest-card__meta">
-                <span class="rest-card__price">¥${r.price_per_person}/位</span>
+                <span class="rest-card__price">${r.price_per_person ? '¥'+r.price_per_person+'/位' : '人均见平台'}</span>
                 <span>📍 ${esc(r.district || '市中心')}</span>
               </div>
               <div class="rest-card__why"><b>💡 推荐理由：</b>${esc(r.why || '本地口碑餐厅')}</div>

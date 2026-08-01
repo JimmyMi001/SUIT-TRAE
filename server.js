@@ -3458,84 +3458,147 @@ const RESTAURANT_DB = {
   ]
 };
 
-/* ---------- 餐厅推荐函数（5 档 + 跨数据源） ---------- */
-const RESTAURANT_DEFAULT_TEMPLATES = {
-  '川菜': [
-    ['街边小面馆', 'budget', 18, '担担面/小面', '老城区', '街边小馆，本地人工作餐'],
-    ['苍蝇馆子(家常菜)', 'casual', 60, '回锅肉/麻婆豆腐', '老城区', '无环境但味道正宗'],
-    ['品牌火锅(中端)', 'mid', 130, '牛油火锅/鸳鸯锅', '商业区', '海底捞/小龙坎级别'],
-    ['精致川菜', 'refined', 380, '新派川菜/川味创意菜', '商务区', '柴门荟级别'],
-    ['米其林川菜', 'michelin', 1280, '官府川菜/私房宴', '高端', '玉芝兰级别']
-  ],
-  '粤菜': [
-    ['街头肠粉/糖水', 'budget', 20, '肠粉/糖水/艇仔粥', '老城区', '本地人最常吃'],
-    ['广式茶餐厅', 'casual', 70, '菠萝油/丝袜奶茶/烧腊', '商业区', '港式茶餐厅'],
-    ['中档粤菜', 'mid', 200, '烧味/海鲜', '商业区', '中等价位粤菜'],
-    ['精致粤菜', 'refined', 500, '燕鲍翅', '商务区', '中高端粤菜'],
-    ['米其林粤菜', 'michelin', 1500, '私房/创意粤菜', '高端', '好酒好蔡级别']
-  ]
-};
-function recommendRestaurants(city, userBudget, userInterests) {
+/* ---------- 餐厅推荐函数（5 档 + 跨数据源，绝不编造店名） ----------
+ * 数据源优先级（全部为真实可查数据）：
+ *   ① RESTAURANT_DB 本地真实库（北京/上海/广州/成都/杭州/西安，真实店铺+真实人均）
+ *   ② 美团酒旅 openapi 真实条目（配置 MEITUAN_HT_TOKEN 时：真实店名+真实人均+跳转链接）
+ *   ③ 高德地图实时美食 POI（真实店铺名/地址/坐标；人均未知则如实标注"以大众点评/美团为准"）
+ *   ④ 以上都不可用 → 诚实引导建议（不虚构店名，引导去美团/大众点评搜索）
+ * 死规矩：禁止输出"街边小面馆"式虚构店名；价格未知宁可标"人均见平台"也绝不编价。
+ */
+async function recommendRestaurants(city, userBudget, userInterests) {
   const tierOrder = ['budget', 'casual', 'mid', 'refined', 'michelin'];
   const result = {};
+  tierOrder.forEach(t => { result[t] = { tier: RESTAURANT_TIERS[t], items: [] }; });
   const db = RESTAURANT_DB[city];
-  // 初始化 5 档
-  tierOrder.forEach(t => {
-    result[t] = { tier: RESTAURANT_TIERS[t], items: [] };
-  });
   if (db && db.length) {
-    // 已知城市 — 按 tier 分组
+    // ① 已知城市 — 本地真实库（按 tier 分组）
     db.forEach(row => {
       const [name, tier, price, signature, district, why] = row;
       // 价格过滤：超预算 1.5 倍的不推荐
-      const budgetCap = userBudget * 1.5;
-      if (price > budgetCap) return;
-      result[tier].items.push({
-        name, tier, price_per_person: price, signature, district, why,
-        booking_links: {
-          meituan:  `https://www.meituan.com/meishi/${encodeURIComponent(city)}/`,
-          dianping:  `https://www.dianping.com/${encodeURIComponent(city)}/ch05`,
-          ctrip:     `https://piao.ctrip.com/restaurant/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(name)}`,
-          fliggy:    `https://www.fliggy.com/food/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(name)}`
-        },
-        source: 'meituan+大众点评+携程美食林+黑珍珠+米其林',
-        source_label: '美团 / 大众点评 / 携程美食林 / 黑珍珠 / 米其林'
-      });
-    });
-  } else {
-    // 未知城市 — 用通用模板（按用户兴趣适配）
-    const cuisine = (userInterests && userInterests.length) ? userInterests[0] : '本地';
-    const template = RESTAURANT_DEFAULT_TEMPLATES[cuisine] || [
-      ['街边小吃店',    'budget',   25, '本地小吃',           '老城区',  '本地人最常去的街边小馆'],
-      ['本地家常菜馆',  'casual',   75, '家常菜',             '老城区',  '本地家常味道'],
-      ['品牌连锁餐厅',  'mid',     150, '品牌菜',             '商业区',  '全国连锁品牌'],
-      ['本地精致餐厅',  'refined', 450, '精致本地菜',         '商务区',  '高端本地餐饮'],
-      ['米其林级别餐厅','michelin',1200, '创意菜/私房',        '高端',    '米其林/黑珍珠级别']
-    ];
-    template.forEach(row => {
-      const [name, tier, price, signature, district, why] = row;
       if (price > userBudget * 1.5) return;
       result[tier].items.push({
         name, tier, price_per_person: price, signature, district, why,
         booking_links: {
           meituan:  `https://www.meituan.com/meishi/${encodeURIComponent(city)}/`,
-          dianping:  `https://www.dianping.com/${encodeURIComponent(city)}/ch05`,
-          ctrip:     `https://piao.ctrip.com/restaurant/?city=${encodeURIComponent(city)}`,
-          fliggy:    `https://www.fliggy.com/food/?city=${encodeURIComponent(city)}`
+          dianping: `https://www.dianping.com/${encodeURIComponent(city)}/ch05`,
+          ctrip:    `https://piao.ctrip.com/restaurant/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(name)}`,
+          fliggy:   `https://www.fliggy.com/food/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(name)}`
         },
-        source: '通用模板（建议补充' + city + '本地餐厅数据）',
-        source_label: '通用模板（' + city + ' 本地 POI 数据未配置）'
+        source: 'RESTAURANT_DB',
+        source_label: '本地真实餐厅库（美团 / 大众点评 / 携程美食林 / 黑珍珠 / 米其林）'
       });
     });
+    return finalizeRestaurants(result);
   }
-  // 每个 tier 最多保留 2 个
+  // —— 未知城市：并行拉取真实数据源（7s 封顶；全部失败则给诚实引导而非编造）——
+  let amapPOIs = [];
+  let meituanItems = [];
+  const tasks = [];
+  if (AMAP_KEY && AMAP_KEY !== 'your_amap_key_here') {
+    tasks.push(fetchFoodPOIsFromAmap(city).then(l => { amapPOIs = l; }).catch(() => {}));
+  }
+  if (MEITUAN_HT_TOKEN) {
+    tasks.push(meituanTravelQuery(city, `${city} 特色必吃餐厅推荐 带人均价格`).then(m => {
+      if (m && m.ok) meituanItems = parseMeituanMarkdown(m.markdown);
+    }).catch(() => {}));
+  }
+  await Promise.race([Promise.allSettled(tasks), new Promise(r => setTimeout(r, 7000))]);
+  // ② 美团真实条目（带真实人均）→ 按价位入档
+  meituanItems.filter(i => i.name && String(i.name).trim()).forEach(i => {
+    const tier = priceToTier(i.price);
+    result[tier].items.push({
+      name: String(i.name).slice(0, 40),
+      tier,
+      price_per_person: i.price || null,
+      signature: (i.desc || '本地特色').slice(0, 40),
+      district: '—',
+      why: '来自美团酒旅 openapi 的真实在售/推荐条目，人均与评分以美团页面实时为准',
+      booking_links: {
+        meituan:  i.link || `https://www.meituan.com/meishi/${encodeURIComponent(city)}/`,
+        dianping: `https://www.dianping.com/${encodeURIComponent(city)}/ch05`,
+        fliggy:   `https://www.fliggy.com/food/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(i.name)}`
+      },
+      source: 'meituan',
+      source_label: '美团酒旅 openapi（真实条目）'
+    });
+  });
+  // ③ 高德实时美食 POI（真实店铺名；人均未知如实标注）
+  const usedNames = new Set(meituanItems.map(i => i.name));
+  amapPOIs.filter(p => p.name && !usedNames.has(p.name)).slice(0, 10).forEach(p => {
+    const tier = heuristicRestaurantTier(p.name);
+    const district = String(p.address || '').split(/[区县市路街大道]/)[0] || '市中心';
+    result[tier].items.push({
+      name: p.name,
+      tier,
+      price_per_person: null,
+      signature: String(p.type || '本地特色').split(';')[0],
+      district,
+      why: '来自高德地图实时检索的真实店铺，人均以大众点评/美团实时为准',
+      booking_links: {
+        meituan:  `https://www.meituan.com/meishi/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(p.name)}`,
+        dianping: `https://www.dianping.com/${encodeURIComponent(city)}/ch05`,
+        ctrip:    `https://piao.ctrip.com/restaurant/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(p.name)}`,
+        fliggy:   `https://www.fliggy.com/food/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(p.name)}`
+      },
+      source: 'amap',
+      source_label: '高德地图实时 POI（真实店铺，人均见大众点评/美团）'
+    });
+  });
+  const realTotal = Object.values(result).reduce((s, t) => s + t.items.length, 0);
+  if (realTotal === 0) {
+    // ④ 真实数据源全部不可用 → 诚实引导（不虚构店名）
+    result.mid.items.push({
+      name: `通过美团 / 大众点评搜索「${city}必吃」`,
+      tier: 'mid',
+      price_per_person: null,
+      signature: '本地人气餐厅（请到店前核对评价与人均）',
+      district: '市中心/商圈',
+      why: '本城暂未收录餐厅真实数据且实时源暂不可用，建议用美团/大众点评按评分排序挑选',
+      booking_links: {
+        meituan:  `https://www.meituan.com/meishi/${encodeURIComponent(city)}/`,
+        dianping: `https://www.dianping.com/${encodeURIComponent(city)}/ch05`,
+        ctrip:    `https://piao.ctrip.com/restaurant/?city=${encodeURIComponent(city)}`,
+        fliggy:   `https://www.fliggy.com/food/?city=${encodeURIComponent(city)}`
+      },
+      source: 'none',
+      source_label: '真实数据源暂不可用（建议美团/大众点评查询）'
+    });
+  }
+  return finalizeRestaurants(result);
+}
+
+// 美团真实人均 → 5 档归类
+function priceToTier(price) {
+  const p = Number(price) || 0;
+  if (p <= 0) return 'casual';
+  if (p < 50) return 'budget';
+  if (p < 120) return 'casual';
+  if (p < 300) return 'mid';
+  if (p < 800) return 'refined';
+  return 'michelin';
+}
+
+// 高德真实店铺名 → 启发式档位（仅用于无人均时的归类，不编造价格）
+function heuristicRestaurantTier(name) {
+  const s = String(name || '');
+  if (/米其林|黑珍珠/.test(s)) return 'michelin';
+  if (/大酒店|大饭店|国际|公馆|迎宾馆/.test(s)) return 'refined';
+  if (/小吃|面馆|米粉|河粉|粉店|馄饨|包子|豆浆|肠粉|糖水|烧饼|锅盔|抄手|粥店|串串店/.test(s)) return 'budget';
+  if (/火锅|烧烤|烤肉|串串|小龙虾|大排档|夜市|夜宵/.test(s)) return 'casual';
+  if (/茶餐厅|酒楼|菜馆|餐厅|食堂|饭店|馆|居|楼/.test(s)) return 'mid';
+  return 'casual';
+}
+
+// 收尾：每档最多 2 家 + 统计
+function finalizeRestaurants(result) {
   Object.keys(result).forEach(t => {
     result[t].items = result[t].items.slice(0, 2);
     result[t].count = result[t].items.length;
   });
-  // 计算总推荐数
   const total = Object.values(result).reduce((s, t) => s + t.count, 0);
-  return { tiers: result, total, has_data: !!db };
+  const realTotal = Object.values(result).reduce((s, t) => s + t.items.filter(i => i.source !== 'none').length, 0);
+  return { tiers: result, total, has_data: realTotal > 0 };
 }
 
 /* ==================================================================
@@ -3660,8 +3723,12 @@ function recommendHotels(city, userBudget, userDays) {
                 tags: h.tags || [],
                 reason: reasons.join(' · '),
                 booking_links: h.booking_links,
-                source: '携程+美团+飞猪+去哪儿+Booking+Agoda',
-                source_label: '携程 / 美团 / 飞猪 / 去哪儿 / Booking / Agoda'
+                // 如实标注真实来源：飞猪 FlyAI 实时 / 本地参考池（不再一律谎称多平台）
+                source: h.source || 'local+reference',
+                source_label: h.source === '飞猪 FlyAI 实时'
+                  ? '飞猪 FlyAI 实时在售'
+                  : '本地真实酒店池（参考估算，价格以官方为准）',
+                anon_masked: !!(h.price_masked || h.price_disclaimer)
               });
             });
           });
@@ -3885,8 +3952,9 @@ function scoreItinerary(itinerary, params, weather){
   return { total, scores, reasons, subScores, weather: weather?.current ? { temp: curTemp, cond: curCond } : null };
 }
 
-async function callAI(prompt){
+async function callAI(prompt, opts){
   if(!DEEPSEEK_KEY || DEEPSEEK_KEY === 'your_deepseek_key_here') return null;
+  const maxTokens = (opts && opts.max_tokens) || 16384;
   try {
     const t0 = Date.now();
     const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
@@ -3900,7 +3968,7 @@ async function callAI(prompt){
           { role:'user', content: prompt }
         ],
         temperature:0.3,
-        max_tokens:16384
+        max_tokens:maxTokens
       })
     });
     const dt = Date.now() - t0;
@@ -4571,31 +4639,105 @@ ${typesStr}
       }, 'local-reasoning', dt);
     }
 
-    // ---------- 步骤 4.6: 餐厅推荐（5 档价位） ----------
-    let restaurantRec = null;
+    // ============================================================
+    // 并行化优化：互不依赖的步骤并发执行（A:4.6/4.65/4.7/4.8 → B:验证/出发 → C:总结/社区/贴士），
+    // 显著缩短总生成时间；思考链仍按 4.6→4.65→4.7→4.8→5→6→7→8→7.5 顺序展示。
+    // ============================================================
+
+    // ---------- 并行组 A：餐厅 / 特色美食 / 酒店 / 多源行情 ----------
+    let restaurantRec = null, localSpecials = null, hotelRec = null, multiSource = null;
+    const ts46 = Date.now(), ts465 = Date.now(), ts47 = Date.now(), ts48 = Date.now();
     {
-      const ts = Date.now();
-      restaurantRec = recommendRestaurants(city, b, tagList);
-      const dt = Date.now() - ts;
+      const p46 = recommendRestaurants(city, b, tagList);
+      const p465 = recommendLocalSpecials(city);
+      const p47 = recommendHotels(city, b, d).catch(() => null);
+      const p48 = (async () => {
+        const selfPort = parseInt(process.env.PORT || '3000', 10);
+        const self = `http://127.0.0.1:${selfPort}`;
+        const results = {};
+        const jobs = [];
+        const track = (key) => async (fn) => {
+          try { await fn(); }
+          catch (e) { if (!results[key]) results[key] = { ok: false, reason: e.name === 'TimeoutError' ? '查询超时（已跳过）' : (e.message || String(e)) }; }
+        };
+        // ① 途牛门票：对行程 Top 2 真实景点逐一点查真实票价（含购票跳转）
+        const topScenic = itinerary.flatMap(day => (day.nodes || []).filter(n => !n._removed && /景点|历史|文化|自然|地标/.test(String(n.type || ''))).map(n => n.poi)).slice(0, 2);
+        topScenic.forEach((scenic, i) => {
+          jobs.push({ key: 'tuniu_ticket_' + i, p: track('tuniu_ticket_' + i)(async () => {
+            const r = await fetch(`${self}/api/tuniu/ticket?scenic=${encodeURIComponent(scenic)}`, { signal: AbortSignal.timeout(6000) });
+            const j = await r.json().catch(() => null);
+            if (j && !j.error && Array.isArray(j.tickets) && j.tickets.length) {
+              // 只保留有真实票名/票价的有效门票；仅有跳转链接时也保留（供购票跳转）
+              const tickets = j.tickets.slice(0, 4).map(t => ({
+                name: t.name || t.ticket_name || '',
+                price: (t.price != null ? t.price : t.sale_price) ?? null,
+                link: t.link || j.query_url
+              })).filter(t => t.name || t.link);
+              if (tickets.length) results['tuniu_ticket_' + i] = { ok: true, source: '途牛开放平台', scenic, tickets };
+              else results['tuniu_ticket_' + i] = { ok: false, reason: '该景点暂无实时票价（可点击途牛链接查看）' };
+            } else results['tuniu_ticket_' + i] = { ok: false, reason: (j && j.message) || '暂无该景点门票' };
+          }) });
+        });
+        // ② 12306 火车票价（出发城市 → 目标城市）
+        if (origin && origin !== city) {
+          jobs.push({ key: 'rail_12306', p: track('rail_12306')(async () => {
+            const r = await fetch(`${self}/api/12306/price?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(city)}&date=${cnDateStr(1)}`, { signal: AbortSignal.timeout(6000) });
+            const j = await r.json().catch(() => null);
+            const list = (j && !j.error && j.success && Array.isArray(j.data)) ? j.data : [];
+            const fares = list.map(p => ({ train: p.train_code, prices: p.prices })).filter(p => p.prices && Object.keys(p.prices).length);
+            if (fares.length) {
+              const second = fares.map(f => f.prices['二等座']).find(v => v != null) || null;
+              results.rail_12306 = { ok: true, source: '铁路 12306 实时', origin, dest: city, train_count: fares.length, cheapest: { seat: '二等座', price: second != null ? Math.round(second) : null } };
+            } else results.rail_12306 = { ok: false, reason: (j && j.message) || '暂无该区间车次（或 12306 服务未启动）' };
+          }) });
+        }
+        // ③ 飞猪航班（出发城市 → 目标城市，真实最低价 + 跳转链接）
+        if (origin && origin !== city) {
+          jobs.push({ key: 'flight_fliggy', p: track('flight_fliggy')(async () => {
+            const r = await fetch(`${self}/api/flyai/flight?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(city)}&date=${cnDateStr(1)}`, { signal: AbortSignal.timeout(6000) });
+            const j = await r.json().catch(() => null);
+            const list = (j && !j.error && Array.isArray(j.flights)) ? j.flights.filter(f => f.price > 0) : [];
+            if (list.length) {
+              const direct = list.filter(f => !f.transfer);
+              const pool = direct.length ? direct : list;
+              const cheapest = pool.reduce((a, b) => b.price < a.price ? b : a);
+              results.flight_fliggy = { ok: true, source: '飞猪 FlyAI 实时', origin, dest: city, cheapest: { airline: cheapest.airline, flight_no: cheapest.flight_no, price: cheapest.price, link: cheapest.jump_url || j.query_url }, direct_count: direct.length };
+            } else results.flight_fliggy = { ok: false, reason: (j && j.message) || '暂无该航线直达航班' };
+          }) });
+        }
+        // ④ 美团酒店（仅配置 Token 时尝试；生成式查询较慢，8s 短超时，缓存命中可秒回）
+        if (MEITUAN_HT_TOKEN) {
+          jobs.push({ key: 'meituan_hotel', p: track('meituan_hotel')(async () => {
+            const r = await fetch(`${self}/api/meituan/call?city=${encodeURIComponent(city)}&query=${encodeURIComponent(city + '经济型连锁酒店推荐')}`, { signal: AbortSignal.timeout(8000) });
+            const j = await r.json().catch(() => null);
+            if (j && !j.error && Array.isArray(j.items) && j.items.length) {
+              results.meituan_hotel = { ok: true, source: '美团酒旅 openapi', sample: j.items.slice(0, 5).map(x => ({ name: x.name, price: x.price, link: x.link })) };
+            } else results.meituan_hotel = { ok: false, reason: (j && j.message) || '无数据（可配置 MEITUAN_HT_TOKEN 后启用）' };
+          }) });
+        }
+        await Promise.allSettled(jobs.map(job => job.p));
+        return results;
+      })();
+      [restaurantRec, localSpecials, hotelRec, multiSource] = await Promise.all([p46, p465, p47, p48]);
+    }
+    {
+      // 思考链 4.6 餐厅推荐
+      const dt = Date.now() - ts46;
       const tierSummary = {};
       Object.entries(restaurantRec.tiers).forEach(([t, info]) => {
         tierSummary[t] = { label: info.tier.label, count: info.count, per_range: info.tier.per_range, samples: info.items.slice(0, 2).map(r => r.name) };
       });
       think(4.6, '餐厅推荐', restaurantRec.total > 0 ? 'success' : 'empty', {
         method: '5 档价位筛选：小馆子(¥20-50) → 家常(¥50-120) → 中档(¥120-300) → 精致(¥300-800) → 米其林(¥800+)',
-        source: '美团 + 大众点评必吃榜 + 携程美食林 + 黑珍珠 + 米其林',
+        source: restaurantRec.has_data ? '高德实时POI + 美团openapi + 本地真实库（绝不编造店名）' : '真实数据源暂不可用（引导美团/大众点评）',
         user_budget_per_day: b,
         total_recommended: restaurantRec.total,
         per_tier: tierSummary
-      }, 'meituan+ctrip+michelin', dt);
+      }, 'amap+meituan+local-db', dt);
     }
-
-    // ---------- 步骤 4.65: 当地特色饮品 & 美食推荐（知识库优先 + 高德实时 POI 兜底） ----------
-    let localSpecials = null;
     {
-      const ts = Date.now();
-      localSpecials = await recommendLocalSpecials(city);
-      const dt = Date.now() - ts;
+      // 思考链 4.65 当地特色饮品 & 美食
+      const dt = Date.now() - ts465;
       const drinkList = localSpecials.drinks.map(d => d.name);
       const foodList = localSpecials.foods.map(f => f.name);
       think(4.65, '当地特色饮品 & 美食', localSpecials.has_data ? 'success' : 'fallback', {
@@ -4611,16 +4753,13 @@ ${typesStr}
         note: localSpecials.note || '数据来自LOCAL_SPECIALS_DB精准知识库（53城市数据库，200+本土茶饮品牌），全部为真实可查的当地特色饮品和美食，经6大引擎交叉验证'
       }, localSpecials.source === 'amap' ? 'amap-food-poi' : localSpecials.source === 'local-specials-db' ? 'local-specials-db' : 'generic-fallback', dt);
     }
-
-    // ---------- 步骤 4.7: 酒店推荐（真实星级 + 房型 + 理由） ----------
-    let hotelRec = null;
     {
-      const ts = Date.now();
-      hotelRec = await recommendHotels(city, b, d).catch(() => null);
-      const dt = Date.now() - ts;
+      // 思考链 4.7 酒店推荐
+      const dt = Date.now() - ts47;
+      const allFlyAI = hotelRec && hotelRec.hotels.length && hotelRec.hotels.every(h => h.source === '飞猪 FlyAI 实时');
       think(4.7, '酒店推荐', (hotelRec && hotelRec.hotels.length) ? 'success' : 'empty', {
         method: '按星级分组：5星豪华/4星商务/3星舒适/2星经济，每档选 1-2 家',
-        source: '携程 + 美团 + 飞猪 + 去哪儿 + Booking + Agoda',
+        source: allFlyAI ? '飞猪 FlyAI 实时（真实在售）' : '飞猪 FlyAI 实时优先 → 本地真实酒店池',
         stars_distribution: hotelRec ? {
           '5星': (hotelRec.hotels || []).filter(h => h.stars === 5).length,
           '4星': (hotelRec.hotels || []).filter(h => h.stars === 4).length,
@@ -4628,116 +4767,47 @@ ${typesStr}
           '2星': (hotelRec.hotels || []).filter(h => h.stars === 2).length
         } : {},
         top_picks: hotelRec ? (hotelRec.hotels || []).slice(0, 3).map(h => `${h.stars}★ ${h.name} ¥${h.price_per_night}/晚`) : []
-      }, 'ctrip+meituan+booking', dt);
+      }, 'flyai+local-pool', dt);
     }
-
-    // ---------- 步骤 4.8: 多源行情预取（途牛门票 / 12306 票价 / 飞猪航班 / 美团酒店 并发短超时） ----------
-    // 多源联合：对"机票/火车票/门票/酒店"并行拉取真实价格并标注来源，
-    // 每个源 6-8s 短超时、失败静默降级，绝不阻塞主行程生成。
-    let multiSource = null;
     {
-      const ts = Date.now();
-      const selfPort = parseInt(process.env.PORT || '3000', 10);
-      const self = `http://127.0.0.1:${selfPort}`;
-      const results = {};
-      const jobs = [];
-      const track = (key) => async (fn) => {
-        try { await fn(); }
-        catch (e) { if (!results[key]) results[key] = { ok: false, reason: e.name === 'TimeoutError' ? '查询超时（已跳过）' : (e.message || String(e)) }; }
-      };
-      // ① 途牛门票：对行程 Top 2 真实景点逐一点查真实票价（含购票跳转）
-      const topScenic = itinerary.flatMap(day => (day.nodes || []).filter(n => !n._removed && /景点|历史|文化|自然|地标/.test(String(n.type || ''))).map(n => n.poi)).slice(0, 2);
-      topScenic.forEach((scenic, i) => {
-        jobs.push({ key: 'tuniu_ticket_' + i, p: track('tuniu_ticket_' + i)(async () => {
-          const r = await fetch(`${self}/api/tuniu/ticket?scenic=${encodeURIComponent(scenic)}`, { signal: AbortSignal.timeout(6000) });
-          const j = await r.json().catch(() => null);
-          if (j && !j.error && Array.isArray(j.tickets) && j.tickets.length) {
-            // 只保留有真实票名/票价的有效门票；仅有跳转链接时也保留（供购票跳转）
-            const tickets = j.tickets.slice(0, 4).map(t => ({
-              name: t.name || t.ticket_name || '',
-              price: (t.price != null ? t.price : t.sale_price) ?? null,
-              link: t.link || j.query_url
-            })).filter(t => t.name || t.link);
-            if (tickets.length) {
-              results['tuniu_ticket_' + i] = { ok: true, source: '途牛开放平台', scenic, tickets };
-            } else results['tuniu_ticket_' + i] = { ok: false, reason: '该景点暂无实时票价（可点击途牛链接查看）' };
-          } else results['tuniu_ticket_' + i] = { ok: false, reason: (j && j.message) || '暂无该景点门票' };
-        }) });
-      });
-      // ② 12306 火车票价（出发城市 → 目标城市）
-      if (origin && origin !== city) {
-        jobs.push({ key: 'rail_12306', p: track('rail_12306')(async () => {
-          const r = await fetch(`${self}/api/12306/price?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(city)}&date=${cnDateStr(1)}`, { signal: AbortSignal.timeout(6000) });
-          const j = await r.json().catch(() => null);
-          const list = (j && !j.error && j.success && Array.isArray(j.data)) ? j.data : [];
-          const fares = list.map(p => ({ train: p.train_code, prices: p.prices })).filter(p => p.prices && Object.keys(p.prices).length);
-          if (fares.length) {
-            const second = fares.map(f => f.prices['二等座']).find(v => v != null) || null;
-            results.rail_12306 = { ok: true, source: '铁路 12306 实时', origin, dest: city, train_count: fares.length, cheapest: { seat: '二等座', price: second != null ? Math.round(second) : null } };
-          } else results.rail_12306 = { ok: false, reason: (j && j.message) || '暂无该区间车次（或 12306 服务未启动）' };
-        }) });
-      }
-      // ③ 飞猪航班（出发城市 → 目标城市，真实最低价 + 跳转链接）
-      if (origin && origin !== city) {
-        jobs.push({ key: 'flight_fliggy', p: track('flight_fliggy')(async () => {
-          const r = await fetch(`${self}/api/flyai/flight?from=${encodeURIComponent(origin)}&to=${encodeURIComponent(city)}&date=${cnDateStr(1)}`, { signal: AbortSignal.timeout(6000) });
-          const j = await r.json().catch(() => null);
-          const list = (j && !j.error && Array.isArray(j.flights)) ? j.flights.filter(f => f.price > 0) : [];
-          if (list.length) {
-            const direct = list.filter(f => !f.transfer);
-            const pool = direct.length ? direct : list;
-            const cheapest = pool.reduce((a, b) => b.price < a.price ? b : a);
-            results.flight_fliggy = { ok: true, source: '飞猪 FlyAI 实时', origin, dest: city, cheapest: { airline: cheapest.airline, flight_no: cheapest.flight_no, price: cheapest.price, link: cheapest.jump_url || j.query_url }, direct_count: direct.length };
-          } else results.flight_fliggy = { ok: false, reason: (j && j.message) || '暂无该航线直达航班' };
-        }) });
-      }
-      // ④ 美团酒店（仅配置 Token 时尝试；生成式查询较慢，8s 短超时，缓存命中可秒回）
-      if (MEITUAN_HT_TOKEN) {
-        jobs.push({ key: 'meituan_hotel', p: track('meituan_hotel')(async () => {
-          const r = await fetch(`${self}/api/meituan/call?city=${encodeURIComponent(city)}&query=${encodeURIComponent(city + '经济型连锁酒店推荐')}`, { signal: AbortSignal.timeout(8000) });
-          const j = await r.json().catch(() => null);
-          if (j && !j.error && Array.isArray(j.items) && j.items.length) {
-            results.meituan_hotel = { ok: true, source: '美团酒旅 openapi', sample: j.items.slice(0, 5).map(x => ({ name: x.name, price: x.price, link: x.link })) };
-          } else results.meituan_hotel = { ok: false, reason: (j && j.message) || '无数据（可配置 MEITUAN_HT_TOKEN 后启用）' };
-        }) });
-      }
-      await Promise.allSettled(jobs.map(job => job.p));
-      const okCount = Object.values(results).filter(r => r.ok).length;
-      const dt = Date.now() - ts;
+      // 思考链 4.8 多源行情预取
+      const dt = Date.now() - ts48;
+      const okCount = Object.values(multiSource || {}).filter(r => r.ok).length;
       think(4.8, '多源行情预取', okCount > 0 ? 'success' : 'skipped', {
         method: '并发拉取：途牛门票（Top 景点逐点）+ 12306 票价 + 飞猪航班 + 美团酒店，各 6-8s 短超时，失败不影响主流程',
         origin_city: origin || '未提供（12306/飞猪交通对比已跳过，可在"你所在城市"填写后自动启用）',
         target_city: city,
-        source_status: results,
+        source_status: multiSource || {},
         success_count: okCount,
-        total_jobs: jobs.length
+        total_jobs: Object.keys(multiSource || {}).length
       }, 'tuniu+12306+fliggy+meituan', dt);
-      multiSource = results;
     }
 
-    // ---------- 步骤 4: 路线验证评分 ----------
-    let verification = null;
+    // ---------- 并行组 B：路线验证（需天气）+ 智能出发建议 ----------
+    let verification = null, departSuggestion = null;
+    const ts5 = Date.now(), ts6 = Date.now();
     {
-      const ts = Date.now();
-      const weather = await getWeather(city).catch(() => null);
+      const [weather, dep] = await Promise.all([
+        getWeather(city).catch(() => null),
+        suggestDeparture(city, d).catch(() => null)
+      ]);
       verification = scoreItinerary(itinerary, { city, days:d, budget:b, pax, tags:tagList }, weather);
-      const dt = Date.now() - ts;
+      departSuggestion = dep;
+    }
+    {
+      // 思考链 5 路线验证评分
+      const dt = Date.now() - ts5;
       think(5, '路线验证评分', 'success', {
         method: '8 子维度评分：时间(2子) + 空间(2子) + 时效(2子) + 风险(2子)，每子项独立评分 + 加权汇总',
-        weather: weather?.current ? { temp: weather.current.temperature, cond: weather.current.condition } : '暂无',
         total: verification.total,
         scores: verification.scores,
         reasons: verification.reasons,
         sub_scores: verification.subScores
       }, 'multi-dim-deep-analysis', dt);
     }
-
-    // ---------- 步骤 5: 智能出发建议 ----------
-    let departSuggestion = null;
     {
-      const ts = Date.now();
-      departSuggestion = await suggestDeparture(city, d).catch(() => null);
-      const dt = Date.now() - ts;
+      // 思考链 6 出发日推荐
+      const dt = Date.now() - ts6;
       think(6, '出发日推荐', departSuggestion ? 'success' : 'skipped', {
         method: '未来 15 天天气 + 节假日高峰 + 周末/临近性综合评分',
         best: departSuggestion?.best,
@@ -4746,48 +4816,49 @@ ${typesStr}
       }, 'weather+holiday+weekday', dt);
     }
 
-    // ---------- 步骤 6: AI 总体评估（独立短摘要）----------
-    let ai_summary = '';
+    // ---------- 并行组 C：AI 总体评估 + 社区路线 + 多维度贴士（并发 3 路，贴士已精简提速） ----------
+    let ai_summary = '', community = [], tipsEnhanced = null;
+    const ts7 = Date.now(), ts8 = Date.now(), ts75 = Date.now();
     {
-      const ts = Date.now();
       const summaryPrompt = `基于以下信息给 ${city} ${d}天${pax}行程写一段 60-80 字的总结 + 3 条编号建议：
 - 行程主题：${itinerary.map(d => d.theme).join('、')}
 - 关键景点：${itinerary.flatMap(d => d.nodes).slice(0, 6).map(n => n.poi).join('、')}
 - 预算：¥${b}/天
 - 验证评分：${verification.total}/100
 直接输出，不要其他格式。`;
-      const ai = await callAI(summaryPrompt);
-      if (ai) ai_summary = ai;
-      const dt = Date.now() - ts;
-      think(7, 'AI 总体评估', ai ? 'success' : 'skipped', {
+      const [ai, tips, comm] = await Promise.all([
+        callAI(summaryPrompt),
+        generateMultiDimTips(city, cd, d, b, pax, tagList),
+        Promise.resolve(loadRoutes().filter(r => (r.city || '').includes(city)).slice(0, 5))
+      ]);
+      ai_summary = ai || '';
+      tipsEnhanced = tips;
+      community = comm;
+    }
+    {
+      // 思考链 7 AI 总体评估
+      const dt = Date.now() - ts7;
+      think(7, 'AI 总体评估', ai_summary ? 'success' : 'skipped', {
         model: 'deepseek-v4-flash',
         summary: ai_summary,
-        note: ai ? null : 'DeepSeek V4 正式版 AI 暂不可用（已尝试调用，返回空或超时）'
+        note: ai_summary ? null : 'DeepSeek V4 正式版 AI 暂不可用（已尝试调用，返回空或超时）'
       }, 'deepseek', dt);
     }
-
-    // ---------- 步骤 7: 社区路线 + tips ----------
-    let community = [];
     {
-      const ts = Date.now();
-      community = loadRoutes().filter(r => (r.city || '').includes(city)).slice(0, 5);
-      const dt = Date.now() - ts;
+      // 思考链 8 社区路线
+      const dt = Date.now() - ts8;
       think(8, '社区路线', community.length > 0 ? 'success' : 'empty', {
         method: 'data/community.json 全文检索',
         matched: community.length,
         titles: community.map(c => c.title)
       }, 'community.json', dt);
     }
-
-    // ---------- 步骤 7.5: 多维度旅行贴士（DeepSeek + 本地兜底） ----------
-    let tipsEnhanced = null;
     {
-      const ts = Date.now();
-      tipsEnhanced = await generateMultiDimTips(city, cd, d, b, pax, tagList);
-      const dt = Date.now() - ts;
+      // 思考链 7.5 多维度旅行贴士
+      const dt = Date.now() - ts75;
       think(7.5, '多维度旅行贴士', tipsEnhanced.source === 'deepseek' ? 'success' : 'fallback', {
         method: '6 维度智能生成：① 文化背景 ② 风俗习惯 ③ 安全提示 ④ 最佳游览时间 ⑤ 交通出行 ⑥ 餐饮购物',
-        primary_source: 'DeepSeek V4 正式版 AI（多维度提示词工程）',
+        primary_source: 'DeepSeek V4 正式版 AI（多维度提示词工程，已精简提速）',
         fallback_source: '本地启发式（基于城市数据库 + 区域知识图谱）',
         actually_used: tipsEnhanced.source,
         dimensions: tipsEnhanced.dimensions.map(dim => ({ key: dim.key, label: dim.label, count: dim.tips.length, source: dim.source })),
@@ -5023,7 +5094,6 @@ async function generateMultiDimTips(city, cd, days, budget, pax, tagList) {
   const cityTags = cd?.tags || ['综合'];
   const citySummary = cd?.summary || `${city} — 多元文化的旅游目的地`;
   const seasonHint = getSeasonHint();
-  const baseTips = (cd?.tips || []).slice(0, 2);
 
   // ===== 第一步：构造 6 维度的本地兜底数据（始终可用） =====
   const localDim = buildLocalMultiDimTips(city, region, cityTags, cd, days, budget, pax, seasonHint);
@@ -5031,7 +5101,7 @@ async function generateMultiDimTips(city, cd, days, budget, pax, tagList) {
   // ===== 第二步：尝试 DeepSeek AI 生成更智能的版本 =====
   if (DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here') {
     try {
-      const aiPrompt = `你是专业旅游顾问，请为「${city}」生成多维度旅行贴士。
+      const aiPrompt = `你是专业旅游顾问，请为「${city}」生成多维度旅行贴士（简洁版）。
 
 【基本信息】
 - 城市：${city}
@@ -5043,27 +5113,14 @@ async function generateMultiDimTips(city, cd, days, budget, pax, tagList) {
 - 出行人：${pax}
 - 用户偏好：${tagList.join('、') || '通用'}
 - 当前季节：${seasonHint.label}
-- 已有本地贴士：${baseTips.join(' / ')}
 
-【任务】请按以下 6 个维度，每个维度生成 2-3 条实用贴士（每条 30-60 字）。
+【任务】按 6 个维度，每个维度只生成 2 条贴士，每条 15-35 字，直给干货不要空话。先简短思考（≤150字），立即输出最终 JSON，不要多余文字。
 
-维度 ① 文化背景：${city}的历史文脉、宗教信仰、民俗艺术、文学典故、值得了解的故事
-维度 ② 风俗习惯：${city}的礼仪禁忌、节庆习俗、餐桌礼仪、拍照禁忌、敬语称谓
-维度 ③ 安全提示：${city}的治安特点、防骗要点、交通安全、健康提醒、自然灾害
-维度 ④ 最佳游览时间：${city}的最佳旅游月份、节庆活动、避开高峰的技巧、不推荐的时段
-维度 ⑤ 交通出行：${city}机场/高铁站到市区的方式、市内交通（地铁/公交/打车）、包车/租车建议、跨城接驳
-维度 ⑥ 餐饮与购物：${city}必吃美食街/夜市、必买特产/伴手礼、购物商圈推荐、砍价与避坑
+维度 ① 文化背景 ② 风俗习惯 ③ 安全提示 ④ 最佳游览时间 ⑤ 交通出行 ⑥ 餐饮购物
 
-【输出格式】严格 JSON（不要 markdown 包裹），格式：
-{
-  "culture":  ["贴士1","贴士2","贴士3"],
-  "customs":  ["贴士1","贴士2","贴士3"],
-  "safety":   ["贴士1","贴士2","贴士3"],
-  "timing":   ["贴士1","贴士2","贴士3"],
-  "transport":["贴士1","贴士2","贴士3"],
-  "dining":   ["贴士1","贴士2","贴士3"]
-}`;
-      const aiText = await callAI(aiPrompt);
+【输出格式】严格 JSON（不要 markdown 包裹）：
+{"culture":["贴士1","贴士2"],"customs":["贴士1","贴士2"],"safety":["贴士1","贴士2"],"timing":["贴士1","贴士2"],"transport":["贴士1","贴士2"],"dining":["贴士1","贴士2"]}`;
+      const aiText = await callAI(aiPrompt, { max_tokens: 4096 });
       if (aiText) {
         const m = aiText.match(/\{[\s\S]*\}/);
         if (m) {
