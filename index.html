@@ -2584,15 +2584,13 @@ let chatHistory = [];         // 对话历史
 let currentPlanCity = '广州';  // 联动：当前规划城市（伴侣用，默认广州）
 
 function getPlanParams(){
-  // 优先取级联下拉的值（如果显示了），否则取文本输入
+  // 优先取级联下拉的值（如果显示了），否则取文本输入；两者互相兜底，避免模式切换时读不到城市
   const cascadeBox = document.getElementById('cascadeBox');
   const isCascade = cascadeBox && cascadeBox.style.display !== 'none';
-  let city = '';
-  if (isCascade) {
-    city = (document.getElementById('planCitySel')?.value || '').trim();
-  } else {
-    city = (document.getElementById('planCity')?.value || '').trim();
-  }
+  const selCity = (document.getElementById('planCitySel')?.value || '').trim();
+  const textCity = (document.getElementById('planCity')?.value || '').trim();
+  let city = isCascade ? selCity : textCity;
+  if (!city) city = selCity || textCity;
   if (!city) city = '成都';
   // 出发城市（"你所在城市"级联或文本输入）
   let originCity = '';
@@ -4149,6 +4147,21 @@ async function sendPlanChat(){
   }
   input.value = '';
   appendChat('user', msg);
+  // 0) 换目的地：消息中提到新城市且与当前不同 → 全新重新生成（不再基于旧城市做增量修改）
+  const targetCity = detectPlanCityInMsg(msg);
+  const curCity = getPlanParams().city;
+  if (targetCity && targetCity !== curCity) {
+    appendChat('ai', `🗺️ 检测到目的地变化：${curCity} → ${targetCity}，正在重新规划全新行程…`);
+    setPlanCityInputMode(targetCity);
+    const p2 = parsePlanQuick(msg);
+    if (msg.match(/(\d+)\s*天/)) document.getElementById('planDays').value = p2.days;
+    if (msg.match(/(\d{2,5})\s*[元块]/)) document.getElementById('planBudget').value = p2.budget;
+    const paxKeys = ['情侣','老婆','女友','男朋友','对象','双人','两人','两个人','2人','二人','家庭','爸妈','父母','老人','全家','一家人','朋友','闺蜜','兄弟','几个人','同伴','孩子','宝宝','小孩','亲子','带娃','儿童','同事','出差','商务','客户'];
+    if (paxKeys.some(k => msg.includes(k))) document.getElementById('planPax').value = p2.pax;
+    if (p2.interests.length) document.querySelectorAll('#planTags input').forEach(c => c.checked = p2.interests.includes(c.value));
+    await loadPlan();
+    return;
+  }
   // 1) 立即识别用户意图 → 给出"我们即将做什么"反馈
   const intent = recognizeUserIntent(msg);
   if (intent) appendChat('ai', `💡 收到：${intent.preview}`);
@@ -4256,7 +4269,7 @@ document.getElementById('planBtn').onclick = loadPlan;
 document.getElementById('planChatBtn').onclick = sendPlanChat;
 document.getElementById('planChatInput').onkeydown = e => { if(e.key==='Enter') sendPlanChat(); };
 document.getElementById('planExampleBtn').onclick = () => {
-  document.getElementById('planCity').value = '大理';
+  setPlanCityInputMode('大理');
   document.getElementById('planDays').value = '4';
   document.getElementById('planBudget').value = '400';
   document.getElementById('planPax').value = '独自';
@@ -4265,21 +4278,83 @@ document.getElementById('planExampleBtn').onclick = () => {
 };
 
 /* 一句话直接对话解析（懒人模式） */
+// 强制切到"文本输入"模式并填城市（避免级联下拉吞掉解析结果，导致 getPlanParams 读到空值回退成都）
+function setPlanCityInputMode(city){
+  const cascadeBox = document.getElementById('cascadeBox');
+  const textInput = document.getElementById('planCity');
+  if (cascadeBox && textInput) {
+    cascadeBox.style.display = 'none';
+    textInput.style.display = '';
+    const t = document.getElementById('cascadeToggle');
+    if (t) t.textContent = '▴ 切换为选择（省级→地级市）';
+  }
+  if (textInput) textInput.value = city || '';
+}
+
+// 在消息中识别"想去的城市"：取最后提到且未被否定的城市（"别去广州，去杭州" → 杭州；"不去成都了" → ''）
+function detectPlanCityInMsg(msg){
+  const m = String(msg || '');
+  const hits = [];
+  for (const c of CITIES) {
+    let idx = m.indexOf(c);
+    while (idx !== -1) { hits.push({ city: c, idx }); idx = m.indexOf(c, idx + c.length); }
+  }
+  if (!hits.length) return '';
+  hits.sort((a, b) => b.idx - a.idx);
+  const negBefore = (h) => /不|别|离|走|放|拒|退/.test(m.slice(Math.max(0, h.idx - 3), h.idx));
+  const last = hits[0];
+  if (!negBefore(last)) return last.city;
+  for (const h of hits.slice(1)) { if (!negBefore(h)) return h.city; }
+  return '';
+}
+
 function parsePlanQuick(text){
   const t = String(text || '');
-  // 城市
-  const city = detectCity(t) || '成都';
-  // 天数
-  const dayMatch = t.match(/(\d+)\s*天/);
-  const days = dayMatch ? Math.max(1, Math.min(15, parseInt(dayMatch[1]))) : 3;
-  // 预算
-  const budgetMatch = t.match(/(?:预算|花).{0,5}?(\d{2,5})\s*[元块]?(?:\s*\/\s*天)?/) || t.match(/(\d{3,5})\s*[元块]\s*每天/);
-  let budget = 600;
-  if(budgetMatch) {
-    budget = parseInt(budgetMatch[1]);
-    if(t.includes('每天') || t.includes('/天')) budget = Math.max(150, Math.min(3000, budget));
-    else budget = Math.max(150, Math.min(5000, Math.round(budget / days)));
+  // 城市：先支持"省份+城市"复合名（如"广东广州"），再用 CITIES 列表匹配；识别不到不默认城市，由调用方提示
+  let city = '';
+  const provCityMap = {
+    '广东':['广州','深圳','珠海','佛山','东莞','惠州'], '山东':['济南','青岛','烟台','威海','泰安'],
+    '江苏':['南京','苏州','无锡','扬州','常州'], '浙江':['杭州','宁波','温州','绍兴','嘉兴'],
+    '四川':['成都','绵阳','乐山'], '云南':['昆明','大理','丽江','香格里拉','西双版纳','腾冲'],
+    '福建':['厦门','福州','泉州'], '辽宁':['沈阳','大连'], '陕西':['西安','宝鸡','延安'],
+    '湖北':['武汉','宜昌','襄阳'], '湖南':['长沙','张家界','凤凰'], '广西':['桂林','南宁','北海'],
+    '贵州':['贵阳','遵义'], '安徽':['黄山','合肥','宏村'], '江西':['南昌','景德镇','婺源'],
+    '河北':['石家庄','秦皇岛','承德'], '山西':['太原','大同','平遥'], '新疆':['乌鲁木齐','吐鲁番','喀什'],
+    '西藏':['拉萨','日喀则','林芝'], '青海':['西宁','青海湖'], '宁夏':['银川','中卫'],
+    '甘肃':['兰州','敦煌','张掖'], '黑龙江':['哈尔滨','漠河'], '吉林':['长春','长白山','延吉'],
+    '河南':['郑州','洛阳','开封'], '海南':['海口','三亚'], '内蒙古':['呼和浩特','呼伦贝尔']
+  };
+  for (const [prov, cities] of Object.entries(provCityMap)) {
+    if (t.includes(prov)) {
+      for (const c of cities) { if (t.includes(c)) { city = c; break; } }
+      if (city) break;
+    }
   }
+  if (!city) city = detectCity(t);
+  // 天数（支持阿拉伯数字与中文数字："3天"/"两天"/"五天"）
+  const cnNum = {'一':1,'两':2,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
+  const dayMatch = t.match(/(\d+)\s*天/) || t.match(/([一两二三四五六七八九十]+)\s*天/);
+  let days = 3;
+  if (dayMatch) {
+    const raw = dayMatch[1];
+    if (/^\d+$/.test(raw)) days = parseInt(raw);
+    else if (cnNum[raw]) days = cnNum[raw];
+    else if (raw.includes('十')) days = 10 + (cnNum[raw.replace('十','')] || 0);
+    days = Math.max(1, Math.min(15, days));
+  }
+  // 预算：① 明确"每天 X / X元/天" ② 总预算"X元总共/一共"（÷天数）③ 前缀"预算 X"
+  let budget = 600, isDaily = false;
+  const dailyMatch = t.match(/(\d{2,5})\s*[元块]\s*(?:\/|／)\s*天/) || t.match(/(\d{2,5})\s*[元块]\s*每天/) || t.match(/每天\s*(\d{2,5})\s*[元块]?/);
+  const totalMatch = t.match(/(\d{2,5})\s*[元块]\s*(?:总共|一共|全程|总)/) || t.match(/(?:总预算|全程预算|预算总共|预算一共)\s*(\d{2,5})\s*[元块]?/) || t.match(/(?:一共|总共)\s*(\d{2,5})\s*[元块]/);
+  const preMatch = t.match(/(?:预算|花费|花)\s*(\d{2,5})\s*[元块]?/);
+  if (dailyMatch) { budget = parseInt(dailyMatch[1]); isDaily = true; }
+  else if (totalMatch) { budget = Math.round(parseInt(totalMatch[1]) / days); }
+  else if (preMatch) {
+    budget = parseInt(preMatch[1]);
+    if (t.includes('每天') || t.includes('/天')) isDaily = true;
+    else budget = Math.round(budget / days);
+  }
+  budget = Math.max(150, Math.min(isDaily ? 3000 : 5000, budget));
   // 同行人
   let pax = '独自';
   if(/情侣|老婆|女友|男朋友|老婆|对象|双人|两人|两个人|2人|二人/.test(t)) pax = '情侣';
@@ -4306,8 +4381,26 @@ async function planQuickGenerate(){
   const text = (input.value || '').trim();
   if(!text){ input.focus(); return; }
   const p = parsePlanQuick(text);
-  // 填表
-  document.getElementById('planCity').value = p.city;
+  // 识别不到城市：明确提示，绝不静默回退成都
+  if (!p.city) {
+    const chat = document.getElementById('planChat');
+    chat.style.display = 'block';
+    const msgs = document.getElementById('planChatMsgs');
+    msgs.innerHTML = '';
+    const u = document.createElement('div');
+    u.className = 'plan-chat__msg plan-chat__msg--user';
+    u.textContent = text;
+    msgs.appendChild(u);
+    const ai = document.createElement('div');
+    ai.className = 'plan-chat__msg plan-chat__msg--ai';
+    ai.textContent = `⚠️ 没有识别到目的地城市。请直接补充城市名重试，例如「广州 3天 预算1500 喜欢拍照」；也可以在上方输入框/级联选择城市后点「🚀 一键生成行程」。`;
+    msgs.appendChild(ai);
+    msgs.scrollTop = msgs.scrollHeight;
+    input.focus();
+    return;
+  }
+  // 填表（先强制切到文本输入模式，保证 getPlanParams 能读到解析出的城市）
+  setPlanCityInputMode(p.city);
   document.getElementById('planDays').value = p.days;
   document.getElementById('planBudget').value = p.budget;
   document.getElementById('planPax').value = p.pax;
