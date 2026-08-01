@@ -1779,7 +1779,7 @@ app.get('/api/weather/fallback', async (req, res) => {
       return res.status(404).json({ error: true, message: `unknown city: ${city}`, supported: Object.keys(CITY_COORDS) });
     }
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&timezone=auto&forecast_days=15`;
-    const r = await fetch(url, { headers: { 'User-Agent': '123-travel/1.0' } });
+    const r = await fetch(url, { headers: { 'User-Agent': '123-travel/1.0' }, signal: AbortSignal.timeout(6000) });
     if (!r.ok) throw new Error(`open-meteo http ${r.status}`);
     const data = await r.json();
     const cur = data.current || {};
@@ -1869,6 +1869,198 @@ app.get('/api/weather/forecast', async (req, res) => {
       },
       forecast: futureList.slice(0, 7)  // 只返回前 7 天
     });
+  } catch (e) {
+    res.status(500).json({ error: true, message: e.message });
+  }
+});
+
+/* ============================================================
+ * 多源天气比对：高德（实时观测）+ Open-Meteo（实时+预报）+ 中国气象局 CMA（官方预报）
+ * 思路学习自 breezy-weather：官方源为主 + 国际源补充，多源交叉验证提升可信度
+ * CMA 接口免 Key、官方真实数据（weather.cma.cn），缓存 stationId 12h / 天气 30min
+ * ============================================================ */
+const _cmaCache = { station: new Map(), weather: new Map() };
+const CMA_HDRS = { 'User-Agent': '123-travel/1.0', 'Referer': 'https://weather.cma.cn/' };
+
+// 城市 → 中国气象局监测站 ID（autocomplete 动态查询 + 精确匹配 + 缓存）
+async function cmaAutocomplete(city){
+  const hit = _cmaCache.station.get(city);
+  if (hit && Date.now() - hit.t < 12 * 3600e3) return hit.id;
+  const url = `https://weather.cma.cn/api/autocomplete?q=${encodeURIComponent(city)}&limit=10&timestamp=${Date.now()}`;
+  const r = await fetch(url, { headers: CMA_HDRS, signal: AbortSignal.timeout(6000) });
+  if (!r.ok) throw new Error(`cma autocomplete http ${r.status}`);
+  const j = await r.json();
+  const items = (j.data || []).map(s => { const p = String(s).split('|'); return { id: p[0], name: p[1] }; });
+  const m = items.find(i => i.name === city) || items[0];
+  if (!m || !m.id) throw new Error(`cma: no station for ${city}`);
+  _cmaCache.station.set(city, { id: m.id, t: Date.now() });
+  return m.id;
+}
+
+// 指定城市 7 天官方预报（中国气象局）
+async function cmaWeather(city){
+  const hit = _cmaCache.weather.get(city);
+  if (hit && Date.now() - hit.t < 30 * 60e3) return hit.data;
+  const id = await cmaAutocomplete(city);
+  const url = `https://weather.cma.cn/api/weather/${id}?t=${Date.now()}`;
+  const r = await fetch(url, { headers: CMA_HDRS, signal: AbortSignal.timeout(6000) });
+  if (!r.ok) throw new Error(`cma weather http ${r.status}`);
+  const j = await r.json();
+  const d = j.data || {};
+  const data = { location: d.location || {}, lastUpdate: d.lastUpdate, daily: (d.daily || []).slice(0, 7) };
+  _cmaCache.weather.set(city, { data, t: Date.now() });
+  return data;
+}
+
+// Open-Meteo 免费地理编码兜底（任意城市 → 坐标，补全第三源），缓存 12h
+const _omGeoCache = new Map();
+async function openMeteoGeocode(city){
+  const hit = _omGeoCache.get(city);
+  if (hit && Date.now() - hit.t < 12 * 3600e3) return hit.coords;
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=zh&format=json`;
+  const r = await fetch(url, { headers: { 'User-Agent': '123-travel/1.0' }, signal: AbortSignal.timeout(5000) });
+  if (!r.ok) throw new Error(`geocode http ${r.status}`);
+  const j = await r.json();
+  const res = (j.results || [])[0];
+  if (!res || res.latitude == null) throw new Error(`geocode: no result for ${city}`);
+  const coords = { lat: res.latitude, lon: res.longitude };
+  _omGeoCache.set(city, { coords, t: Date.now() });
+  return coords;
+}
+
+// 天气描述 → 大类（用于多源一致性比对）
+function weatherCategory(text){
+  const s = String(text || '');
+  if (!s) return 'unknown';
+  if (/晴/.test(s)) return 'sunny';
+  if (/云/.test(s)) return 'cloudy';
+  if (/雨|雷|阵/.test(s)) return 'rainy';
+  if (/雪/.test(s)) return 'snow';
+  if (/雾|霾|沙尘|扬沙/.test(s)) return 'fog';
+  return 'other';
+}
+
+// 多源一致性结论（气温 gap + 天气类别多数一致）
+function buildWeatherConsensus(sources){
+  const r = { match_count: 0, match_total: 0, temperature_gap: null, verdict: '', notes: [] };
+  const catLabel = { sunny: '晴', cloudy: '多云/阴', rainy: '雨', snow: '雪', fog: '雾/霾', other: '其他' };
+  // 1) 天气类别一致性（今日：高德实时 / OM 今日 / CMA 今日日间）
+  const cats = sources.map(s => {
+    const c = s.condition || s.today?.condition || '';
+    return { id: s.id, cat: weatherCategory(c), raw: c };
+  }).filter(x => x.cat && x.cat !== 'unknown');
+  if (cats.length) {
+    const tally = {};
+    cats.forEach(c => { tally[c.cat] = (tally[c.cat] || 0) + 1; });
+    const top = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
+    r.match_total = cats.length;
+    r.match_count = top[1];
+    const label = catLabel[top[0]] || top[0];
+    if (top[1] === cats.length) {
+      r.verdict = `✅ 多源一致：今日天气判为「${label}」（${cats.map(c => c.raw).join(' / ')}）`;
+    } else if (top[1] >= 2) {
+      r.verdict = `🟡 多数一致：今日天气以「${label}」为主（${cats.map(c => c.raw).join(' / ')}）`;
+    } else {
+      r.verdict = `🟠 各源天气描述略有出入（${cats.map(c => c.raw).join(' / ')}），建议临近出发再复核`;
+    }
+  }
+  // 2) 气温 gap（今日/明日高温，取可比源的最大温差）
+  const byDay = {};
+  sources.forEach(s => {
+    for (const k of ['today', 'tomorrow']) {
+      const h = s[k]?.high;
+      if (typeof h === 'number') (byDay[k] = byDay[k] || []).push(h);
+    }
+  });
+  const gaps = Object.entries(byDay).map(([k, vs]) => ({ k, gap: Math.round((Math.max(...vs) - Math.min(...vs)) * 10) / 10 }));
+  if (gaps.length) {
+    const maxGap = Math.max(...gaps.map(g => g.gap));
+    r.temperature_gap = maxGap;
+    if (maxGap <= 3) r.notes.push(`各源气温高度一致（最大温差 ${maxGap}°C）`);
+    else if (maxGap <= 6) r.notes.push(`各源气温基本吻合（最大温差 ${maxGap}°C）`);
+    else r.notes.push(`⚠️ 各源气温分歧较大（最大温差 ${maxGap}°C），请以临近实时预报为准`);
+  }
+  r.notes.push('三源交叉验证（高德 / Open-Meteo / 中国气象局），数据均来自真实来源，仅供出行参考');
+  return r;
+}
+
+// 三源天气比对端点
+app.get('/api/weather/compare', async (req, res) => {
+  try {
+    const city = (req.query.city || '').toString().trim();
+    if (!city) return res.status(400).json({ error: true, message: 'city is required' });
+    // 1) 中国气象局（官方权威源；坐标缺失时用 Open-Meteo 地理编码补全 Open-Meteo 预报）
+    let cma = null;
+    try { cma = await cmaWeather(city); } catch (e) { /* 失败则跳过 */ }
+    const cmaCoords = (cma && cma.location && cma.location.longitude != null)
+      ? { lat: cma.location.latitude, lon: cma.location.longitude } : null;
+    let coords = CITY_COORDS[city] || cmaCoords;
+    if (!coords) { try { coords = await openMeteoGeocode(city); } catch (e) { /* 地理编码失败则跳过 OM */ } }
+    const sources = [];
+    // 2) 高德实时观测
+    if (AMAP_KEY && AMAP_KEY !== 'your_amap_key_here') {
+      try {
+        const qs = new URLSearchParams({ city, extensions: 'base', output: 'json' }).toString();
+        const d = await callAmapRaw('/v3/weather/weatherInfo', qs);
+        const live = d.lives?.[0];
+        if (live) sources.push({
+          id: 'amap', name: '高德天气', kind: '实时观测',
+          temperature: parseFloat(live.temperature_float || live.temperature),
+          condition: live.weather,
+          humidity: parseFloat(live.humidity_float || live.humidity),
+          wind: `${live.winddirection || '—'}风${live.windpower || '—'}级`,
+          reporttime: live.reporttime || null
+        });
+      } catch (e) { /* 高德失败忽略 */ }
+    }
+    // 3) Open-Meteo 实时 + 今明预报
+    if (coords) {
+      try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=2`;
+        const r = await fetch(url, { headers: { 'User-Agent': '123-travel/1.0' }, signal: AbortSignal.timeout(6000) });
+        if (r.ok) {
+          const d = await r.json();
+          const cur = d.current || {};
+          const day = (i) => d.daily ? {
+            date: d.daily.time?.[i] || null,
+            high: d.daily.temperature_2m_max?.[i] ?? null,
+            low: d.daily.temperature_2m_min?.[i] ?? null,
+            condition: WMO_DESC[d.daily.weather_code?.[i]] || `code ${d.daily.weather_code?.[i]}`,
+            precipitation_probability: d.daily.precipitation_probability_max?.[i] ?? 0
+          } : null;
+          sources.push({
+            id: 'open-meteo', name: 'Open-Meteo', kind: '实时+预报',
+            temperature: cur.temperature_2m ?? null,
+            condition: WMO_DESC[cur.weather_code] || `code ${cur.weather_code}`,
+            humidity: cur.relative_humidity_2m ?? null,
+            wind: cur.wind_speed_10m != null ? `${Math.round(cur.wind_speed_10m)} km/h` : null,
+            today: day(0), tomorrow: day(1),
+            reporttime: cur.time || null
+          });
+        }
+      } catch (e) { /* OM 失败忽略 */ }
+    }
+    // 4) 中国气象局 7 天官方预报
+    if (cma) {
+      const mk = (i) => {
+        const x = cma.daily?.[i];
+        return x ? {
+          date: x.date, high: x.high, low: x.low,
+          condition: x.dayText, nightText: x.nightText,
+          wind: `${x.dayWindDirection || ''}${x.dayWindScale || ''}`.trim() || null
+        } : null;
+      };
+      sources.push({
+        id: 'cma', name: '中国气象局', kind: '官方预报',
+        location: cma.location?.name || null,
+        today: mk(0), tomorrow: mk(1),
+        reporttime: cma.lastUpdate || null
+      });
+    }
+    if (!sources.length) {
+      return res.status(502).json({ error: true, message: '所有天气源均不可用，请稍后重试' });
+    }
+    res.json({ error: false, city, fetched_at: new Date().toISOString(), sources, consensus: buildWeatherConsensus(sources) });
   } catch (e) {
     res.status(500).json({ error: true, message: e.message });
   }

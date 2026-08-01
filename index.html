@@ -2481,6 +2481,7 @@ const API = {
   weather:(city)=>API.get('/api/amap/weather?city='+encodeURIComponent(city||'')),
   weatherFallback:(city)=>API.get('/api/weather/fallback?city='+encodeURIComponent(city||'')),
   weatherForecast:(city, day)=>API.get('/api/weather/forecast?city='+encodeURIComponent(city||'')+'&day='+(day||1)),
+  weatherCompare:(city)=>API.get('/api/weather/compare?city='+encodeURIComponent(city||'')),
   fx:(from,to)=>API.get('/api/fx?from='+(from||'CNY')+'&to='+(to||'USD')),
   direction:(o,d,type,city)=>API.get('/api/amap/direction?origin='+o+'&destination='+d+'&type='+(type||'driving')+(city?'&city='+encodeURIComponent(city):'')),
   destinations:(q={})=>API.get('/api/destinations'+(Object.keys(q).length?'?'+new URLSearchParams(q):'')),
@@ -3358,6 +3359,14 @@ async function loadDestWeather(city, days){
       };
     }
   } catch(_) {}
+  // 4) 多源天气比对（高德 / Open-Meteo / 中国气象局 CMA 三源交叉验证）
+  let compareHtml = '';
+  try {
+    const rc = await API.weatherCompare(city);
+    if (rc && !rc.__error && !rc.error && rc.sources && rc.sources.length >= 2) {
+      compareHtml = renderWeatherCompare(rc);
+    }
+  } catch(_) {}
   // 3) 渲染
   const now = cur || (f ? { source: f.source, temperature: f.temperature, condition: f.condition, humidity: f.humidity, wind: (f.wind_kmh || 0) + ' km/h' } : null);
   if (!now) {
@@ -3390,7 +3399,39 @@ async function loadDestWeather(city, days){
       <div style="font-size:11px;color:var(--text-2);letter-spacing:.05em;margin-bottom:6px;text-transform:uppercase">📅 ${dayHint}行程天气预报</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">${forecastHtml || '<div style="color:var(--text-3);font-size:11px">暂无预报</div>'}</div>
     </div>
+    ${compareHtml}
   `;
+}
+
+// 多源天气比对卡片（高德 / Open-Meteo / 中国气象局 三源交叉验证）
+function renderWeatherCompare(rc){
+  const cards = (rc.sources || []).map(s => {
+    const liveLine = s.temperature != null
+      ? `<span style="color:var(--text);font-weight:600">${Math.round(s.temperature)}°</span> <span style="color:var(--text-2)">${esc(s.condition || '')}</span>${s.humidity != null ? ` · 湿度${Math.round(s.humidity)}%` : ''}${s.wind ? ' · ' + esc(String(s.wind)) : ''}`
+      : '';
+    const dayLine = (label, d) => d ? `<div style="font-size:11px;color:var(--text-3)">${label} ${d.high != null ? Math.round(d.high) + '°/' + Math.round(d.low) + '°' : '—'} <span style="color:var(--text-2)">${esc(d.condition || '')}</span>${d.nightText ? ' → 夜' + esc(d.nightText) : ''}${d.precipitation_probability ? ' ☔' + Math.round(d.precipitation_probability) + '%' : ''}</div>` : '';
+    const report = s.reporttime ? `<div style="font-size:9px;color:var(--text-3);margin-top:4px">更新 ${esc(String(s.reporttime))}</div>` : '';
+    return `<div style="flex:1;min-width:210px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:10px 12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:12px;color:var(--accent);font-weight:600">🛰 ${esc(s.name)}</span>
+        <span style="font-size:10px;color:var(--text-3)">${esc(s.kind || '')}</span>
+      </div>
+      ${liveLine ? `<div style="font-size:12px;margin-bottom:4px">${liveLine}</div>` : ''}
+      ${dayLine('今日', s.today)}
+      ${dayLine('明日', s.tomorrow)}
+      ${report}
+    </div>`;
+  }).join('');
+  const cs = rc.consensus || {};
+  const notes = (cs.notes || []).map(n => `<div style="font-size:11px;color:var(--text-3);line-height:1.5">· ${esc(n)}</div>`).join('');
+  return `<div style="flex:0 0 100%;width:100%;margin-top:4px;border-top:1px dashed rgba(255,255,255,.12);padding-top:12px">
+    <div style="font-size:11px;color:var(--text-2);letter-spacing:.05em;margin-bottom:8px;text-transform:uppercase">🔄 多源天气比对 · 三源交叉验证</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${cards}</div>
+    <div style="margin-top:10px;padding:9px 12px;border-radius:8px;background:rgba(240,183,131,.08);border:1px solid rgba(240,183,131,.22);font-size:12px;color:var(--text-2)">
+      <div style="color:var(--accent);font-weight:600">${cs.verdict || '比对进行中'}</div>
+      ${notes}
+    </div>
+  </div>`;
 }
 
 function weatherEmoji(cond){
