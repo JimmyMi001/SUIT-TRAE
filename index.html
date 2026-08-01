@@ -2047,6 +2047,31 @@
     .verify__risk,.comp__poi,.comp__tool{
       box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 0 0 1px rgba(255,255,255,.03),inset 0 -8px 14px -4px rgba(0,0,0,.18),0 8px 20px rgba(0,0,0,.16) !important}
   }
+  /* ===== 多源天气比对（灵感来自 Breezy Weather） ===== */
+  .wx-compare{flex:0 0 100%;width:100%;margin-top:4px;border-top:1px dashed rgba(255,255,255,.12);padding-top:12px}
+  .wx-compare__head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .wx-compare__title{font-size:11px;color:var(--text-2);letter-spacing:.05em;text-transform:uppercase;font-weight:700}
+  .wx-compare__credit{font-size:10px;color:var(--text-3)}
+  .wx-compare__credit a{color:var(--accent);text-decoration:none;border-bottom:1px dashed rgba(240,183,131,.4)}
+  .wx-compare__credit a:hover{color:var(--accent);opacity:.85}
+  /* 评分进度条（CSS 动画自动播放，无需 JS 触发时机） */
+  .wx-score{display:flex;align-items:center;gap:10px;margin:2px 0 10px}
+  .wx-score__bar{flex:1;height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+  .wx-score__fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#f0b783,#e8a35c);width:var(--score,0%);animation:wxFill 1.1s cubic-bezier(.22,1,.36,1) both}
+  @keyframes wxFill{from{width:0}to{width:var(--score,0%)}}
+  .wx-score__label{font-size:11px;color:var(--text-2);font-weight:600;white-space:nowrap}
+  /* 源 Tab 切换 */
+  .wx-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .wx-tab{font-size:11px;padding:5px 12px;border-radius:99px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:var(--text-2);cursor:pointer;transition:all .2s ease}
+  .wx-tab:hover{border-color:rgba(240,183,131,.5);color:var(--text)}
+  .wx-tab.active{background:rgba(240,183,131,.16);border-color:rgba(240,183,131,.55);color:var(--accent);font-weight:700}
+  /* 视图切换动画 */
+  .wx-body{animation:wxFadeUp .45s ease both}
+  @keyframes wxFadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  /* 单源视图预报横排 */
+  .wx-forecast{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .wx-forecast__day{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 9px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:8px;min-width:56px}
+  .wx-forecast__day.today{background:rgba(240,183,131,.12);border-color:rgba(240,183,131,.4)}
 </style>
 </head>
 <body>
@@ -3361,9 +3386,11 @@ async function loadDestWeather(city, days){
   } catch(_) {}
   // 4) 多源天气比对（高德 / Open-Meteo / 中国气象局 CMA 三源交叉验证）
   let compareHtml = '';
+  let rcCache = null;
   try {
     const rc = await API.weatherCompare(city);
     if (rc && !rc.__error && !rc.error && rc.sources && rc.sources.length >= 2) {
+      rcCache = rc;
       compareHtml = renderWeatherCompare(rc);
     }
   } catch(_) {}
@@ -3401,37 +3428,101 @@ async function loadDestWeather(city, days){
     </div>
     ${compareHtml}
   `;
+  if (compareHtml) initWeatherCompare(card, rcCache);
 }
 
-// 多源天气比对卡片（高德 / Open-Meteo / 中国气象局 三源交叉验证）
-function renderWeatherCompare(rc){
+// 多源天气比对（高德 / Open-Meteo / 中国气象局 三源交叉验证）
+// 交互与多源设计灵感来自 breezy-weather（https://github.com/breezy-weather/breezy-weather）
+function wxSourceLine(s){
+  return s.temperature != null
+    ? `<span style="color:var(--text);font-weight:600">${Math.round(s.temperature)}°</span> <span style="color:var(--text-2)">${esc(s.condition || '')}</span>${s.humidity != null ? ` · 湿度${Math.round(s.humidity)}%` : ''}${s.wind ? ' · ' + esc(String(s.wind)) : ''}`
+    : '';
+}
+function wxDayLine(label, d){
+  if (!d) return '';
+  return `<div style="font-size:11px;color:var(--text-3)">${label} ${d.high != null ? Math.round(d.high) + '°/' + Math.round(d.low) + '°' : '—'} <span style="color:var(--text-2)">${esc(d.condition || '')}</span>${d.nightText ? ' → 夜' + esc(d.nightText) : ''}${d.precipitation_probability ? ' ☔' + Math.round(d.precipitation_probability) + '%' : ''}</div>`;
+}
+function wxSummaryView(rc){
   const cards = (rc.sources || []).map(s => {
-    const liveLine = s.temperature != null
-      ? `<span style="color:var(--text);font-weight:600">${Math.round(s.temperature)}°</span> <span style="color:var(--text-2)">${esc(s.condition || '')}</span>${s.humidity != null ? ` · 湿度${Math.round(s.humidity)}%` : ''}${s.wind ? ' · ' + esc(String(s.wind)) : ''}`
-      : '';
-    const dayLine = (label, d) => d ? `<div style="font-size:11px;color:var(--text-3)">${label} ${d.high != null ? Math.round(d.high) + '°/' + Math.round(d.low) + '°' : '—'} <span style="color:var(--text-2)">${esc(d.condition || '')}</span>${d.nightText ? ' → 夜' + esc(d.nightText) : ''}${d.precipitation_probability ? ' ☔' + Math.round(d.precipitation_probability) + '%' : ''}</div>` : '';
     const report = s.reporttime ? `<div style="font-size:9px;color:var(--text-3);margin-top:4px">更新 ${esc(String(s.reporttime))}</div>` : '';
     return `<div style="flex:1;min-width:210px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:10px 12px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <span style="font-size:12px;color:var(--accent);font-weight:600">🛰 ${esc(s.name)}</span>
         <span style="font-size:10px;color:var(--text-3)">${esc(s.kind || '')}</span>
       </div>
-      ${liveLine ? `<div style="font-size:12px;margin-bottom:4px">${liveLine}</div>` : ''}
-      ${dayLine('今日', s.today)}
-      ${dayLine('明日', s.tomorrow)}
+      ${wxSourceLine(s) ? `<div style="font-size:12px;margin-bottom:4px">${wxSourceLine(s)}</div>` : ''}
+      ${wxDayLine('今日', s.today)}
+      ${wxDayLine('明日', s.tomorrow)}
       ${report}
     </div>`;
   }).join('');
   const cs = rc.consensus || {};
   const notes = (cs.notes || []).map(n => `<div style="font-size:11px;color:var(--text-3);line-height:1.5">· ${esc(n)}</div>`).join('');
-  return `<div style="flex:0 0 100%;width:100%;margin-top:4px;border-top:1px dashed rgba(255,255,255,.12);padding-top:12px">
-    <div style="font-size:11px;color:var(--text-2);letter-spacing:.05em;margin-bottom:8px;text-transform:uppercase">🔄 多源天气比对 · 三源交叉验证</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">${cards}</div>
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap">${cards || '<div style="color:var(--text-3);font-size:11px">暂无数据</div>'}</div>
     <div style="margin-top:10px;padding:9px 12px;border-radius:8px;background:rgba(240,183,131,.08);border:1px solid rgba(240,183,131,.22);font-size:12px;color:var(--text-2)">
       <div style="color:var(--accent);font-weight:600">${cs.verdict || '比对进行中'}</div>
       ${notes}
-    </div>
+    </div>`;
+}
+function wxSourceView(s){
+  if (!s) return '<div style="color:var(--text-3);font-size:11px">该源暂无数据</div>';
+  const today = String((s.today && s.today.date) || '');
+  const fc = (s.forecast || []).map(d => {
+    const isToday = today && d.date && String(d.date).slice(0, 10) === today.slice(0, 10);
+    return `<div class="wx-forecast__day${isToday ? ' today' : ''}">
+      <div style="font-size:10px;color:var(--text-2)">${isToday ? '今天' : (d.date || '').slice(5)}</div>
+      <div style="font-size:12px;color:var(--text);font-weight:600">${d.high != null ? Math.round(d.high) + '°/' + Math.round(d.low) + '°' : '—'}</div>
+      <div style="font-size:10px;color:var(--text-2)">${esc(d.condition || '')}</div>
+      ${d.precipitation_probability ? `<div style="font-size:9px;color:#60a5fa">☔${Math.round(d.precipitation_probability)}%</div>` : ''}
+      ${d.nightText ? `<div style="font-size:9px;color:var(--text-3)">夜${esc(d.nightText)}</div>` : ''}
+    </div>`;
+  }).join('');
+  const live = wxSourceLine(s);
+  return `<div>
+    <div style="font-size:12px;color:var(--text-2)">🛰 ${esc(s.name)} · ${esc(s.kind || '')}${s.location ? '（' + esc(s.location) + '）' : ''}</div>
+    ${live ? `<div style="font-size:13px;margin:6px 0">${live}</div>` : ''}
+    ${wxDayLine('今日', s.today)}
+    ${wxDayLine('明日', s.tomorrow)}
+    ${s.reporttime ? `<div style="font-size:9px;color:var(--text-3);margin-top:4px">更新 ${esc(String(s.reporttime))}</div>` : ''}
+    <div style="font-size:11px;color:var(--text-2);letter-spacing:.05em;margin:10px 0 6px;text-transform:uppercase">📅 逐日预报</div>
+    <div class="wx-forecast">${fc || '<div style="color:var(--text-3);font-size:11px">暂无逐日预报</div>'}</div>
   </div>`;
+}
+function renderWeatherCompare(rc){
+  const sources = rc.sources || [];
+  const cs = rc.consensus || {};
+  const score = cs.score != null ? Math.round(cs.score) : null;
+  return `<div class="wx-compare">
+    <div class="wx-compare__head">
+      <span class="wx-compare__title">🔄 多源天气比对 · 三源交叉验证</span>
+      <span class="wx-compare__credit">灵感来自 <a href="https://github.com/breezy-weather/breezy-weather" target="_blank" rel="noopener">Breezy Weather</a> 多源设计</span>
+    </div>
+    ${score != null ? `<div class="wx-score">
+      <div class="wx-score__bar"><div class="wx-score__fill" style="--score:${score}%"></div></div>
+      <span class="wx-score__label">一致性 <b style="color:var(--accent)">${score}</b>/100 · ${esc(cs.score_text || '')}</span>
+    </div>` : ''}
+    <div class="wx-tabs">
+      <button class="wx-tab active" data-view="all">📊 汇总</button>
+      ${sources.map(s => `<button class="wx-tab" data-view="${esc(s.id)}">${esc(s.name)}</button>`).join('')}
+    </div>
+    <div class="wx-body">${wxSummaryView(rc)}</div>
+  </div>`;
+}
+// 天气比对交互初始化：源 Tab 切换（评分条动画由 CSS 驱动，无需 JS）
+function initWeatherCompare(card, rc){
+  const root = card.querySelector('.wx-compare');
+  if (!root) return;
+  root.addEventListener('click', (e) => {
+    const btn = e.target.closest('.wx-tab');
+    if (!btn) return;
+    root.querySelectorAll('.wx-tab').forEach(b => b.classList.toggle('active', b === btn));
+    const view = btn.dataset.view;
+    const body = root.querySelector('.wx-body');
+    body.classList.remove('wx-body'); // 触发重排以重启动画
+    void body.offsetWidth;
+    body.classList.add('wx-body');
+    body.innerHTML = view === 'all' ? wxSummaryView(rc) : wxSourceView((rc.sources || []).find(s => s.id === view));
+  });
 }
 
 function weatherEmoji(cond){

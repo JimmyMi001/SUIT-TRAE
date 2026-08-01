@@ -1952,9 +1952,9 @@ function weatherCategory(text){
   return 'other';
 }
 
-// 多源一致性结论（气温 gap + 天气类别多数一致）
+// 多源一致性结论（气温 gap + 天气类别多数一致 + 一致性评分 0-100）
 function buildWeatherConsensus(sources){
-  const r = { match_count: 0, match_total: 0, temperature_gap: null, verdict: '', notes: [] };
+  const r = { match_count: 0, match_total: 0, temperature_gap: null, score: null, score_text: '', verdict: '', notes: [] };
   const catLabel = { sunny: '晴', cloudy: '多云/阴', rainy: '雨', snow: '雪', fog: '雾/霾', other: '其他' };
   // 1) 天气类别一致性（今日：高德实时 / OM 今日 / CMA 今日日间）
   const cats = sources.map(s => {
@@ -1993,6 +1993,22 @@ function buildWeatherConsensus(sources){
     else r.notes.push(`⚠️ 各源气温分歧较大（最大温差 ${maxGap}°C），请以临近实时预报为准`);
   }
   r.notes.push('三源交叉验证（高德 / Open-Meteo / 中国气象局），数据均来自真实来源，仅供出行参考');
+  // 3) 一致性评分（0-100）：天气类别一致度 0-40 + 气温 gap 0-60
+  let score = 0;
+  if (r.match_total) {
+    const ratio = r.match_count / r.match_total;
+    score += ratio === 1 ? 40 : ratio >= 2 / 3 ? 30 : 15;
+  } else {
+    score += 20; // 无法比对类别时给中性分
+  }
+  if (r.temperature_gap != null) {
+    const g = r.temperature_gap;
+    score += g <= 3 ? 60 : g <= 6 ? 40 : 20;
+  } else {
+    score += 40;
+  }
+  r.score = Math.round(score);
+  r.score_text = r.score >= 85 ? '三源高度一致' : r.score >= 65 ? '三源基本一致' : '多源存在分歧';
   return r;
 }
 
@@ -2028,7 +2044,7 @@ app.get('/api/weather/compare', async (req, res) => {
     // 3) Open-Meteo 实时 + 今明预报
     if (coords) {
       try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=2`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7`;
         const r = await fetch(url, { headers: { 'User-Agent': '123-travel/1.0' }, signal: AbortSignal.timeout(6000) });
         if (r.ok) {
           const d = await r.json();
@@ -2047,6 +2063,7 @@ app.get('/api/weather/compare', async (req, res) => {
             humidity: cur.relative_humidity_2m ?? null,
             wind: cur.wind_speed_10m != null ? `${Math.round(cur.wind_speed_10m)} km/h` : null,
             today: day(0), tomorrow: day(1),
+            forecast: Array.from({ length: d.daily?.time?.length || 0 }, (_, i) => day(i)).filter(Boolean),
             reporttime: cur.time || null
           });
         }
@@ -2066,6 +2083,7 @@ app.get('/api/weather/compare', async (req, res) => {
         id: 'cma', name: '中国气象局', kind: '官方预报',
         location: cma.location?.name || null,
         today: mk(0), tomorrow: mk(1),
+        forecast: (cma.daily || []).slice(0, 7).map((_, i) => mk(i)).filter(Boolean),
         reporttime: cma.lastUpdate || null
       });
     }
