@@ -452,7 +452,8 @@
       inset 0 -8px 14px -4px rgba(0,0,0,.20);
     border-radius:99px;padding:3px 6px}
   .nav__time > span{padding:3px 8px;border-left:1px solid rgba(255,255,255,.06);
-    display:inline-flex;align-items:center;gap:5px;transition:background .2s;white-space:nowrap;min-width:0}
+    display:inline-flex;align-items:center;gap:5px;transition:background .2s;white-space:nowrap;
+    min-width:0;overflow:hidden} /* overflow:hidden 兜底：极窄时文本被裁剪而非叠压到相邻胶囊 */
   .nav__time > span:first-child{padding-left:10px;border-left:0}
   .nav__time > span:hover{background:rgba(255,255,255,.04);border-radius:99px}
   .nav__time-clock{color:var(--text);font-weight:600;font-size:13px;letter-spacing:.04em}
@@ -462,7 +463,8 @@
     transition:all .2s}
   .nav__time-lunar:hover{background:rgba(240,183,131,.12);text-shadow:0 0 16px rgba(240,183,131,.6)}
   .nav__time-holiday{color:var(--ok);font-size:12px;letter-spacing:.03em;cursor:pointer;
-    transition:color .2s, background .2s;position:relative;border-radius:99px}
+    transition:color .2s, background .2s;position:relative;border-radius:99px;
+    white-space:nowrap;display:inline-flex;align-items:center;flex-shrink:0} /* 防 flex 挤压换行成两行 */
   .nav__time-holiday:hover{color:var(--accent);background:rgba(240,183,131,.08)}
   .nav__time-holiday::after{content:"ⓘ";font-size:10px;margin-left:4px;opacity:.55;vertical-align:1px}
   .nav__time-holiday:hover::after{opacity:1;color:var(--accent)}
@@ -640,8 +642,11 @@
   .nav__time .nav__time-weather .nw-temp{color:var(--text);font-weight:600;font-family:var(--mono)}
   .nav__time .nav__time-weather .nw-temp.loading{color:var(--text-3)}
   .nav__time .nav__time-weather .nw-src{font-size:9px;color:var(--text-3);opacity:.75}
-  /* 较窄窗口下隐藏 UTC+8 徽章（信息量最低，悬停时钟即可见时区），为天气胶囊腾出空间 */
-  @media(max-width:1280px){.nav__time-tz{display:none}}
+  /* 较窄窗口下隐藏 UTC+8 徽章（信息量最低，悬停时钟即可见时区），为天气胶囊腾出空间；
+     用高特异性选择器覆盖 .nav__time > span 的 display:inline-flex */
+  @media(max-width:1280px){.nav__time > .nav__time-tz{display:none !important}}
+  /* 极端窄屏进一步隐藏农历（信息量较低，悬停日期可见农历），避免日期/农历文本互相叠压 */
+  @media(max-width:1150px){.nav__time > .nav__time-lunar{display:none !important}}
 
   .weather-pop{position:fixed;left:0;top:0;z-index:300;width:min(356px,94vw);display:none;
     pointer-events:none;transform-origin:top right;animation:holiday-pop-in .22s cubic-bezier(.4,0,.2,1)}
@@ -6557,19 +6562,27 @@ function syncOriginCascade(province, city, tries){
   setTimeout(() => syncOriginCascade(province, city, (tries || 0) + 1), 300);
 }
 
-// IP 定位自动识别出发城市（来源：高德 IP 定位；自动填到出发地，用户可随时手动修改）
+// IP 定位自动识别出发城市（来源：高德 IP 定位 / 太平洋网络兜底；自动填到出发地，用户可随时手动修改）
 // 注意：不再用 origin_manual_override 一刀切禁用——以"当前出发地实际值"为准：
 //   出发地为空 → 自动填充 IP 城市（功能可恢复）；已手动填写/选择其他城市 → 不覆盖（尊重用户）
 async function autoDetectOriginCity(){
   try {
     const r = await ipLocateOnce();
-    if (!r || r.__error || !r.city) return;
-    const city = String(r.city).trim();
-    const province = String(r.province || '').trim();
-    if (!city) return;
     const input = document.getElementById('userOriginCity');
     const tip = document.getElementById('originIpTip');
     if (!input) return;
+    // 定位失败：展示具体原因与引导（云服务器常因高德 Key 未配置或 IP 白名单导致，已自动回退备用真实源）
+    if (!r || r.__error || !r.city) {
+      if (tip) {
+        tip.style.display = '';
+        tip.innerHTML = `⚠️ <b>IP 定位失败</b>：${esc((r && r.message) || '未知原因')}，可手动填写出发地`;
+      }
+      return;
+    }
+    const city = String(r.city).trim();
+    const province = String(r.province || '').trim();
+    if (!city) return;
+    const src = (r.source === 'pconline') ? '太平洋网络 IP 定位' : '高德 IP 定位';
     // 当前出发地实际值：级联下拉优先，其次文本输入
     const citySel = document.getElementById('originCitySel');
     const cur = (citySel && citySel.options.length > 1 ? (citySel.value || '') : '')
@@ -6585,11 +6598,18 @@ async function autoDetectOriginCity(){
     }
     if (tip) {
       tip.style.display = '';
-      tip.innerHTML = `已通过 <b>IP 定位</b> 自动识别你所在城市：<b>${esc(city)}</b>（数据来源：高德 IP 定位 · 可手动修改）`;
+      tip.innerHTML = `已通过 <b>IP 定位</b> 自动识别你所在城市：<b>${esc(city)}</b>（数据来源：${src} · 可手动修改）`;
     }
     // 触发每日推荐刷新（按所在地权重）
     if (typeof loadDailyRecommendations === 'function') loadDailyRecommendations();
-  } catch (e) { /* 静默失败，不影响页面 */ }
+  } catch (e) {
+    // 网络异常等：静默不阻塞，但给出可手动填写的提示
+    const tip = document.getElementById('originIpTip');
+    if (tip) {
+      tip.style.display = '';
+      tip.innerHTML = `⚠️ <b>IP 定位失败</b>：${esc(e.message)}，可手动填写出发地`;
+    }
+  }
 }
 
 /* ========== 顶部栏天气（IP 定位 + 三源详情 + 可修改城市） ========== */
@@ -6652,17 +6672,19 @@ async function initNavWeather(){
   // 用户手动选择过的城市优先（localStorage 持久化）
   const manual = localStorage.getItem('tb_weather_city');
   if (manual && manual.trim()) { loadNavWeather(manual.trim(), '手动选择'); return; }
-  // 否则用 IP 定位（数据来源：高德 IP 定位，与出发地自动填充共享一次定位结果）
+  // 否则用 IP 定位（数据来源：高德 IP 定位 / 太平洋网络兜底，与出发地自动填充共享一次定位结果）
   try {
     const r = await ipLocateOnce();
     const c = (r.city || '').trim();
-    if (c) loadNavWeather(c, 'IP 定位');
+    if (c) loadNavWeather(c, r.source === 'pconline' ? 'IP 定位(备用源)' : 'IP 定位');
     else {
       el.querySelector('.nw-city').textContent = '定位失败';
       el.querySelector('.nw-temp').textContent = '';
+      el.title = (r && r.message ? 'IP 定位失败：' + r.message : 'IP 定位失败') + ' · 点击可手动修改城市';
     }
   } catch (e) {
     el.querySelector('.nw-city').textContent = '定位失败';
+    el.title = 'IP 定位失败：' + e.message + ' · 点击可手动修改城市';
   }
 }
 

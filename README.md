@@ -1048,6 +1048,8 @@ server {
    MEITUAN_HT_TOKEN=你的美团酒旅Token         # 真实酒店/机票/门票，申请: developer.meituan.com/zh/v2/dev/token
    ```
    > ℹ️ 容器内环境变量优先于 `.env` 模板，部署平台填写的 Key 不会被占位符覆盖（已修复 dotenv override 覆盖问题）。
+   >
+   > ℹ️ **IP 定位**（顶部栏天气 + 出发地自动识别）多源回退：高德 `/v3/ip` 为主源，若高德 Key 未配置 / 未通过校验 / 服务器 IP 不在高德 Key 白名单（在[高德控制台](https://console.amap.com/dev/key/app) → 应用管理 → Key → 设置 中把 Sealos 服务器出口 IP 加入白名单）导致失败，服务端自动回退**太平洋网络 IP 定位**（免费真实源，无需 Key），保证云服务器上也能自动识别所在城市；30 分钟内存缓存避免重复请求。定位失败时会返回失败原因并在前端明确提示。
 
 6. **点击部署**，等待 1-2 分钟。Sealos 会自动分配一个 `*.sealos.run` 域名并提供 HTTPS。
 

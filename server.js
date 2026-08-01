@@ -723,22 +723,74 @@ function mergeProvinceCities(amapData) {
   return [...merged.values()];
 }
 
-/* IP 定位（真实所在城市，用于自动识别出发地） */
+/* ---------- IP 定位（真实所在城市，用于自动识别出发地） ----------
+ * 多源回退：① 高德 /v3/ip（主源）→ ② 太平洋网络 whois（免费真实源，高德 Key 缺失/白名单/限流时兜底）
+ * 结果内存缓存 30 分钟（IP 归属城市变化极慢），避免重复请求浪费配额；
+ * 返回 message 字段，前端可据此展示失败原因（如 Sealos 控制台未配置 AMAP_KEY） */
+let _ipLocateCache = null;
+let _ipLocateCacheAt = 0;
+const IP_LOCATE_TTL = 30 * 60 * 1000;
+
+async function locateCity() {
+  const now = Date.now();
+  if (_ipLocateCache && now - _ipLocateCacheAt < IP_LOCATE_TTL) return _ipLocateCache;
+  const out = { error: false, source: 'none', province: '', city: '', adcode: '', message: '' };
+
+  // ① 高德 IP 定位（主源）
+  if (AMAP_KEY && AMAP_KEY !== 'your_amap_key_here') {
+    try {
+      const r = await callAmapRaw('/v3/ip', new URLSearchParams({ output: 'json' }).toString());
+      if (r && r.status === '1' && r.city && r.city !== '[]') {
+        Object.assign(out, {
+          source: 'amap',
+          province: String(r.province || '').replace(/省|市|自治区/g, ''),
+          city: normCityName(r.city),
+          adcode: r.adcode || ''
+        });
+        _ipLocateCache = out; _ipLocateCacheAt = now;
+        return out;
+      }
+      out.message = `高德 IP 定位失败（${r && r.info ? r.info : 'status=' + (r && r.status)}，可能是 Key 未通过校验或 IP 白名单未包含本服务器）`;
+    } catch (e) {
+      out.message = '高德 IP 定位接口异常';
+    }
+  } else {
+    out.message = '高德 Key 未配置（Sealos 部署请在控制台环境变量设置 AMAP_KEY）';
+  }
+
+  // ② 太平洋网络 whois 兜底（免费真实 IP 定位，无需 Key）
+  try {
+    const r2 = await fetch('https://whois.pconline.com.cn/ipJson.jsp?json=true', {
+      headers: { 'Referer': 'https://www.pconline.com.cn/', 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(6000)
+    });
+    if (r2.ok) {
+      let txt;
+      try { txt = new TextDecoder('gbk').decode(Buffer.from(await r2.arrayBuffer())); }
+      catch (e) { txt = await r2.text(); }
+      const j = JSON.parse(txt);
+      const c = String(j.city || '').trim();
+      if (c) {
+        Object.assign(out, {
+          source: 'pconline',
+          province: String(j.pro || '').replace(/省|市|自治区/g, ''),
+          city: normCityName(c),
+          adcode: String(j.cityCode || '')
+        });
+        _ipLocateCache = out; _ipLocateCacheAt = now;
+        return out;
+      }
+    }
+  } catch (e) { /* 兜底源失败则保持高德失败原因 */ }
+
+  return out;
+}
+
 app.get('/api/amap/ip', async (_req, res) => {
   try {
-    if (!AMAP_KEY || AMAP_KEY === 'your_amap_key_here') {
-      return res.json({ error: false, source: 'none', province: '', city: '', adcode: '' });
-    }
-    const r = await callAmapRaw('/v3/ip', new URLSearchParams({ output: 'json' }).toString());
-    const ok = r && r.status === '1' && r.city && r.city !== '[]';
-    res.json({
-      error: false, source: ok ? 'amap' : 'none',
-      province: ok ? String(r.province || '').replace(/省|市|自治区/g, '') : '',
-      city: ok ? normCityName(r.city) : '',
-      adcode: ok ? r.adcode : ''
-    });
+    res.json(await locateCity());
   } catch (e) {
-    res.json({ error: false, source: 'none', province: '', city: '', adcode: '' });
+    res.json({ error: false, source: 'none', province: '', city: '', adcode: '', message: 'IP 定位失败' });
   }
 });
 
