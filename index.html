@@ -451,9 +451,9 @@
       inset 0 0 0 1px rgba(255,255,255,.04),
       inset 0 -8px 14px -4px rgba(0,0,0,.20);
     border-radius:99px;padding:3px 6px}
-  .nav__time > span{padding:3px 10px;border-left:1px solid rgba(255,255,255,.06);
+  .nav__time > span{padding:3px 8px;border-left:1px solid rgba(255,255,255,.06);
     display:inline-flex;align-items:center;gap:5px;transition:background .2s;white-space:nowrap;min-width:0}
-  .nav__time > span:first-child{padding-left:12px;border-left:0}
+  .nav__time > span:first-child{padding-left:10px;border-left:0}
   .nav__time > span:hover{background:rgba(255,255,255,.04);border-radius:99px}
   .nav__time-clock{color:var(--text);font-weight:600;font-size:13px;letter-spacing:.04em}
   .nav__time-date{color:var(--text-2);font-size:12px}
@@ -628,24 +628,26 @@
      液态玻璃 + 毛玻璃，与整体深夜暖金设计统一；数据三源（高德/Open-Meteo/中国气象局） */
   .nav__time .nav__time-weather{display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;
     background:rgba(240,183,131,.07);border:1px solid rgba(240,183,131,.18);
-    border-radius:99px;padding:3px 12px;margin-left:6px;
+    border-radius:99px;padding:3px 12px;margin-left:4px;flex-shrink:0;
     backdrop-filter:blur(8px) saturate(150%);-webkit-backdrop-filter:blur(8px) saturate(150%);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.08),inset 0 0 0 1px rgba(255,255,255,.03);
     transition:all .2s;white-space:nowrap;letter-spacing:.02em}
   .nav__time .nav__time-weather:hover{background:rgba(240,183,131,.16);border-color:var(--accent);
     box-shadow:0 0 14px rgba(240,183,131,.28),inset 0 1px 0 rgba(255,255,255,.10)}
   .nav__time .nav__time-weather .nw-ico{font-size:13px;line-height:1;filter:drop-shadow(0 0 6px rgba(240,183,131,.55))}
-  .nav__time .nav__time-weather .nw-city{color:var(--accent);font-weight:600;max-width:120px;overflow:hidden;
-    text-overflow:ellipsis}
+  .nav__time .nav__time-weather .nw-city{color:var(--accent);font-weight:600;max-width:100px;flex-shrink:0;
+    overflow:hidden;text-overflow:ellipsis}
   .nav__time .nav__time-weather .nw-temp{color:var(--text);font-weight:600;font-family:var(--mono)}
   .nav__time .nav__time-weather .nw-temp.loading{color:var(--text-3)}
   .nav__time .nav__time-weather .nw-src{font-size:9px;color:var(--text-3);opacity:.75}
+  /* 较窄窗口下隐藏 UTC+8 徽章（信息量最低，悬停时钟即可见时区），为天气胶囊腾出空间 */
+  @media(max-width:1280px){.nav__time-tz{display:none}}
 
-  .weather-pop{position:fixed;left:0;top:0;z-index:300;width:min(470px,94vw);display:none;
+  .weather-pop{position:fixed;left:0;top:0;z-index:300;width:min(356px,94vw);display:none;
     pointer-events:none;transform-origin:top right;animation:holiday-pop-in .22s cubic-bezier(.4,0,.2,1)}
   .weather-pop.open{display:block;pointer-events:auto}
   .weather-pop__box{position:relative;isolation:isolate;overflow:hidden;background:rgba(15,17,22,.58);
-    border:0;border-radius:16px;padding:18px 20px 16px;backdrop-filter:blur(14px) saturate(170%);
+    border:0;border-radius:14px;padding:13px 14px 11px;backdrop-filter:blur(14px) saturate(170%);
     -webkit-backdrop-filter:blur(14px) saturate(170%);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 0 0 1px rgba(255,255,255,.05),
       inset 0 -14px 28px -6px rgba(0,0,0,.40),0 22px 48px -12px rgba(0,0,0,.55)}
@@ -653,85 +655,85 @@
     background:linear-gradient(90deg,transparent,rgba(240,183,131,.55),transparent);z-index:2}
   .weather-pop__arrow{position:absolute;top:-6px;right:26px;width:12px;height:12px;
     background:rgba(15,17,22,.65);transform:rotate(45deg);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
-  .weather-pop__head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-  .weather-pop__icon{font-size:22px;line-height:1;filter:drop-shadow(0 0 8px rgba(240,183,131,.5))}
-  .weather-pop__title{flex:1;font-family:var(--serif);font-size:15px;font-weight:600;color:var(--text)}
-  .weather-pop__sub{font-size:11px;color:var(--text-2);margin-top:2px;letter-spacing:.02em}
+  .weather-pop__head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .weather-pop__icon{font-size:20px;line-height:1;filter:drop-shadow(0 0 8px rgba(240,183,131,.5))}
+  .weather-pop__title{flex:1;font-family:var(--serif);font-size:14px;font-weight:600;color:var(--text)}
+  .weather-pop__sub{font-size:10.5px;color:var(--text-2);margin-top:2px;letter-spacing:.02em}
   .weather-pop__close{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.04);border:0;
     color:var(--text-2);font-size:14px;cursor:pointer;display:grid;place-items:center;transition:all .2s;flex-shrink:0}
   .weather-pop__close:hover{background:rgba(214,139,124,.18);color:var(--err);transform:rotate(90deg)}
-  .weather-pop__loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:26px 0;
+  .weather-pop__loading{display:flex;align-items:center;justify-content:center;gap:8px;padding:18px 0;
     color:var(--text-2);font-size:12px;letter-spacing:.03em}
-  .weather-pop__body{display:grid;gap:10px}
+  .weather-pop__body{display:grid;gap:8px}
   /* 实时大卡 */
-  .wp-now{display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:12px;
+  .wp-now{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:10px;
     background:linear-gradient(135deg,rgba(240,183,131,.10),rgba(99,102,241,.06));
     border:1px solid rgba(240,183,131,.16)}
-  .wp-now__temp{font-family:var(--mono);font-size:42px;font-weight:600;color:var(--text);
-    line-height:1;text-shadow:0 0 22px rgba(240,183,131,.35)}
-  .wp-now__temp small{font-size:16px;color:var(--text-2);font-weight:400;margin-left:2px}
-  .wp-now__meta{display:flex;flex-direction:column;gap:4px;min-width:0}
-  .wp-now__cond{font-size:15px;font-weight:600;color:var(--text);letter-spacing:.02em}
-  .wp-now__cond .wp-now__emoji{font-size:18px;vertical-align:-2px;margin-right:6px}
-  .wp-now__src{font-size:10px;color:var(--text-3);letter-spacing:.02em}
+  .wp-now__temp{font-family:var(--mono);font-size:28px;font-weight:600;color:var(--text);
+    line-height:1;text-shadow:0 0 18px rgba(240,183,131,.35)}
+  .wp-now__temp small{font-size:11px;color:var(--text-2);font-weight:400;margin-left:2px}
+  .wp-now__meta{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .wp-now__cond{font-size:12.5px;font-weight:600;color:var(--text);letter-spacing:.02em}
+  .wp-now__cond .wp-now__emoji{font-size:14px;vertical-align:-2px;margin-right:5px}
+  .wp-now__src{font-size:9.5px;color:var(--text-3);letter-spacing:.02em}
   .wp-now__src b{color:var(--accent);font-weight:600}
   /* 实时指标行 */
-  .wp-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-  .wp-metric{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:10px;
-    padding:8px 10px;text-align:center}
-  .wp-metric__lbl{font-size:10px;color:var(--text-2);letter-spacing:.05em;margin-bottom:3px}
-  .wp-metric__val{font-size:13px;font-weight:600;color:var(--text);font-family:var(--mono)}
-  .wp-metric__val small{font-size:10px;color:var(--text-3);font-weight:400}
+  .wp-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+  .wp-metric{background:rgba(255,255,255,.02);border:1px solid var(--line);border-radius:8px;
+    padding:5px 6px;text-align:center}
+  .wp-metric__lbl{font-size:9px;color:var(--text-2);letter-spacing:.05em;margin-bottom:2px}
+  .wp-metric__val{font-size:12px;font-weight:600;color:var(--text);font-family:var(--mono)}
+  .wp-metric__val small{font-size:9px;color:var(--text-3);font-weight:400}
   /* 未来几天预报 */
-  .wp-forecast__title{font-size:11px;color:var(--text-2);letter-spacing:.06em;margin:2px 0 6px;
+  .wp-forecast__title{font-size:10.5px;color:var(--text-2);letter-spacing:.06em;margin:0 0 4px;
     display:flex;justify-content:space-between;align-items:center}
   .wp-forecast__title b{color:var(--text);font-weight:600}
-  .wp-forecast{display:grid;gap:4px}
-  .wp-fday{display:grid;grid-template-columns:56px 1fr 44px 44px;align-items:center;gap:8px;
-    padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.02);
+  .wp-forecast{display:grid;gap:3px}
+  .wp-fday{display:grid;grid-template-columns:46px 1fr 34px 34px;align-items:center;gap:6px;
+    padding:4px 7px;border-radius:7px;background:rgba(255,255,255,.02);
     border:1px solid var(--line);transition:background .2s}
   .wp-fday:hover{background:rgba(255,255,255,.05)}
-  .wp-fday__date{font-size:11px;color:var(--text-2);font-weight:500}
-  .wp-fday__cond{font-size:12px;color:var(--text);display:flex;align-items:center;gap:5px;
+  .wp-fday__date{font-size:10.5px;color:var(--text-2);font-weight:500}
+  .wp-fday__cond{font-size:11.5px;color:var(--text);display:flex;align-items:center;gap:5px;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .wp-fday__cond .rain{font-size:10px;color:#60a5fa}
-  .wp-fday__hl{display:flex;justify-content:flex-end;font-family:var(--mono);font-size:12px;gap:6px}
+  .wp-fday__cond .rain{font-size:9px;color:#60a5fa}
+  .wp-fday__hl{display:flex;justify-content:flex-end;font-family:var(--mono);font-size:11px;gap:5px}
   .wp-fday__high{color:var(--text);font-weight:600}
   .wp-fday__low{color:var(--text-3)}
   /* 活动建议 */
-  .wp-advice{background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.16);border-radius:12px;
-    padding:10px 12px}
-  .wp-advice__title{font-size:11px;font-weight:600;color:#a5b4fc;letter-spacing:.05em;margin-bottom:6px}
-  .wp-advice__list{display:grid;gap:4px}
-  .wp-advice__list div{font-size:12px;color:var(--text-2);line-height:1.5;letter-spacing:.02em}
+  .wp-advice{background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.16);border-radius:10px;
+    padding:7px 9px}
+  .wp-advice__title{font-size:10.5px;font-weight:600;color:#a5b4fc;letter-spacing:.05em;margin-bottom:4px}
+  .wp-advice__list{display:grid;gap:3px}
+  .wp-advice__list div{font-size:11.5px;color:var(--text-2);line-height:1.5;letter-spacing:.02em}
   /* 一致性结论 */
-  .wp-consensus{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-2);
-    padding:8px 12px;border-radius:8px;background:rgba(16,185,129,.06);
+  .wp-consensus{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--text-2);
+    padding:6px 10px;border-radius:8px;background:rgba(16,185,129,.06);
     border:1px solid rgba(16,185,129,.18);letter-spacing:.02em}
   .wp-consensus b{color:var(--ok);font-weight:600}
   /* 修改城市 */
-  .wp-edit{padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.02);
+  .wp-edit{padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.02);
     border:1px dashed rgba(255,255,255,.14)}
-  .wp-edit__row{display:flex;gap:8px;align-items:center}
+  .wp-edit__row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
   .wp-edit__row input{flex:1;min-width:0;background:rgba(0,0,0,.28);border:1px solid var(--line);
-    border-radius:8px;color:var(--text);font-size:12px;padding:7px 10px;outline:none;font-family:inherit;
+    border-radius:8px;color:var(--text);font-size:11.5px;padding:6px 9px;outline:none;font-family:inherit;
     transition:border .2s}
   .wp-edit__row input:focus{border-color:var(--accent)}
   .wp-edit__row button{flex-shrink:0}
-  .wp-edit__hint{font-size:10px;color:var(--text-3);margin-top:6px;letter-spacing:.02em}
+  .wp-edit__hint{font-size:9.5px;color:var(--text-3);margin-top:5px;letter-spacing:.02em}
   .wp-btn{background:rgba(240,183,131,.12);border:1px solid rgba(240,183,131,.3);color:var(--accent);
-    font-size:11px;font-weight:600;padding:6px 12px;border-radius:99px;cursor:pointer;
+    font-size:10.5px;font-weight:600;padding:5px 10px;border-radius:99px;cursor:pointer;
     transition:all .2s;font-family:inherit;letter-spacing:.03em}
   .wp-btn:hover{background:rgba(240,183,131,.24);box-shadow:0 0 12px rgba(240,183,131,.25)}
   .wp-btn--ghost{background:transparent;border-color:rgba(255,255,255,.16);color:var(--text-2)}
   .wp-btn--ghost:hover{background:rgba(255,255,255,.06);color:var(--text)}
   .weather-pop__foot{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
-    font-size:10px;color:var(--text-3);margin-top:12px;padding-top:10px;
+    font-size:9.5px;color:var(--text-3);margin-top:10px;padding-top:8px;
     border-top:1px dashed rgba(255,255,255,.08);letter-spacing:.02em}
   .weather-pop__foot b{color:var(--accent);font-weight:600}
   .weather-pop__foot .wp-src{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
   @media (max-width: 640px){.wp-metrics{grid-template-columns:repeat(2,1fr)}
-    .wp-now__temp{font-size:34px}.nav__time-weather .nw-temp{display:none}}
+    .wp-now__temp{font-size:26px}.nav__time-weather .nw-temp{display:none}}
 
   /* ========================================================= 日期日历 Popover
      鼠标悬停 navDate 弹出月历，可选某天 → 自动填入 planDepartDays */
@@ -6555,24 +6557,32 @@ function syncOriginCascade(province, city, tries){
   setTimeout(() => syncOriginCascade(province, city, (tries || 0) + 1), 300);
 }
 
-// IP 定位自动识别出发城市（来源：高德 IP 定位；自动填到出发地，用户可随时手动修改，改过后不再覆盖）
+// IP 定位自动识别出发城市（来源：高德 IP 定位；自动填到出发地，用户可随时手动修改）
+// 注意：不再用 origin_manual_override 一刀切禁用——以"当前出发地实际值"为准：
+//   出发地为空 → 自动填充 IP 城市（功能可恢复）；已手动填写/选择其他城市 → 不覆盖（尊重用户）
 async function autoDetectOriginCity(){
   try {
-    if (localStorage.getItem('origin_manual_override')) return;
-    const r = await API.ipLocate();
-    if (r.__error || !r.city) return;
+    const r = await ipLocateOnce();
+    if (!r || r.__error || !r.city) return;
     const city = String(r.city).trim();
     const province = String(r.province || '').trim();
     if (!city) return;
     const input = document.getElementById('userOriginCity');
     const tip = document.getElementById('originIpTip');
     if (!input) return;
-    // 用户已填写其他城市则不覆盖
-    const cur = (input.value || '').trim();
+    // 当前出发地实际值：级联下拉优先，其次文本输入
+    const citySel = document.getElementById('originCitySel');
+    const cur = (citySel && citySel.options.length > 1 ? (citySel.value || '') : '')
+              || (input.value || '').trim();
+    // 用户已手动填写/选择其他城市 → 不覆盖
     if (cur && cur !== city) return;
-    input.value = city;
-    // 同步级联下拉：默认出发地显示级联模式，自动把省/市也选中
-    syncOriginCascade(province, city, 0);
+    // 级联模式（默认显示）：同步省/市下拉；文本模式：直接填值
+    const cascadeBox = document.getElementById('originCascadeBox');
+    if (cascadeBox && cascadeBox.style.display !== 'none') {
+      syncOriginCascade(province, city, 0);
+    } else {
+      input.value = city;
+    }
     if (tip) {
       tip.style.display = '';
       tip.innerHTML = `已通过 <b>IP 定位</b> 自动识别你所在城市：<b>${esc(city)}</b>（数据来源：高德 IP 定位 · 可手动修改）`;
@@ -6624,15 +6634,27 @@ function buildWeatherAdvice(cfg){
   return adv;
 }
 
+/* 高德 IP 定位共享：只向高德发起一次请求，顶部栏天气 + 出发地自动填充复用同一结果，
+   保证两侧显示的"你所在城市"永远一致（数据来源：高德 IP 定位 API） */
+let __ipLocatePromise = null;
+function ipLocateOnce(){
+  if (!__ipLocatePromise) {
+    __ipLocatePromise = API.ipLocate()
+      .then(r => { if (!r || r.__error) throw new Error((r && r.message) || 'IP 定位失败'); return r; })
+      .catch(e => { __ipLocatePromise = null; throw e; });
+  }
+  return __ipLocatePromise;
+}
+
 async function initNavWeather(){
   const el = document.getElementById('navWeather');
   if (!el) return;
-  // 用户手动选择过的城市优先（localStorage 持久化，不再被 IP 覆盖）
+  // 用户手动选择过的城市优先（localStorage 持久化）
   const manual = localStorage.getItem('tb_weather_city');
   if (manual && manual.trim()) { loadNavWeather(manual.trim(), '手动选择'); return; }
-  // 否则用 IP 定位（数据来源：高德 IP 定位）
+  // 否则用 IP 定位（数据来源：高德 IP 定位，与出发地自动填充共享一次定位结果）
   try {
-    const r = await API.ipLocate();
+    const r = await ipLocateOnce();
     const c = (r.city || '').trim();
     if (c) loadNavWeather(c, 'IP 定位');
     else {
@@ -6741,9 +6763,10 @@ function renderNavWeather(r, city, source){
         <input id="wpEditInput" list="wpCityList" placeholder="输入城市名，如：广州 / 成都 / 三亚…" />
         <datalist id="wpCityList"></datalist>
         <button class="wp-btn" id="wpEditGo">确认</button>
+        <button class="wp-btn wp-btn--ghost" id="wpEditIp" title="恢复为高德 IP 定位城市">📍 我的 IP</button>
         <button class="wp-btn wp-btn--ghost" id="wpEditCancel">取消</button>
       </div>
-      <div class="wp-edit__hint">📍 IP 定位不准确？输入你所在城市，确认后重新拉取天气并记住选择</div>
+      <div class="wp-edit__hint">📍 IP 定位不准确？可输入你所在城市手动修改；或点「我的 IP」恢复为高德 IP 定位城市</div>
     </div>`;
   // —— 底部：数据来源 + 修改城市 ——
   foot.innerHTML = `<div class="wp-src"><span>📡 数据源：<b>${esc(sourcesText)}</b></span><span>🕐 ${esc(report ? report.slice(0, 16) : '—')}</span></div>
@@ -6781,6 +6804,24 @@ function renderNavWeather(r, city, source){
     if (goBtn) goBtn.onclick = applyCity;
     const inpEl = document.getElementById('wpEditInput');
     if (inpEl) inpEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCity(e); });
+    // "📍 我的 IP"：清除手动选择，恢复高德 IP 定位城市，并同步出发地自动填充
+    const ipBtn = document.getElementById('wpEditIp');
+    if (ipBtn) ipBtn.onclick = async (e) => {
+      e.stopPropagation();
+      try {
+        const r = await ipLocateOnce();
+        const c = (r && r.city || '').trim();
+        if (!c) { if (typeof showToast === 'function') showToast('⚠️ IP 定位失败，请手动输入城市'); return; }
+        localStorage.removeItem('tb_weather_city');   // 恢复 IP 定位（不再记住手动城市）
+        if (editBox) editBox.style.display = 'none';
+        if (modifyBtn) modifyBtn.style.display = '';
+        loadNavWeather(c, 'IP 定位');
+        autoDetectOriginCity();                       // 出发地为空时同步填入 IP 城市
+        if (typeof showToast === 'function') showToast(`📍 已恢复为高德 IP 定位：${c}`);
+      } catch (err) {
+        if (typeof showToast === 'function') showToast(`⚠️ IP 定位失败：${err.message}`);
+      }
+    };
   }
 }
 
@@ -6794,12 +6835,15 @@ function bindWeatherPop(){
     pop.classList.add('open');
     pop.setAttribute('aria-hidden', 'false');
     const rect = el.getBoundingClientRect();
-    const popW = pop.offsetWidth || 470;
+    const popW = pop.offsetWidth || 356;
+    const popH = pop.offsetHeight || 720;
     let left = rect.right - popW;
     if (left < 8) left = 8;
     if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+    let top = rect.bottom + 12;
+    if (top + popH > window.innerHeight - 8) top = Math.max(8, window.innerHeight - popH - 8);
     pop.style.left = left + 'px';
-    pop.style.top = (rect.bottom + 12) + 'px';
+    pop.style.top = top + 'px';
     pop.style.visibility = '';
   };
   const close = () => {
