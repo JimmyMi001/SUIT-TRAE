@@ -415,7 +415,11 @@
       rgba(255,255,255,.04) 92%,
       transparent 100%);
     box-shadow:0 1px 0 rgba(0,0,0,.35),0 8px 24px -6px rgba(0,0,0,.45)}
-  .nav__row{display:flex;align-items:center;gap:18px;flex-wrap:nowrap;padding:12px 0}
+  .nav__row{display:flex;align-items:center;gap:18px;flex-wrap:nowrap;padding:12px 0;
+    /* 横向扩展安全阀：内容超宽时整行可横向滚动，绝不换行/压缩隐藏内容 */
+    overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
+  .nav__row::-webkit-scrollbar{display:none}
+  .nav__lang{flex-shrink:0}
   .nav__logo{font-family:var(--serif);font-size:22px;font-weight:500;color:var(--text);
     letter-spacing:.02em;display:flex;align-items:center;gap:8px;white-space:nowrap;flex-shrink:0}
   .nav__logo::before{content:"";display:inline-block;width:9px;height:9px;
@@ -441,7 +445,7 @@
     background:var(--err);box-shadow:0 0 8px var(--err);animation:pulse-soft 1.5s ease-in-out infinite}
   .nav__status .dot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok)}
 
-  /* 时间/农历/节假日 — 紧凑单行 + 4 层阴影 */
+  /* 时间/农历/节假日 — 紧凑单行 + 4 层阴影（内容始终完整显示，超宽时胶囊内横向滚动） */
   .nav__time{font-size:12px;color:var(--text-2);font-family:var(--mono);
     display:flex;align-items:center;gap:0;flex-wrap:nowrap;flex:1;min-width:0;
     background:rgba(var(--gt),.04);
@@ -450,10 +454,12 @@
       inset 0 1px 0 rgba(255,255,255,.10),
       inset 0 0 0 1px rgba(255,255,255,.04),
       inset 0 -8px 14px -4px rgba(0,0,0,.20);
-    border-radius:99px;padding:3px 6px}
+    border-radius:99px;padding:3px 6px;
+    overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
+  .nav__time::-webkit-scrollbar{display:none}
   .nav__time > span{padding:3px 8px;border-left:1px solid rgba(255,255,255,.06);
     display:inline-block;vertical-align:middle;transition:background .2s;white-space:nowrap;
-    min-width:0;overflow:hidden;text-overflow:ellipsis} /* 极窄时省略号而非叠压/硬裁 */
+    flex:0 0 auto;overflow:visible} /* 永不收缩/省略，保证时间/农历/节假日完整可见 */
   .nav__time > span:first-child{padding-left:10px;border-left:0}
   .nav__time > span:hover{background:rgba(255,255,255,.04);border-radius:99px}
   .nav__time-clock{color:var(--text);font-weight:600;font-size:13px;letter-spacing:.04em}
@@ -471,42 +477,40 @@
 
   /* ========================================================= 多语言长文本兼容
      切换英文/繁体后顶部时间/黄历/节假日栏文案变长：
-     · 导航行允许换行，时间栏独占第二行（flex-basis:100%），拥有整行宽度，
-       所有英文/繁体文案完整可见，绝不与 Tab/语言按钮/状态重叠
-     · 时间栏内部 flex-wrap，超宽时自然折行，取消 max-width/ellipsis 裁切
+     · 导航行与时间栏一律保持单行（flex-wrap:nowrap），时间栏 flex 占满剩余宽度横向扩展，
+       绝不换行成两行，也绝不压缩/省略内容
+     · 超宽时由 nav__row / nav__time 横向滚动承载（滚动条隐藏），信息永远完整可见
      · 隐藏冗余元素（时区徽章、天气数据源小字）给长文案腾空间
      · 仅在很窄屏幕下才隐藏次要元素（日期→农历→天气） */
-  html[lang="en"] .nav__row,
-  html[lang="zh-TW"] .nav__row{flex-wrap:wrap;row-gap:6px}
+  /* 英文/繁体保持单行：时间栏 flex 占满剩余宽度横向扩展，绝不换行成两行；
+     内容再长也通过胶囊内横向滚动完整可见，不裁切不省略 */
   html[lang="en"] .nav__time,
   html[lang="zh-TW"] .nav__time{
-    flex:1 1 100%;max-width:100%;order:10;justify-content:flex-start;
-    flex-wrap:wrap;row-gap:3px;column-gap:4px;border-radius:14px;line-height:1.35
+    flex:1 1 auto;max-width:none;order:0;justify-content:flex-start;
+    flex-wrap:nowrap;border-radius:14px;line-height:1.35
   }
-  /* 文本型胶囊：完整显示，不裁切；天气胶囊保留 inline-flex 布局 */
+  /* 文本型胶囊：完整显示，不裁切不收缩；天气/节假日胶囊保留 inline-flex 布局 */
   html[lang="en"] .nav__time > span:not(.nav__time-weather),
-  html[lang="zh-TW"] .nav__time > span:not(.nav__time-weather),
-  html[lang="en"] .nav__time > .nav__time-holiday,
-  html[lang="zh-TW"] .nav__time > .nav__time-holiday{
-    display:block;overflow:visible;white-space:nowrap;min-width:0;flex:0 1 auto
+  html[lang="zh-TW"] .nav__time > span:not(.nav__time-weather){
+    display:inline-block;overflow:visible;white-space:nowrap;flex:0 0 auto;min-width:0
   }
   html[lang="en"] .nav__time > .nav__time-holiday,
-  html[lang="zh-TW"] .nav__time > .nav__time-holiday{flex-shrink:1}
+  html[lang="zh-TW"] .nav__time > .nav__time-holiday{flex-shrink:0}
   /* 冗余元素隐藏：时区徽章（悬停时钟 title 可见）+ 天气数据源小字 */
   html[lang="en"] .nav__time-tz,
   html[lang="zh-TW"] .nav__time-tz,
   html[lang="en"] .nav__time-weather .nw-src,
   html[lang="zh-TW"] .nav__time-weather .nw-src{display:none !important}
-  /* 很窄屏幕才隐藏次要元素，保证绝大多数窗口下完整显示 */
-  @media(max-width:1100px){
+  /* 只在真正很窄的窗口才隐藏次要元素，桌面宽度一律完整显示 */
+  @media(max-width:920px){
     html[lang="en"] .nav__time-date,
     html[lang="zh-TW"] .nav__time-date{display:none !important}
   }
-  @media(max-width:980px){
+  @media(max-width:860px){
     html[lang="en"] .nav__time-lunar,
     html[lang="zh-TW"] .nav__time-lunar{display:none !important}
   }
-  @media(max-width:880px){
+  @media(max-width:800px){
     html[lang="en"] .nav__time-weather,
     html[lang="zh-TW"] .nav__time-weather{display:none !important}
   }
