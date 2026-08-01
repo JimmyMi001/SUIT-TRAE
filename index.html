@@ -416,8 +416,7 @@
       transparent 100%);
     box-shadow:0 1px 0 rgba(0,0,0,.35),0 8px 24px -6px rgba(0,0,0,.45)}
   .nav__row{display:flex;align-items:center;gap:18px;flex-wrap:nowrap;padding:12px 0;
-    /* 横向扩展安全阀：内容超宽时整行可横向滚动，绝不换行/压缩隐藏内容 */
-    overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
+    /* 行本身不滚动：时间栏 flex:1;min-width:0 自行内部横向滚动，logo/Tabs/语言按钮始终在行内同一水平线 */}
   .nav__row::-webkit-scrollbar{display:none}
   .nav__lang{flex-shrink:0}
   .nav__logo{font-family:var(--serif);font-size:22px;font-weight:500;color:var(--text);

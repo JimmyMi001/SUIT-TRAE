@@ -752,12 +752,11 @@
       host.className = 'nav__lang';
       navActions.insertBefore(host, navActions.firstChild);
     } else if (navRow) {
-      // 顶部栏支持横向滚动扩展后，按钮若挂在行尾会被推到可视区外无法点击，
-      // 因此脱离滚动流固定右上角，永远可见可点，且不挤压时间栏宽度
+      // 时间栏自身 flex:1;min-width:0 内部横向滚动，行本身不滚动，
+      // 按钮挂行尾与 logo/时间栏同一水平线（align-items:center 垂直居中），始终可见可点
       host = document.createElement('div');
       host.className = 'nav__lang';
-      host.style.cssText = 'position:fixed;top:12px;right:16px;z-index:99999';
-      document.body.appendChild(host);
+      navRow.appendChild(host);
     } else {
       // 找不到导航时，放在页面左上角固定位置
       host = document.createElement('div');
