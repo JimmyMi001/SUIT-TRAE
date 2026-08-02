@@ -1,5 +1,12 @@
 <div align="center">
 
+**🌐 语言 / Language / 語言：<a href="./README.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.en.md">English</a>**
+
+</div>
+
+---
+<div align="center">
+
 # 123 就出发 · *Travel Verified, Not Memorized*
 
 > **走过的路，值得被验证。**
@@ -225,6 +232,8 @@ flowchart LR
 > 主页 `index.html` 以顶部 3 个 Tab 承载全部功能，无需跳转独立页面；页面右上角语言切换按钮一键切换界面语言（动态数据 / AI 输出保持原文）。
 >
 > ⚠️ **多语言适配说明（待完善）**：已接入 DeepSeek flash 批量翻译 + 预翻译库（[js/i18n_db.json](./js/i18n_db.json)，1444 词条）+ 本地即时兜底（繁简字符映射 / 英文 UI 字典），切换语言后静态界面文案即时翻译；但 **翻译尚未全部完成** —— 仍有部分界面文案与动态内容（思考链、AI 行程、社区路线等）未覆盖翻译，英文/繁体显示可能残留中文原文，属于已知的待完善项。
+>
+> 📖 **本文档已提供多语言版本**：简体中文（本页）· [繁體中文](./README.zh-TW.md) · [English](./README.en.md)，顶部语言切换条可一键跳转。
 
 **页面结构概览**：
 
