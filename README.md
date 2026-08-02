@@ -221,8 +221,10 @@ flowchart LR
 
 ## 📸 功能展示（三大模块）
 
-> **3 个主模块 · 单页应用（`index.html`，内嵌 CSS/JS）· 三语支持（简体中文默认 / 繁體中文 / English）**
+> **3 个主模块 · 单页应用（`index.html`，内嵌 CSS/JS）· 多语言适配（简体中文默认 / 繁體中文 / English，**待完善**）**
 > 主页 `index.html` 以顶部 3 个 Tab 承载全部功能，无需跳转独立页面；页面右上角语言切换按钮一键切换界面语言（动态数据 / AI 输出保持原文）。
+>
+> ⚠️ **多语言适配说明（待完善）**：已接入 DeepSeek flash 批量翻译 + 预翻译库（[js/i18n_db.json](./js/i18n_db.json)，1444 词条）+ 本地即时兜底（繁简字符映射 / 英文 UI 字典），切换语言后静态界面文案即时翻译；但 **翻译尚未全部完成** —— 仍有部分界面文案与动态内容（思考链、AI 行程、社区路线等）未覆盖翻译，英文/繁体显示可能残留中文原文，属于已知的待完善项。
 
 **页面结构概览**：
 
@@ -583,8 +585,8 @@ Server listening on http://localhost:3000
 
 **三层架构**：
 
-- **前端（浏览器端）**：HTML（5441 行）+ CSS 设计系统 + Vanilla JS 模块化。核心技术：液态玻璃 UI（backdrop-filter + filter:blur）、Three.js 粒子背景（Hero 区）、高德 JS API v2.0（地图渲染/标记/路线）、lunar-javascript（农历/黄历）。
-- **后端（Node.js 18+）**：Express + 自研代理。server.js（4745 行）提供 100+ API 端点、6 大路由组，包含：高德代理（POI/detail/direction/weather/staticmap）、城市解析（省级→地级市级联 / 280+ 城市库 / 县级市 fallback）、智能推荐（天气×季节×交通×热度×美食×标签 6 因素评分）、路线验证（8 维评分 + 数值动画）、社区路线（CRUD + 策展路线）、DeepSeek AI（deepseek-v4-flash · JSON 严格输出）、携程机票爬虫（可选）。辅助模块：env-loader（.env/.enc 密钥加载）、flight-crawler.js（机票爬虫）、scripts/encrypt-env（环境变量加密）。
+- **前端（浏览器端）**：HTML（6864 行）+ CSS 设计系统 + Vanilla JS 模块化。核心技术：液态玻璃 UI（backdrop-filter + filter:blur）、Three.js 粒子背景（Hero 区）、高德 JS API v2.0（地图渲染/标记/路线）、lunar-javascript（农历/黄历）。
+- **后端（Node.js 18+）**：Express + 自研代理。server.js（7718 行）提供 100+ API 端点、6 大路由组，包含：高德代理（POI/detail/direction/weather/staticmap）、城市解析（省级→地级市级联 / 280+ 城市库 / 县级市 fallback）、智能推荐（天气×季节×交通×热度×美食×标签 6 因素评分）、路线验证（8 维评分 + 数值动画）、社区路线（CRUD + 策展路线）、DeepSeek AI（deepseek-v4-flash · JSON 严格输出）、携程机票爬虫（可选）。辅助模块：env-loader（.env/.enc 密钥加载）、flight-crawler.js（机票爬虫）、scripts/encrypt-env（环境变量加密）。
 - **外部服务**：高德开放平台（POI/天气/路线）、Open-Meteo（天气兜底）、DeepSeek V4 Flash（AI）、Frankfurter（汇率，永久免费）。
 - **本地存储**：.cache/maps/（地图缓存）、data/community.json（社区数据）、data/real-routes-curated.json（策展数据）。
 
@@ -611,7 +613,7 @@ Server listening on http://localhost:3000
 
 | 技术 | 用途 | 关键点 |
 |------|------|--------|
-| **HTML5** | 7 个页面 (index/verify/companion/community/posttrip + 2 历史) | 主页单页 5441 行，模块化结构 |
+| **HTML5** | 单页应用 index.html（3 Tab：智能规划/伴侣/社区） | 主页单页 6864 行，模块化结构 |
 | **CSS3** | 液态玻璃 + 深夜暖金调色板 | 设计系统 token 化、clamp 响应式、scroll-driven 动画 |
 | **Vanilla JS** | 业务逻辑（无 React/Vue/Tailwind） | IIFE 模块化，无构建步骤 |
 | **Three.js** | Hero 区粒子背景 | CDN 加载，按需启用 |
@@ -1164,14 +1166,14 @@ npm run setup  # 等价于 scripts/setup.js
 
 | # | 类别 | 现状 | 涉及文件 / 改进成本 |
 |---|------|------|-------------------|
-| 1 | **数据规模** | `POI_DB` 仅 19 城真实坐标 POI，其余 260+ 城市走通用兜底；县级市 / 4A 以下景区需高德 Key 实时拉取；`LOCAL_SPECIALS_DB` 已扩充至 53 城市特色饮品 & 美食数据，其余城市为通用兜底建议 | [server.js:2047-2250](file:///d:/SUIT%20Trae%20CN/server.js#L2047-L2250) · 🟡 中（数据众包） |
-| 2 | **票务/酒店/餐厅价格** | 交通/门票/酒店已接入多源实时预取（途牛门票 + 12306 票价 + 飞猪航班 + 美团酒店，行程生成时自动并发拉取、失败静默降级）；但个别冷门景点/酒店仍有兜底估算，未覆盖全量商家 | [server.js:4119-4191](file:///d:/SUIT%20Trae%20CN/server.js#L4119-L4191) · 🔴 高（需扩源 + 合规） |
+| 1 | **数据规模** | `POI_DB` 仅 20 城真实坐标 POI，其余 330+ 城市走通用兜底；县级市 / 4A 以下景区需高德 Key 实时拉取；`LOCAL_SPECIALS_DB` 已扩充至 53 城市特色饮品 & 美食数据，其余城市为通用兜底建议 | [server.js:3163-3391](file:///d:/SUIT%20Trae%20CN/server.js#L3163-L3391) · 🟡 中（数据众包） |
+| 2 | **票务/酒店/餐厅价格** | 交通/门票/酒店已接入多源实时预取（途牛门票 + 12306 票价 + 飞猪航班 + 美团酒店 + 高德 POI + DeepSeek 高德验证，行程生成时自动并发拉取、失败静默降级）；但个别冷门景点/酒店仍有兜底估算，未覆盖全量商家 | [server.js:3883-4078](file:///d:/SUIT%20Trae%20CN/server.js#L3883-L4078)（多源酒店查询）· 🔴 高（需扩源 + 合规） |
 | 3 | **测试覆盖** | `test/` 目录**不存在**，仅依赖 CI 语法检查 + 密钥扫描 + 加密校验 | 项目根 · 🟢 低（加 Jest 即可） |
-| 4 | **AI 单点依赖** | 仅 DeepSeek 一个 AI 提供商；Key 缺失降级到本地启发式，无多模型 fallback | [server.js:2680-2700](file:///d:/SUIT%20Trae%20CN/server.js#L2680-L2700) · 🟡 中（加 Anthropic / 通义 / 文心适配） |
+| 4 | **AI 单点依赖** | 仅 DeepSeek 一个 AI 提供商；Key 缺失降级到本地启发式，无多模型 fallback | [server.js:4356-4470](file:///d:/SUIT%20Trae%20CN/server.js#L4356-L4470)（callAI）+ [server.js:7823](file:///d:/SUIT%20Trae%20CN/server.js#L7823)（callDeepSeek）· 🟡 中（加 Anthropic / 通义 / 文心适配） |
 | 5 | **前端工程化** | 纯原生 JS，**无 TypeScript / 无打包 / 无状态管理**；CSS 内嵌于 index.html（单一文件，变量已统一至 `:root`） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（可选 Vite + TS 渐进迁移） |
 | 6 | **可观测性** | 无 APM、无前端性能埋点（LCP/FCP/INP）；错误处理大量 `console.error` 静默 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中（接 Sentry / Prometheus） |
 | 7 | **安全 / 隐私** | 无用户系统、无登录注册、无 GDPR 合规设计、无 Rate Limiting、无 Cookie 同意 | [server.js](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中 |
-| 8 | **国际化** | 三语界面：简体中文（默认）/ 繁體中文（香港用语）/ English（美式）；DeepSeek flash 批量翻译 + 本地缓存即时切换，动态数据 / AI 输出保持原文；货币仅人民币 | [js/i18n.js](file:///d:/SUIT%20Trae%20CN/js/i18n.js) + [server.js `/api/translate`](file:///d:/SUIT%20Trae%20CN/server.js) · 🟢 低（扩充缓存词条） |
+| 8 | **国际化（待完善）** | 已做多语言适配：简体中文（默认）/ 繁體中文（香港用语）/ English（美式），DeepSeek flash 批量翻译 + 预翻译库 + 本地缓存即时切换，动态数据 / AI 输出保持原文；**但翻译尚未全部完成，部分界面文案与动态内容仍残留中文原文（待完善）**；货币仅人民币 | [js/i18n.js](file:///d:/SUIT%20Trae%20CN/js/i18n.js) + [js/i18n_db.json](file:///d:/SUIT%20Trae%20CN/js/i18n_db.json) + [server.js `/api/translate`](file:///d:/SUIT%20Trae%20CN/server.js) · 🟡 中（需逐条扩充翻译词条） |
 | 9 | **部署 / 运维** | 强依赖 Vercel，无蓝绿部署、无集中式日志 | 根目录 · 🟡 中（加 docker-compose.yml / 日志聚合） |
 | 10 | **移动端** | 无 PWA / 离线模式 / Service Worker；无 App 包装（Capacitor / RN） | [index.html](file:///d:/SUIT%20Trae%20CN/index.html) · 🟡 中（manifest.json + sw.js） |
 
@@ -1193,7 +1195,7 @@ npm run setup  # 等价于 scripts/setup.js
 - [ ] **第二 AI 提供商 fallback**：通义千问 / 文心一言 / 智谱 GLM（任一可用即接管）
 - [ ] **真实价格聚合**：携程/美团/去哪儿价格抓取（需注意 `robots.txt` 合规及缓存策略）
 - [ ] **PWA 化**：`manifest.json` + Service Worker + 离线行程缓存
-- [x] **三语界面**：简体中文（默认）/ 繁體中文（香港用语）/ English（美式），DeepSeek flash 批量翻译 + 本地缓存即时切换（已完成，见 [js/i18n.js](file:///d:/SUIT%20Trae%20CN/js/i18n.js)）
+- [ ] **多语言适配收尾**：简体中文（默认）/ 繁體中文（香港用语）/ English（美式）已接入 DeepSeek flash 批量翻译 + 预翻译库 + 本地缓存即时切换（见 [js/i18n.js](file:///d:/SUIT%20Trae%20CN/js/i18n.js) 与 [js/i18n_db.json](file:///d:/SUIT%20Trae%20CN/js/i18n_db.json)）；**翻译尚未全部完成（待完善）**，需继续扩充翻译词条，覆盖剩余界面文案与动态内容
 - [ ] **可观测性**：Sentry（前端错误监控）+ Prometheus（后端 QPS/延迟）+ Grafana 看板
 
 ### 长期可演进（3 月以上 · 产品级跃迁）
@@ -1212,9 +1214,9 @@ npm run setup  # 等价于 scripts/setup.js
 |------|---------|---------|
 | 🎨 **设计/UX** | 前端 / 设计师 | 修改 [index.html](file:///d:/SUIT%20Trae%20CN/index.html) 内嵌 CSS（设计令牌 / 玻璃 / 字体） → 运行 `node server.js` 实时预览 |
 | ⚙️ **后端** | Node.js 工程师 | 查阅 [server.js](file:///d:/SUIT%20Trae%20CN/server.js) 顶部注释 → 新增 API 或测试 |
-| 🧠 **AI / Prompt** | 算法 / Prompt 工程师 | 修改 [server.js:2680-2990](file:///d:/SUIT%20Trae%20CN/server.js#L2680-L2990) 的 prompt 模板 |
+| 🧠 **AI / Prompt** | 算法 / Prompt 工程师 | 修改 [server.js:4701](file:///d:/SUIT%20Trae%20CN/server.js#L4701) 的行程设计 prompt 模板 |
 | 📊 **数据** | 数据 / 爬虫工程师 | 在 `data/` 目录增删 JSON，或向 `POI_DB` 添加新城市，或向 `LOCAL_SPECIALS_DB` 补充特色数据 |
-| 🌐 **i18n** | 翻译 / 前端 | 扩充 [js/i18n.js](file:///d:/SUIT%20Trae%20CN/js/i18n.js) 的本地兜底字典（繁简映射 / 英文常用词），或优化 [server.js `/api/translate`](file:///d:/SUIT%20Trae%20CN/server.js) 的翻译提示词 |
+| 🌐 **i18n** | 翻译 / 前端 | 扩充 [js/i18n.js](file:///d:/SUIT%20Trae%20CN/js/i18n.js) 的本地兜底字典（繁简映射 / 英文常用词），或扩充 [js/i18n_db.json](file:///d:/SUIT%20Trae%20CN/js/i18n_db.json) 预翻译库词条（`node scripts/build-i18n-db.js` 可增量重建），或优化 [server.js `/api/translate`](file:///d:/SUIT%20Trae%20CN/server.js) 的翻译提示词 |
 | 📱 **移动** | PWA / RN 工程师 | 添加 `manifest.json` + `sw.js`，或使用 Capacitor 打包 |
 | 🧪 **测试** | QA / 后端 | 创建 `test/` 目录及 `*.test.js` 测试文件，CI 将自动执行 |
 
@@ -1273,9 +1275,10 @@ npm run setup  # 等价于 scripts/setup.js
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/api/destinations/recommend?seed=xxx&user_city=xxx` | 每日推荐（天气×季节×交通×热度×美食×标签 6 因素）|
-| POST | `/api/itinerary/plan` | 15 步思考链生成行程（含多源行情预取）|
-| GET | `/api/itinerary/verify?city=xxx&days=xxx` | 8 维验证评分 |
-| GET | `/api/itinerary/departure?city=xxx&days=xxx` | 未来 15 天出发日期推荐 |
+| GET | `/api/agent/plan?city=xxx&days=xxx&budget=xxx&...` | 15 步思考链生成行程（含 8 维验证评分 + 出发日期推荐 + 多源行情预取）|
+| POST | `/api/agent/refine` | 生成后对话修改行程（AI 重新设计）|
+| GET | `/api/itinerary/ai?city=xxx&days=xxx&style=xxx` | AI 单点行程生成（轻量）|
+| GET | `/api/hotel?city=xxx&stars=xxx&maxPrice=xxx` | 酒店推荐（多源真实数据 + 星级分组 + 预订跳转）|
 
 ### AI 集成
 | 方法 | 路径 | 说明 |
@@ -1296,8 +1299,9 @@ npm run setup  # 等价于 scripts/setup.js
 ### 旅途伴侣
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/companion/poi?type=toilet&city=xxx&lng=xxx&lat=xxx` | 附近 POI 查找 |
-| GET | `/api/companion/navigate?from=xxx&to=xxx` | 通用导航 |
+| GET | `/api/poi/nearby?type=toilet&city=xxx&keywords=xxx&location=xxx` | 附近 POI 查找（快捷工具：厕所/商场/ATM 等）|
+| GET | `/api/route/detail?origin=xxx&destination=xxx&type=xxx&city=xxx` | 通用导航/路线详情（驾车/步行/公交）|
+| GET | `/api/amap/ip` | 访客 IP 定位（多源回退：高德→太平洋→百度→搜狐）|
 | GET | `/api/fx?from=USD&to=CNY` | 汇率（Frankfurter）|
 
 ### 飞猪 FlyAI（真实机票/酒店/POI）
@@ -1338,10 +1342,10 @@ npm run setup  # 等价于 scripts/setup.js
 ### 元信息
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/holidays/next` | 下一个节假日 + 倒计时 + 黄历 |
-| GET | `/api/holidays/list?year=2026` | 全年节假日列表 |
-| GET | `/api/lunar?date=2026-07-29` | 农历日期 |
-| GET | `/api/time/now` | 服务器时间（UTC+8）|
+| GET | `/api/time/now` | 服务器时间（UTC+8）+ 农历/黄历 + 节假日倒计时 |
+| GET | `/api/weather/compare?city=xxx` | 多源天气比对（高德 + Open-Meteo + 中国气象局 CMA 三源交叉验证）|
+| GET | `/api/weather/forecast?city=xxx&day=xxx` | 7 天逐日天气预报 |
+| GET | `/api/weather/fallback?city=xxx` | 天气兜底源 |
 
 ---
 
@@ -1351,15 +1355,15 @@ npm run setup  # 等价于 scripts/setup.js
 
 **样式系统（CSS）**：全部内嵌于 index.html（深夜底 + 暖金强调 + 液态玻璃设计令牌），无独立 css/ 文件。
 
-**前端逻辑（Vanilla JS，无构建）**：核心逻辑内嵌于 index.html；js/ 目录仅含 i18n.js（多语言引擎：简体中文默认 / 繁體中文 / English，DeepSeek flash 批量翻译 + 本地缓存）。
+**前端逻辑（Vanilla JS，无构建）**：核心逻辑内嵌于 index.html；js/ 目录含 i18n.js（多语言引擎：简体中文默认 / 繁體中文 / English，DeepSeek flash 批量翻译 + 本地缓存，**翻译待完善**）与 i18n_db.json（预翻译库，1444 词条）。
 
 **后端（Node.js + Express）**：server.js（100+ API）、env-loader.js（.env.enc 加密加载器）、flight-crawler.js（携程机票爬虫，可选）、api/index.js（Vercel Serverless 入口）。
 
-**工具脚本**：scripts/setup.js（首次启动引导，自动）、scripts/encrypt-env.js（AES-256-CBC 加密 CLI）、scripts/discover-routes.js（策展路线发现）。
+**工具脚本**：scripts/setup.js（首次启动引导，自动）、scripts/encrypt-env.js（AES-256-CBC 加密 CLI）、scripts/discover-routes.js（策展路线发现）、scripts/build-i18n-db.js（预翻译库增量重建：`node scripts/build-i18n-db.js --dry` 统计 / 不带参数执行翻译写库）。
 
 **一键启动**：start.bat（Windows 双击）和 start.sh（Mac/Linux）。
 
-**数据文件**：data/community.json（用户众包路线）、data/real-routes-curated.json（策展真实路线，来自 12306/携程等）。
+**数据文件**：data/community.json（用户众包路线）、data/real-routes-curated.json（策展真实路线，来自 12306/携程等）、data/local-specials-db.json（53 城当地特色饮品 & 美食知识库）。
 
 **配置文件**：package.json、package-lock.json、.env.example（环境变量模板）、.env.enc（加密后的环境变量，入仓）、.gitignore、vercel.json（Vercel 部署配置）。
 
