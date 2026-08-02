@@ -1402,6 +1402,7 @@ copies of the Software...
 - [高德開放平台](https://lbs.amap.com/) - POI / 天氣 / 地圖 API
 - [DeepSeek](https://platform.deepseek.com/) - 中文大模型
 - [Open-Meteo](https://open-meteo.com/) - 免費天氣數據
+- [Breezy Weather](https://github.com/breezy-weather/breezy-weather) - 多源天氣 Provider 設計靈感（多源交叉驗證）
 - [Frankfurter](https://www.frankfurter.app/) - 免費匯率 API
 - [lunar-javascript](https://github.com/6tail/lunar-javascript) - 農曆/黃曆庫
 - [DM Serif Display / DM Sans / JetBrains Mono](https://fonts.google.com/) - 字體三件套

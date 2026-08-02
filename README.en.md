@@ -1419,6 +1419,7 @@ See [LICENSE](./LICENSE) file.
 - [Amap Open Platform](https://lbs.amap.com/) - POI / weather / map API
 - [DeepSeek](https://platform.deepseek.com/) - Chinese large model
 - [Open-Meteo](https://open-meteo.com/) - Free weather data
+- [Breezy Weather](https://github.com/breezy-weather/breezy-weather) - Multi-provider weather design inspiration (multi-source cross-validation)
 - [Frankfurter](https://www.frankfurter.app/) - Free exchange rate API
 - [lunar-javascript](https://github.com/6tail/lunar-javascript) - Lunar calendar / Chinese almanac library
 - [DM Serif Display / DM Sans / JetBrains Mono](https://fonts.google.com/) - Font trio
