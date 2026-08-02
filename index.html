@@ -670,6 +670,8 @@
     transition:all .2s;white-space:nowrap;letter-spacing:.02em}
   .nav__time .nav__time-weather:hover{background:rgba(240,183,131,.16);border-color:var(--accent);
     box-shadow:0 0 14px rgba(240,183,131,.28),inset 0 1px 0 rgba(255,255,255,.10)}
+  /* 时间栏横向溢出时，天气胶囊钉在右缘始终可见（不随内容被挤出视口） */
+  .nav__time .nav__time-weather{position:sticky;right:0;z-index:5}
   .nav__time .nav__time-weather .nw-ico{font-size:13px;line-height:1;filter:drop-shadow(0 0 6px rgba(240,183,131,.55))}
   .nav__time .nav__time-weather .nw-city{color:var(--accent);font-weight:600;max-width:100px;flex-shrink:0;
     overflow:hidden;text-overflow:ellipsis}
