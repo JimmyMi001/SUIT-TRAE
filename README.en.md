@@ -96,6 +96,8 @@
 
 **Solution**: Integrating "AI itinerary design", "real data cross-validation", and "real-time travel companion" into one organic whole.
 
+> ⚠️ **Destination Coverage**: This project currently **only supports destinations within China**. Other regions are not yet supported (data sources, the city database, and transport ticketing are all focused on mainland China).
+
 ---
 
 ## 💡 Origin of the Name
