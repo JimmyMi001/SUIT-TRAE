@@ -1,9 +1,9 @@
 /* =========================================================
-   repair-readme.js — 修复 README.en.md / README.zh-TW.md 中
+   repair-readme.js — 修复 README.en.md / README.zh-Hant.md 中
    批量翻译残留的正文段落（DeepSeek 重翻 + 语言校验）
    · 跳过：代码块、标题行、含 HTML 标签的行
    · en：含汉字即视为待翻（品牌名按提示词英文化）
-   · zh-TW：含简体特征词 / 模板误入文本 / @@ %% 占位符 视为待翻
+   · zh-Hant：含简体特征词 / 模板误入文本 / @@ %% 占位符 视为待翻
    · 从文件末尾向前替换行，避免行号漂移
    · 用法：
        node scripts/repair-readme.js --en
@@ -16,7 +16,7 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const TARGET = process.argv.includes('--en') ? 'en' : (process.argv.includes('--tw') ? 'tw' : null);
 if (!TARGET) { console.error('用法: node scripts/repair-readme.js --en|--tw'); process.exit(1); }
-const FILE = path.join(ROOT, TARGET === 'en' ? 'README.en.md' : 'README.zh-TW.md');
+const FILE = path.join(ROOT, TARGET === 'en' ? 'README.en.md' : 'README.zh-Hant.md');
 const TO = TARGET === 'en' ? 'English (US)' : '繁體中文（中國香港）';
 const API = 'https://api.deepseek.com/v1/chat/completions';
 const MODEL = 'deepseek-v4-flash';
@@ -47,7 +47,7 @@ function qualityOk(text) {
     if (cjk > 0 && cjk / Math.max(text.length, 1) > 0.3) return false;
     return true;
   }
-  // zh-TW
+  // zh-Hant
   if (cjk === 0) return false;
   if (TEMPLATE_JUNK.test(text) || PH_JUNK.test(text) || /^%%|%%$/.test(text)) return false;
   let simp = 0;
@@ -97,7 +97,7 @@ function systemPrompt() {
     ? 'Use natural American English, idiomatic and fluent, matching native speaker expression habits.'
     : '使用繁體中文（中國香港慣用語）翻譯：信息→資訊、软件→軟件、网络→網絡、支持→支援、用户→用戶、数据→數據、服务器→伺服器、上传→上傳、下载→下載、验证→驗證、缓存→緩存、内容→內容、文档→文檔、接口→介面、菜单→選單、点击→點擊、这里→這裡、打开→開啟、显示→顯示、设置→設定、项目→項目、提交→提交。';
   const properNoun = isEn
-    ? '- 品牌/平台名给出英文常用名（高德→Amap、美团→Meituan、飞猪→Fliggy、途牛→Tuniu、携程→Ctrip、去哪儿→Qunar、小红书→Xiaohongshu、马蜂窝→Mafengwo、微博→Weibo、大众点评→Dianping、火山引擎→Volcano Engine）；城市名用拼音（北京→Beijing、广州→Guangzhou）；学校名用 Shenzhen Institute of Information Technology；其余文件名/命令/API/代码 保留原样'
+    ? '- 品牌/平台名给出英文常用名（高德→Amap、美团→Meituan、飞猪→Fliggy、途牛→Tuniu、携程→Ctrip、去哪儿→Qunar、小红书→Xiaohongshu、马蜂窝→Mafengwo、微博→Weibo、大众点评→Dianping、火山引擎→Volcano Engine）；城市名用拼音（北京→Beijing、广州→Guangzhou）；学校名用 Shenzhen University of Information Technology (SUIT)；其余文件名/命令/API/代码 保留原样'
     : '- 专有名词：城市名、品牌名（高德/美团/飞猪/途牛/DeepSeek/12306/去哪儿/携程/小红书/马蜂窝/微博/大众点评）、文件名、命令、JSON 字段保留原样（品牌名请用繁體寫法：美团→美團、飞猪→飛豬、大众点评→大眾點評、去哪儿→去哪兒、携程→攜程、小红书→小紅書、马蜂窝→馬蜂窩、微博→微博）';
   return `You are a professional ${TO} native translator who needs to fluently translate text into ${TO}.
 

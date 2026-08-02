@@ -484,24 +484,24 @@
   /* 英文/繁体保持单行：时间栏 flex 占满剩余宽度横向扩展，绝不换行成两行；
      内容再长也通过胶囊内横向滚动完整可见，不裁切不省略 */
   html[lang="en"] .nav__time,
-  html[lang="zh-TW"] .nav__time{
+  html[lang="zh-Hant"] .nav__time{
     flex:1 1 auto;max-width:none;order:0;justify-content:flex-start;
     flex-wrap:nowrap;border-radius:14px;line-height:1.35
   }
   /* 文本型胶囊：完整显示，不裁切不收缩；天气/节假日胶囊保留 inline-flex 布局 */
   html[lang="en"] .nav__time > span:not(.nav__time-weather),
-  html[lang="zh-TW"] .nav__time > span:not(.nav__time-weather){
+  html[lang="zh-Hant"] .nav__time > span:not(.nav__time-weather){
     display:inline-block;overflow:visible;white-space:nowrap;flex:0 0 auto;min-width:0
   }
   html[lang="en"] .nav__time > .nav__time-holiday,
-  html[lang="zh-TW"] .nav__time > .nav__time-holiday{flex-shrink:0}
+  html[lang="zh-Hant"] .nav__time > .nav__time-holiday{flex-shrink:0}
   /* 各语言一致完整显示：时区/日期/农历/节假日/天气一律不隐藏，
      超宽时由 .nav__time 内部横向滚动承载（滚动条隐藏），信息永远完整可见 */
   /* 英文/繁体 Tab 文案更长：按内容宽度排布，不抢占时间栏宽度 */
   html[lang="en"] .nav__tabs,
-  html[lang="zh-TW"] .nav__tabs{flex:0 0 auto;min-width:0;justify-content:flex-start;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
+  html[lang="zh-Hant"] .nav__tabs{flex:0 0 auto;min-width:0;justify-content:flex-start;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
   html[lang="en"] .nav__tabs::-webkit-scrollbar,
-  html[lang="zh-TW"] .nav__tabs::-webkit-scrollbar{display:none}
+  html[lang="zh-Hant"] .nav__tabs::-webkit-scrollbar{display:none}
 
   /* ========================================================= 节假日介绍 Popover
      与整体 UI 一致：深夜底 + 暖金强调 + 液态玻璃

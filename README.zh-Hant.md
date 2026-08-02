@@ -1,6 +1,6 @@
 <div align="center">
 
-**🌐 語言 / Language / 语言：<a href="./README.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.en.md">English</a>**
+**🌐 語言 / Language / 语言：<a href="./README.md">简体中文</a> · <a href="./README.zh-Hant.md">繁體中文</a> · <a href="./README.en.md">English</a>**
 
 </div>
 

@@ -4396,7 +4396,7 @@ async function callAI(prompt, opts){
 }
 
 /* ---------- 多语言翻译（前端 i18n 使用 DeepSeek flash 批量翻译界面文案） ----------
- * POST /api/translate  { lang:'zh-TW'|'en', texts:[...原始简体文案...] }
+ * POST /api/translate  { lang:'zh-Hant'|'en', texts:[...原始简体文案...] }（兼容旧 zh-TW 参数）
  * 繁体使用中国香港习惯用语；英文使用美式英语。逐条按序返回翻译结果。
  */
 app.post('/api/translate', async (req, res) => {
@@ -4415,7 +4415,7 @@ app.post('/api/translate', async (req, res) => {
       return res.json({ ok: true, texts: cleaned.map(s => fallback(s) || s) });
     }
 
-    const to = lang === 'zh-TW' ? '繁體中文（中國香港）' : lang === 'en' ? 'English (US)' : null;
+    const to = (lang === 'zh-Hant' || lang === 'zh-TW') ? '繁體中文（中國香港）' : lang === 'en' ? 'English (US)' : null;
     if (!to) return res.status(400).json({ ok: false, error: 'unsupported lang: ' + lang });
 
     // 用户提供的翻译提示词模板（单段/多段用 %% 分隔）

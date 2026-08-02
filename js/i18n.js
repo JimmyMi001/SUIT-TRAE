@@ -1,5 +1,5 @@
 /* =========================================================
-   i18n.js — 多语言支持（简体中文 zh-CN 默认 / 繁體中文 zh-TW / English en）
+   i18n.js — 多语言支持（简体中文 zh-CN 默认 / 繁體中文 zh-Hant / English en）
 
    纯前端增强：不改动任何业务功能逻辑，仅翻译界面静态文案。
    · 翻译主通道：DeepSeek flash 模型（POST /api/translate）批量翻译，逐条缓存到
@@ -15,11 +15,12 @@
 
   var LS_KEY = 'suit_lang';
   var DEFAULT_LANG = 'zh-CN';
-  var LANGS = { 'zh-CN': '简体中文', 'zh-TW': '繁體中文', 'en': 'English' };
+  var LANGS = { 'zh-CN': '简体中文', 'zh-Hant': '繁體中文', 'en': 'English' };
 
   var lang = DEFAULT_LANG;
   try {
     var saved = window.localStorage.getItem(LS_KEY);
+    if (saved === 'zh-TW') saved = 'zh-Hant';   // 兼容旧版语言标识
     if (saved && LANGS[saved]) lang = saved;
   } catch (e) { /* localStorage 不可用时用默认值 */ }
 
@@ -44,7 +45,7 @@
     if (!text || !/[一-鿿]/.test(text)) return text;
     /* 预翻译库（香港习惯用语）整句命中直接使用 */
     var tk = normKey(text);
-    if (DB['zh-TW'] && DB['zh-TW'][tk]) return DB['zh-TW'][tk];
+    if (DB['zh-Hant'] && DB['zh-Hant'][tk]) return DB['zh-Hant'][tk];
     if (!PHRASE_TW_KEYS) PHRASE_TW_KEYS = Object.keys(PHRASE_TW).sort(function (a, b) { return b.length - a.length; });
     /* 哨兵令牌法：先把短语级命中的部分替换成全角占位令牌（◆i◆），
        再做字符映射，最后还原短语——避免"公里/只有"等被 S2T 逐字误伤 */
@@ -327,7 +328,7 @@
   function translateText(text) {
     if (!text) return text;
     if (lang === 'zh-CN') return text;
-    if (lang === 'zh-TW') return toTW(text);
+    if (lang === 'zh-Hant') return toTW(text);
     return toEN(text);
   }
 
@@ -353,10 +354,11 @@
     cache = {};
     if (lang === 'zh-CN') return;
     try {
-      /* 清理旧版缓存键，避免污染数据被误用 */
+      /* 清理旧版缓存键（含旧 zh-TW 标识），避免污染数据被误用 */
       ['suit_trans_en', 'suit_trans_zh-TW', 'suit_trans_zh-CN',
        'suit_trans_v2_en', 'suit_trans_v2_zh-TW', 'suit_trans_v2_zh-CN',
-       'suit_trans_v3_en', 'suit_trans_v3_zh-TW', 'suit_trans_v3_zh-CN'].forEach(function (k) {
+       'suit_trans_v3_en', 'suit_trans_v3_zh-TW', 'suit_trans_v3_zh-CN',
+       'suit_trans_v4_zh-TW'].forEach(function (k) {
         try { window.localStorage.removeItem(k); } catch (e) { /* ignore */ }
       });
       var raw = window.localStorage.getItem(cacheKey);
@@ -398,7 +400,7 @@
      · 由 scripts/build-i18n-db.js 用 DeepSeek flash 一次性预翻译写入
      · 覆盖全部静态 UI 文案（英文美式 / 繁體香港），加载后并入缓存 → 切语言瞬间完整显示
      · 动态内容（AI 行程等）不在库内，仍由下方 /api/translate 实时翻译 */
-  var DB = { en: null, 'zh-TW': null };
+  var DB = { en: null, 'zh-Hant': null };
   var dbFetched = false;
   function loadDB() {
     if (dbFetched || lang === 'zh-CN') return;
@@ -408,7 +410,7 @@
       .then(function (o) {
         if (!o || typeof o !== 'object') return;
         DB.en = o.en || null;
-        DB['zh-TW'] = o['zh-TW'] || null;
+        DB['zh-Hant'] = o['zh-Hant'] || null;
         buildENKeys();   // 库键并入逐词替换字典，城市/省份等本地瞬间翻译
         mergeDB();
       })
@@ -443,7 +445,7 @@
   function showBusy() {
     if (busyEl) {   // 已存在：重置为"翻译中"文案（失败提示后进入新一轮时恢复）
       busyEl.textContent = lang === 'en' ? 'Deepseek V4 Flash Translating...'
-        : (lang === 'zh-TW' ? 'Deepseek V4 Flash 翻譯中...' : 'Deepseek V4 Flash 翻译中...');
+        : (lang === 'zh-Hant' ? 'Deepseek V4 Flash 翻譯中...' : 'Deepseek V4 Flash 翻译中...');
       return;
     }
     var host = document.querySelector('.nav__lang');
@@ -451,7 +453,7 @@
     busyEl = document.createElement('div');
     busyEl.className = 'lang-switch__busy';
     busyEl.textContent = lang === 'en' ? 'Deepseek V4 Flash Translating...'
-      : (lang === 'zh-TW' ? 'Deepseek V4 Flash 翻譯中...' : 'Deepseek V4 Flash 翻译中...');
+      : (lang === 'zh-Hant' ? 'Deepseek V4 Flash 翻譯中...' : 'Deepseek V4 Flash 翻译中...');
     host.appendChild(busyEl);
   }
   function hideBusy() {
@@ -496,7 +498,7 @@
              不再让 busy 永远"翻译中"；60s 重试保护会在下次清扫时自动再尝试 */
           if (failStreak >= Math.max(2, chunks.length)) {
             var msg = lang === 'en' ? 'Translation failed, retry later'
-              : (lang === 'zh-TW' ? '翻譯失敗，稍後重試' : '翻译失败，稍后重试');
+              : (lang === 'zh-Hant' ? '翻譯失敗，稍後重試' : '翻译失败，稍后重试');
             if (busyEl) busyEl.textContent = msg;
             translating = false;
             setTimeout(hideBusy, 5000);
@@ -530,7 +532,7 @@
                  防止污染 DOM；英文允许残留极少量中文（≤6 字或 ≤原文 1/5：
                  城市名/专有名词模型可能保留中文，一律拒绝会导致永不缓存 → 死循环）；
                  繁体允许译文=原文（繁简同形词如"北京"） */
-              var sameOk = lang === 'zh-TW' && t === zh;
+              var sameOk = lang === 'zh-Hant' && t === zh;
               var sane = t && (sameOk || (t !== zh && t.length <= (zh.length * 6 + 120)));
               if (sane) {
                 var residual = (String(t).match(/[\u4e00-\u9fff]/g) || []).length;

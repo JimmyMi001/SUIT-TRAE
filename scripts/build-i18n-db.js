@@ -200,11 +200,11 @@ async function translateAll(lang, keys, seed) {
           const key = chunk[k];
           const t = normKey(texts[k]);
           /* 繁体允许译文=原文（繁简同形词如"北京"，译文合法）；英文仍要求有改动 */
-          const sameOk = lang === 'zh-TW' && t === key;
+          const sameOk = lang === 'zh-Hant' && t === key;
           const sane = t && (sameOk || (t !== key && t.length <= (key.length * 6 + 120)));
           if (!sane) continue;
           if (lang === 'en' && hasChinese(t)) continue;   // 英文结果不允许残留中文
-          if (lang === 'zh-TW' && !hasChinese(t)) continue; // 繁体结果必须仍是中文
+          if (lang === 'zh-Hant' && !hasChinese(t)) continue; // 繁体结果必须仍是中文
           dict[key] = t;
           okCount++;
         }
@@ -250,12 +250,12 @@ async function main() {
   let oldDB = null;
   try { oldDB = JSON.parse(fs.readFileSync(OUT, 'utf8')); } catch (e) { /* 无旧库则全量 */ }
   const enSeed = (oldDB && oldDB.en) || {};
-  const twSeed = (oldDB && oldDB['zh-TW']) || {};
+  const twSeed = (oldDB && oldDB['zh-Hant']) || {};
   console.log('开始翻译 English (US) … 共', enKeys.length, '条');
   const en = await translateAll('en', enKeys, enSeed);
 
   console.log('开始翻译 繁體中文（中國香港） … 共', enKeys.length, '条');
-  const tw = await translateAll('zh-TW', enKeys, twSeed);
+  const tw = await translateAll('zh-Hant', enKeys, twSeed);
 
   const db = {
     _meta: {
@@ -266,10 +266,10 @@ async function main() {
       note: '固定文案预翻译库；动态内容（AI 行程等）仍由前端实时调用 /api/translate'
     },
     en,
-    'zh-TW': tw
+    'zh-Hant': tw
   };
   fs.writeFileSync(OUT, JSON.stringify(db, null, 1), 'utf8');
-  console.log('已写入', OUT, ' en=', Object.keys(en).length, ' zh-TW=', Object.keys(tw).length);
+  console.log('已写入', OUT, ' en=', Object.keys(en).length, ' zh-Hant=', Object.keys(tw).length);
 }
 
 main().catch(e => { console.error('失败:', e); process.exit(1); });

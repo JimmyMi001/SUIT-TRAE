@@ -1,6 +1,6 @@
 <div align="center">
 
-**🌐 Language: <a href="./README.md">Simplified Chinese</a> · <a href="./README.zh-TW.md">Traditional Chinese</a> · <a href="./README.en.md">English</a>**
+**🌐 Language: <a href="./README.md">Simplified Chinese</a> · <a href="./README.zh-Hant.md">Traditional Chinese</a> · <a href="./README.en.md">English</a>**
 
 </div>
 
@@ -15,7 +15,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-F0A500.svg?style=flat-square)](./LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-%3E%3D18-339933?style=flat-square&logo=node.js)](https://nodejs.org/)
 [![Sponsor](https://img.shields.io/badge/2026-Volcano%20Cup%20Agent%20Innovation%20Competition-FF6B35?style=flat-square)](https://www.volcengine.com/)
-[![School](https://img.shields.io/badge/Shenzhen%20Institute%20of%20Information%20Technology-SZIIT-1E40AF?style=flat-square)](https://www.suit-sz.edu.cn/)
+[![School](https://img.shields.io/badge/Shenzhen%20University%20of%20Information%20Technology-SUIT-1E40AF?style=flat-square)](https://www.suit-sz.edu.cn/)
 
 **Crowdsourced Community Routes × AI Cross-Validation × Personalized Travel Companion · Full-Stack In-House**
 
@@ -41,7 +41,7 @@
   </tbody>
 </table>
 
-<sub>Shenzhen Institute of Information Technology · Team No. 123 · 2026 "Volcano Cup" Agent Innovation Competition · Volcano Engine</sub>
+<sub>Shenzhen University of Information Technology · Team No. 123 · 2026 "Volcano Cup" Agent Innovation Competition · Volcano Engine</sub>
 
 </div>
 
@@ -200,7 +200,7 @@ flowchart LR
 | Item | Content |
 |---|------|
 | **Competition** | 2026 "Volcano Cup" Agent Innovation Competition & National Qualifier |
-| **School** | Shenzhen Institute of Information Technology |
+| **School** | Shenzhen University of Information Technology |
 | **Team Number** | No. 123 |
 | **Project Name** | 123 Let's Go (Travel Verified, Not Memorized) |
 | **Topic Direction** | Travel planning + AI validation + community crowdsourcing |
@@ -233,7 +233,7 @@ flowchart LR
 >
 > ⚠️ **Multi-language adaptation notes (to be improved)**: DeepSeek flash batch translation + pre-translation library ([js/i18n_db.json](./js/i18n_db.json), 1444 entries) + local real-time fallback (Simplified/Traditional character mapping / English UI dictionary) have been integrated. After switching languages, static interface copy is translated instantly; however **the translation is not yet fully complete** — some interface copy and dynamic content (thinking chain, AI itineraries, community routes, etc.) remain untranslated, and English/Traditional Chinese displays may still contain the original Chinese text. This is a known item to be improved.
 >
-> 📖 **This document is available in multiple languages**: English (this page) · [简体中文](./README.md) · [繁體中文](./README.zh-TW.md). Use the language switcher at the top to jump between them.
+> 📖 **This document is available in multiple languages**: English (this page) · [简体中文](./README.md) · [繁體中文](./README.zh-Hant.md). Use the language switcher at the top to jump between them.
 
 **Page Structure Overview**:
 
@@ -1403,7 +1403,7 @@ See [LICENSE](./LICENSE) file.
 
 ## 🙏 Acknowledgments
 
-- **[Shenzhen Institute of Information Technology](https://www.suit-sz.edu.cn/)** - Public vocational undergraduate university, featuring information technology · Institution code 12957
+- **[Shenzhen University of Information Technology](https://www.suit-sz.edu.cn/)** - Public vocational undergraduate university, featuring information technology · Institution code 12957
 - **[China Southern Power Grid](https://www.csg.cn/)** - Power infrastructure support
 - [Microsoft](https://www.microsoft.com/) - Development tools and cloud services
 - [Rapoo](https://www.rapoo.cn/) - Keyboard and mouse peripheral support
@@ -1453,7 +1453,7 @@ See [LICENSE](./LICENSE) file.
 
 *Travel Verified, Not Memorized.*
 
-Made with ❤️ by **Team 123** @ Shenzhen Institute of Information Technology
+Made with ❤️ by **Team 123** @ Shenzhen University of Information Technology
 
 [⬆ Back to Top](#123-lets-go--travel-verified-not-memorized)
 
