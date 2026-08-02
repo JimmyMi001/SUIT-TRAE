@@ -233,6 +233,8 @@ flowchart LR
 > **3 main modules · Single-page application (`index.html`, with embedded CSS/JS) · Multi-language support (Simplified Chinese by default / Traditional Chinese / English, **to be improved**)**
 > The homepage `index.html` hosts all features in 3 tabs at the top, without needing to navigate to separate pages; the language switch button in the top-right corner of the page switches the interface language in one click (dynamic data / AI output remains in the original language).
 >
+> 📱 **Mobile Responsive**: The layout is optimized for **Android / iOS mobile browsers** — the top nav time bar (timezone / clock / date / lunar calendar / holiday / weather) wraps automatically on narrow screens, stays fully visible without overlapping, and the page has no horizontal overflow. Fully usable on both desktop and mobile.
+>
 > ⚠️ **Multi-language adaptation notes (to be improved)**: DeepSeek flash batch translation + pre-translation library ([js/i18n_db.json](./js/i18n_db.json), 1444 entries) + local real-time fallback (Simplified/Traditional character mapping / English UI dictionary) have been integrated. After switching languages, static interface copy is translated instantly; however **the translation is not yet fully complete** — some interface copy and dynamic content (thinking chain, AI itineraries, community routes, etc.) remain untranslated, and English/Traditional Chinese displays may still contain the original Chinese text. This is a known item to be improved.
 >
 > 📖 **This document is available in multiple languages**: English (this page) · [简体中文](./README.md) · [繁體中文](./README.zh-Hant.md). Use the language switcher at the top to jump between them.
