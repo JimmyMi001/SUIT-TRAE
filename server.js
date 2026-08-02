@@ -4443,22 +4443,49 @@ app.post('/api/translate', async (req, res) => {
 - 严格按输入顺序逐段翻译，段与段之间不得相互参照、补充或联想
 - 保持每条原文的格式（emoji 位置、数字、标点），不做任何解释或额外说明`;
 
-    const input = cleaned.join('\n\n%%\n\n');
-    const prompt = `Translate to ${to} (output translation only):
+    // 将整批拆成小批（每批 ≤5 条 / ≤600 字符）并发翻译，再按原顺序组装：
+    // deepseek-v4-flash 是 reasoning 模型，单次塞太多条 → 思考+输出时间长，
+    // 超过前端 45s 超时 → 前端 abort → 失败重试死循环（页面一直残留中文）。
+    const LITTLE = 5, LITTLE_CHARS = 600;
+    const groups = [];
+    let g = [], gLen = 0, gOffset = 0;
+    for (const s of cleaned) {
+      if (g.length && (g.length >= LITTLE || gLen + s.length > LITTLE_CHARS)) {
+        groups.push({ offset: gOffset, items: g });
+        gOffset += g.length; g = []; gLen = 0;
+      }
+      g.push(s); gLen += s.length;
+    }
+    if (g.length) groups.push({ offset: gOffset, items: g });
+
+    const results = new Array(N);
+    const CONC = 4;
+    let gi = 0;
+    async function translateGroup() {
+      for (;;) {
+        const idx = gi++;
+        if (idx >= groups.length) return;
+        const { offset, items } = groups[idx];
+        const input = items.join('\n\n%%\n\n');
+        const prompt = `Translate to ${to} (output translation only):
 
 ${input}`;
-
-    const out = await callAI(prompt, { system, max_tokens: 8192, timeout: 90000 });
-    if (!out) return res.json({ ok: true, texts: cleaned.map(s => fallback(s) || s) });
-
-    // 解析 %% 分隔的译文；数量不足时用兜底补齐
-    const parts = String(out).split('%%').map(s => s.trim());
-    const results = [];
-    for (let i = 0; i < N; i++) {
-      const p = parts[i];
-      if (p === undefined || p === '') results.push(fallback(cleaned[i]) || cleaned[i]);
-      else results.push(p);
+        const out = await callAI(prompt, { system, max_tokens: 4096, timeout: 90000 });
+        if (!out) {  // 整组失败：回退原文（HTTP 200），由前端重试
+          items.forEach((s, k) => { results[offset + k] = s; });
+          continue;
+        }
+        // 解析 %% 分隔的译文；数量不足时用兜底补齐
+        const parts = String(out).split('%%').map(s => s.trim());
+        items.forEach((s, i) => {
+          const p = parts[i];
+          results[offset + i] = (p === undefined || p === '') ? s : p;
+        });
+      }
     }
+    const workers = [];
+    for (let w = 0; w < Math.min(CONC, groups.length); w++) workers.push(translateGroup());
+    await Promise.all(workers);
     res.json({ ok: true, texts: results });
   } catch (e) {
     /* 异常时返回原文兜底（HTTP 200）而非 500：客户端/构建脚本收到原文会走重试/补翻，

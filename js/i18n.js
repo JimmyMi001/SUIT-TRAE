@@ -87,6 +87,40 @@
     '今日推荐 · 六维多源综合评估（三源实时天气×3 + 季节+交通可达+热度+美食+标签）':"Today's Picks · 6-dimension multi-source evaluation",
     '换一个推荐':'Get another pick','换一批':'Refresh',
     '正在综合评估全国热门城市的天气/季节/交通/热度/美食数据…':'Evaluating weather/season/transport/hotness/food data across hot cities…',
+    /* 今日推荐（动态区域静态文案补充：权重条/元信息/评估说明，避免切英文后长中文残留） */
+    '建议 ':'Recommended ','天':' days','城':'city','等':'etc.',
+    '多源':'multi-source ','实时天气':'live weather','权重':'weight','交叉验证':'cross-validation',
+    '季节适宜性':'Season suitability','交通可达性':'Transport accessibility','旅游热度':'Tourism popularity',
+    '美食丰富度':'Food richness','标签丰富度':'Tag richness','适宜性':'suitability','可达性':'accessibility',
+    '丰富度':'richness','热度':'popularity','季节':'Season','标签':'Tags',
+    '加载失败':'Load failed','评估城市数':'Cities evaluated','评估时间':'Evaluated at','用户当前城市':'Your current city',
+    '推荐服务暂不可用，请稍后再试':'Recommendation service unavailable, please try again later',
+    '评估方法':'Evaluation method','六维加权':'six-dimension weighting','天气含三源交叉验证':'weather includes three-source cross-validation',
+    '多源天气':'multi-source weather','温度适宜':'temperature comfort','天气现象':'weather conditions','多源可信度':'multi-source credibility',
+    '源交叉验证':' sources cross-validated','源一致':' sources agree','三源交叉验证':'three-source cross-validation',
+    '处于人体舒适黄金区间':'in the comfortable range','气温':'Temp','体感':'Feels Like','凉爽通透':' cool and fresh','偏暖':'warm','现象':'condition','可信':'credibility',
+    '建议穿透气速干衣物':'wear breathable quick-dry clothes',
+    '温度':'temperature','风力':'wind','风速':'Wind Speed',
+    '同属一个区域':'same region','两城间有直达高铁':'direct HSR between the two cities','直接':'direct','未提供出发城市按中性':'neutral when no departure city',
+    '真实铁路干线邻接表':'real HSR trunk adjacency list','如京沪/京广/沪昆':'e.g. Beijing-Shanghai/Beijing-Guangzhou/Shanghai-Kunming',
+    '第一级调用':'Level 1: ','第二级':'Level 2: ','对初步 Top 城市做':'for the preliminary top cities',
+    '（借鉴 Breezy Weather 多源设计）':'(inspired by Breezy Weather multi-source design)',
+    '美团':'Meituan','大众点评':'Dianping','黑珍珠':'Black Pearl','米其林':'Michelin','数据来自':'data from',
+    '中国气象局':'CMA','三源天气交叉验证':'three-source weather cross-validation','灵感来自':'inspired by','交通可达':'transport access',
+    '热度与美食':'popularity & food','真实数据库':'real databases','知识库':'knowledge base',
+    '280+ 城市结构化数据':'280+ city structured data','无坐标城市使用区域均值兜底':'no-coordinate cities use regional-average fallback',
+    '基于该城市的物候与最佳旅游季':'based on the city\'s phenology and best travel season',
+    '避暑型 6-8 月 / 避寒型 11-2 月 / 春秋型 3-5/9-11 月':'summer-cooling Jun-Aug / winter-warming Nov-Feb / spring-autumn Mar-May/Sep-Nov',
+    '匹配当前月份打分；处于最佳季 +15、平季 +11、过渡季 +9、常规 +8、淡季 +4':'scored against the current month; best season +15, shoulder +11, transition +9, regular +8, off-season +4',
+    '基于本地真实知识库收录完备度代理评估':'proxy evaluation based on local knowledge-base coverage',
+    '真实景点收录数':'real POI count','本地攻略数':'local guide count','玩法标签覆盖数':'play tags covered',
+    '收录越完备代表该城市越热门、玩法越成熟':'fuller coverage means a hotter city with more mature play styles',
+    '本地真实数据库覆盖度':'local real-database coverage','当地特色美食库':'local specialty-food DB','餐厅库':'restaurant DB',
+    '收录越多，当地觅食体验越好':'the more entries, the better the local dining experience',
+    '根据城市 POI 类型覆盖度评分':'scored by city POI-type coverage','多标签城市意味着可一站式体验多类玩法':'multi-tag cities mean one-stop for multiple play styles',
+    '源数越多、结论越一致可信分越高':'more sources and more agreement mean higher credibility',
+    '多数源判雨/雪/雾时现象分降级':'downgraded when most sources report rain/snow/fog','多数源判晴且全一致时现象分满分':'maxed when most sources report clear and agree',
+    '并行获取全国 280+ 城市温度/天气码/风速':'fetching temperature/weather-code/wind for 280+ cities in parallel',
 
     /* 出发城市 */
     '你所在城市（计算交通价格）':'Your city (for transport pricing)',
@@ -304,10 +338,10 @@
     var ek = normKey(text);
     if (DB.en && DB.en[ek]) return DB.en[ek];
     if (EN_DICT[ek]) return EN_DICT[ek];
-    /* 长文本不做本地逐词替换：逐词替换长句/数据描述会产生"数据Source/公Total"
-       式中英混排，远不如保持完整中文等待 API 整体翻译 */
-    if (text.length > 40) return text;
     var out = text;
+    /* 不做长度拦截：长文本也执行逐词替换，词条全覆盖时（权重条/元信息/固定说明）
+       可本地瞬间翻译，不依赖慢速 API；替换后仍残留中文（词条覆盖不全的说明文）
+       才会返回原文等待 API 整体翻译，避免"数据Source/公Total"式中英混排写进 DOM */
     /* 日期本地化：2026年8月1日 → 8/1/2026（美式习惯） */
     out = out.replace(/(\d{1,4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/g, function (m, y, mo, d) {
       return mo + '/' + d + '/' + y;
@@ -433,7 +467,9 @@
     zh = normKey(zh);
     if (!zh || !hasChinese(zh) || (cache && cache[zh])) return;
     var now = Date.now();
-    if (retryMap && retryMap[zh] && now - retryMap[zh] < 60000) return;
+    /* 失败文本 20s 后重试（原 60s 过长：首次翻译批次偶发超时/限流时，
+       动态数据要等 1 分钟才重试，用户长时间看到中文残留） */
+    if (retryMap && retryMap[zh] && now - retryMap[zh] < 20000) return;
     if (!retryMap) retryMap = {};
     retryMap[zh] = now;
     if (!pendingSet) pendingSet = {};
@@ -463,9 +499,10 @@
   /* 翻译主循环：分块并发 5 路调用 /api/translate，
      translating 锁防重入；每批完成后立即应用译文并继续消化队列（自驱动），
      切换语言（gen++）后自动停止。
-     分批策略：按字符数（每批 ≈2600 字符、上限 60 条）而非固定条数——单纯按条数分批时，
-     长文本（今日推荐说明/社区路线 summary）会撑爆 max_tokens → 截断 → 译文残留中文被拒
-     → 60s 重试死循环（表现为一直"翻译中"） */
+     分批策略：按字符数（每批 ≈700 字符、上限 12 条）而非固定条数——批次过大时
+     deepseek-v4-flash（reasoning 模型）单次思考+输出耗时长，超过前端 45s 超时
+     → abort → 失败重试死循环（表现为一直"翻译中"/页面残留中文）。服务端
+     也已将批内文本再次拆成小批并发，双保险保证单请求在超时窗口内返回 */
   var translating = false;
   var failStreak = 0;   // 连续失败批数：整批失败时明确显示"翻译失败"而非永远"翻译中"
   function translatePending() {
@@ -479,23 +516,28 @@
       pendingSet = null;
       showBusy();
 
-      /* 按字符数分批（每批 ≈1300 字符、上限 30 条）：单请求输出量适中，flash 10-20s 内完成。
+      /* 按字符数分批（每批 ≈700 字符、上限 12 条）：小批次输出快，reasoning 模型
+         单批思考+生成能在前端 45s 超时窗口内完成；服务端会再拆小批并发，双保险。
          单纯按条数/过大 batch 时，长文本（今日推荐说明/社区路线 summary）会让模型
          响应数分钟甚至失败 → 重试死循环（表现为一直"翻译中"） */
-      var CH_CHARS = 1300, CH_MAX = 30, chunks = [], cur = [], len = 0;
+      var CH_CHARS = 700, CH_MAX = 12, chunks = [], cur = [], len = 0;
       for (var i = 0; i < list.length; i++) {
         cur.push(list[i]); len += list[i].length;
         if (len >= CH_CHARS || cur.length >= CH_MAX) { chunks.push(cur); cur = []; len = 0; }
       }
       if (cur.length) chunks.push(cur);
 
-      var done = 0;
+      var idx = 0;
+      var inFlight = 0;   // 在途请求数：全部 chunk 结算（含失败）后才进入下一轮
       function finishChunk() {
-        done++;
-        if (done >= chunks.length) {
+        inFlight--;
+        if (inFlight > 0) return;
+        /* 全部 chunk 已结算：应用译文 → 持久化 → 继续消化新入队文本或退出。
+           try/catch 兜底：即使缓存写失败也不能让 translating 锁卡死 */
+        try {
           if (gen === myGen) { applyCached(); saveCache(); }
           /* 连续整批失败（服务端超时/网络/DeepSeek 不可用）：明确提示"翻译失败"，
-             不再让 busy 永远"翻译中"；60s 重试保护会在下次清扫时自动再尝试 */
+             不再让 busy 永远"翻译中"；20s 重试保护会在下次清扫时自动再尝试 */
           if (failStreak >= Math.max(2, chunks.length)) {
             var msg = lang === 'en' ? 'Translation failed, retry later'
               : (lang === 'zh-Hant' ? '翻譯失敗，稍後重試' : '翻译失败，稍后重试');
@@ -505,54 +547,65 @@
             return;
           }
           failStreak = 0;
-          loop(); // 继续处理新入队文本（同语言代次），直至队列清空
-        }
+        } catch (e) { /* 忽略缓存写异常 */ }
+        loop(); // 继续处理新入队文本（同语言代次），直至队列清空
       }
-      var idx = 0;
+      /* 拉取式工作池：每个 worker 处理完一个 chunk 后自动拉取下一个，
+         保证 chunks 数超过并发上限（5）时剩余 chunk 也全部被处理。
+         原实现每个 worker 只取 1 个 chunk 就退出 → chunks>5 时第 6+ 个无人处理
+         → finishChunk 永远凑不满 → loop 不退出 → translating 锁永久卡死
+         （busy 永远"翻译中"，后续动态文本全部被挡回，页面残留中文） */
       function worker() {
-        if (idx >= chunks.length) return;
-        var chunk = chunks[idx++];
-        /* 前端超时兜底：服务器 callAI 90s + 网络抖动，45s 无响应即放弃本批并继续，
-           防止 translating 锁被永不返回的请求卡死（busy 一直"翻译中"）；
-           连续整批失败会在 finishChunk 中显示"翻译失败"而非无限等待 */
-        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        var timer = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 45000) : null;
-        fetch('/api/translate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lang: lang, texts: chunk }),
-          signal: ctrl ? ctrl.signal : undefined
-        }).then(function (r) { return r.json(); }).then(function (j) {
-          if (timer) clearTimeout(timer);
-          if (gen === myGen && j && j.ok && Array.isArray(j.texts)) {
-            failStreak = 0;
-            for (var k = 0; k < chunk.length && k < j.texts.length; k++) {
-              var zh = chunk[k], t = j.texts[k];
-              /* 空/未翻译保留本地兜底；结果异常膨胀（>3x+60，模型跑题回复）不缓存，
-                 防止污染 DOM；英文允许残留极少量中文（≤6 字或 ≤原文 1/5：
-                 城市名/专有名词模型可能保留中文，一律拒绝会导致永不缓存 → 死循环）；
-                 繁体允许译文=原文（繁简同形词如"北京"） */
-              var sameOk = lang === 'zh-Hant' && t === zh;
-              var sane = t && (sameOk || (t !== zh && t.length <= (zh.length * 6 + 120)));
-              if (sane) {
-                var residual = (String(t).match(/[\u4e00-\u9fff]/g) || []).length;
-                var zhCnt = (String(zh).match(/[\u4e00-\u9fff]/g) || []).length;
-                var enOk = lang !== 'en' || residual <= 6 || residual * 5 <= zhCnt;
-                if (enOk) {
-                  /* 字典/预翻译库的固定文案优先级高于模型输出，保证 UI 与库内一致 */
-                  cache[zh] = (lang === 'en' && (EN_DICT[zh] || (DB.en && DB.en[zh]))) ? (EN_DICT[zh] || DB.en[zh]) : t;
+        (function pull() {
+          if (idx >= chunks.length) return;
+          var chunk = chunks[idx++];
+          inFlight++;
+          /* 前端超时兜底：服务器 callAI 90s + 网络抖动，45s 无响应即放弃本批并继续，
+             防止 translating 锁被永不返回的请求卡死（busy 一直"翻译中"）；
+             连续整批失败会在 finishChunk 中显示"翻译失败"而非无限等待 */
+          var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          var timer = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 45000) : null;
+          fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lang: lang, texts: chunk }),
+            signal: ctrl ? ctrl.signal : undefined
+          }).then(function (r) { return r.json(); }).then(function (j) {
+            if (timer) clearTimeout(timer);
+            try {
+              if (gen === myGen && j && j.ok && Array.isArray(j.texts)) {
+                failStreak = 0;
+                for (var k = 0; k < chunk.length && k < j.texts.length; k++) {
+                  var zh = chunk[k], t = j.texts[k];
+                  /* 空/未翻译保留本地兜底；结果异常膨胀（>3x+60，模型跑题回复）不缓存，
+                     防止污染 DOM；英文允许残留极少量中文（≤6 字或 ≤原文 1/5：
+                     城市名/专有名词模型可能保留中文，一律拒绝会导致永不缓存 → 死循环）；
+                     繁体允许译文=原文（繁简同形词如"北京"） */
+                  var sameOk = lang === 'zh-Hant' && t === zh;
+                  var sane = t && (sameOk || (t !== zh && t.length <= (zh.length * 6 + 120)));
+                  if (sane) {
+                    var residual = (String(t).match(/[\u4e00-\u9fff]/g) || []).length;
+                    var zhCnt = (String(zh).match(/[\u4e00-\u9fff]/g) || []).length;
+                    var enOk = lang !== 'en' || residual <= 6 || residual * 5 <= zhCnt;
+                    if (enOk) {
+                      /* 字典/预翻译库的固定文案优先级高于模型输出，保证 UI 与库内一致 */
+                      cache[zh] = (lang === 'en' && (EN_DICT[zh] || (DB.en && DB.en[zh]))) ? (EN_DICT[zh] || DB.en[zh]) : t;
+                    }
+                  }
                 }
+              } else {
+                failStreak++;
               }
-            }
-          } else {
+            } catch (e) { failStreak++; }
+            finishChunk();
+            pull();
+          }).catch(function () {
+            if (timer) clearTimeout(timer);
             failStreak++;
-          }
-          finishChunk();
-        }).catch(function () {
-          if (timer) clearTimeout(timer);
-          failStreak++;
-          finishChunk();
-        });
+            finishChunk();
+            pull();
+          });
+        })();
       }
       var n = Math.min(5, chunks.length);
       for (var c = 0; c < n; c++) worker();
