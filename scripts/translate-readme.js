@@ -289,10 +289,15 @@ function rebuild(md, codes, titles, transTitles, segs, transSegs) {
 
 /* ---------- 语言切换横幅（置于标题之后） ---------- */
 function langHeader(lang) {
-  const label = lang === 'en' ? 'Language / 语言 / 語言' : '語言 / Language / 语言';
+  // 顺序统一为：简体 → 繁體 → English（与链接顺序一致）
+  const label = lang === 'en' ? 'Language' : '語言 / 语言 / Language';
+  const sep = lang === 'en' ? ': ' : '：';
+  const links = lang === 'en'
+    ? '<a href="./README.md">Simplified Chinese</a> · <a href="./README.zh-Hant.md">Traditional Chinese</a> · <a href="./README.en.md">English</a>'
+    : '<a href="./README.md">简体中文</a> · <a href="./README.zh-Hant.md">繁體中文</a> · <a href="./README.en.md">English</a>';
   return `<div align="center">
 
-**🌐 ${label}：<a href="./README.md">简体中文</a> · <a href="./README.zh-Hant.md">繁體中文</a> · <a href="./README.en.md">English</a>**
+**🌐 ${label}${sep}${links}**
 
 </div>
 
