@@ -117,7 +117,7 @@
   /* ========================================================= Global
      Aceternity 风格：固定背景 + 网格 + 三层光斑 */
   *{box-sizing:border-box}
-  html{background:var(--bg);scroll-behavior:smooth}
+  html{background:var(--bg);scroll-behavior:smooth;overflow-x:clip}
   body{margin:0;padding:0;color:var(--text);
     font-family:var(--sans);font-size:16px;line-height:1.7;
     -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
@@ -2034,12 +2034,22 @@
     /* Nav 紧凑 */
     .nav__row{padding:8px 0}
     .nav__logo{font-size:17px}
-    .nav__tab{padding:5px 9px;font-size:12px;border-radius:6px}
+    .nav__tab{padding:6px 10px;font-size:12px;border-radius:6px;-webkit-tap-highlight-color:transparent}
     .nav__status{font-size:10px;padding:3px 7px;gap:4px}
     .nav__time{font-size:11px}
+    /* 时间栏窄屏自动换行：所有胶囊（时区/时钟/日期/农历/节假日/天气）完整可见，
+       不再单行溢出被裁剪、不再与天气胶囊互相压字；多语言规则一并覆盖 */
+    .nav__time,
+    html[lang="en"] .nav__time,
+    html[lang="zh-Hant"] .nav__time{
+      flex-wrap:wrap;justify-content:center;
+      border-radius:14px;line-height:1.5;row-gap:2px
+    }
+    .nav__time .nav__time-weather{position:static}
+    .nav__time > span{border-left:0;padding:2px 6px}
     .nav__time-tz,.nav__time-clock,.nav__time-date,.nav__time-lunar{font-size:11px}
     /* Hero */
-    .hero{padding:48px 0 32px}
+    .hero{padding:48px 0 32px;overflow:hidden}
     .hero h1{font-size:32px;line-height:1.15}
     .hero p{font-size:14px;margin-bottom:28px;line-height:1.6}
     .hero__search{max-width:100%}
