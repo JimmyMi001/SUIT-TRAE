@@ -3957,8 +3957,9 @@ async function callAI(prompt, opts){
   const maxTokens = (opts && opts.max_tokens) || 16384;
   const timeoutMs = (opts && opts.timeout) || 150000;
   const system   = (opts && opts.system) || '你是专业旅行规划师，输出简洁、实用、可执行。直接输出最终 JSON 结果，不要展示任何思考过程或解释。';
+  let t0;
   try {
-    const t0 = Date.now();
+    t0 = Date.now();
     const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${DEEPSEEK_KEY}`},
@@ -3998,9 +3999,10 @@ async function callAI(prompt, opts){
  * 繁体使用中国香港习惯用语；英文使用美式英语。逐条按序返回翻译结果。
  */
 app.post('/api/translate', async (req, res) => {
+  let arr = [];
   try {
     const { lang, texts } = req.body || {};
-    const arr = Array.isArray(texts) ? texts.map(t => String(t == null ? '' : t)) : [];
+    arr = Array.isArray(texts) ? texts.map(t => String(t == null ? '' : t)) : [];
     const cleaned = arr.map(s => s.replace(/\s*\n\s*/g, ' ').trim());
     const N = cleaned.length;
     if (!N) return res.json({ ok: true, texts: [] });
@@ -4045,7 +4047,7 @@ app.post('/api/translate', async (req, res) => {
 
 ${input}`;
 
-    const out = await callAI(prompt, { system, max_tokens: 8192, timeout: 45000 });
+    const out = await callAI(prompt, { system, max_tokens: 8192, timeout: 90000 });
     if (!out) return res.json({ ok: true, texts: cleaned.map(s => fallback(s) || s) });
 
     // 解析 %% 分隔的译文；数量不足时用兜底补齐
@@ -4058,8 +4060,10 @@ ${input}`;
     }
     res.json({ ok: true, texts: results });
   } catch (e) {
-    console.warn('[api/translate] 异常:', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    /* 异常时返回原文兜底（HTTP 200）而非 500：客户端/构建脚本收到原文会走重试/补翻，
+       避免 500 导致整批文本丢失且触发连续失败 */
+    console.warn('[api/translate] 异常(兜底原文):', e.message);
+    res.status(200).json({ ok: true, texts: arr });
   }
 });
 

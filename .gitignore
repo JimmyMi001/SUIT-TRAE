@@ -85,3 +85,6 @@ GITHUB_UPLOAD.md
 secrets/
 *.pem
 *.key
+
+# IDE 技能目录(本地工具,不入仓)
+skills/

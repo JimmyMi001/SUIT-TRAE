@@ -12,19 +12,22 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const SRC = path.join(ROOT, 'index.html');
+const SERVER_SRC = path.join(ROOT, 'server.js');
 const OUT = path.join(ROOT, 'js', 'i18n_db.json');
 const API = 'http://localhost:3000/api/translate';
-const CH = 120;          // 与前端一致的块大小
-const MAX_LEN = 200;     // 超长文案交运行时时逐条翻译，不进库
+const CH_CHARS = 600;    // 按字符数分批（离线构建可慢但必须稳）：长文本 batch 过大会让 DeepSeek 响应超 45s（server 超时兜底原文）
+const CH_MAX = 12;       // 单批最多条数
+const MAX_LEN = 400;     // 超长文案交运行时时逐条翻译，不进库
 const MAX_KEYS = 6000;   // 每语言最多入库条数（防库体膨胀）
 
 const hasChinese = s => /[\u4e00-\u9fff]/.test(s);
 const normKey = s => String(s).replace(/\s+/g, ' ').trim();
 const cjkCount = s => (s.match(/[\u4e00-\u9fff]/g) || []).length;
 
-/* 代码痕迹过滤：半角括号/花括号/等号/分号/尖括号/反引号及常见关键字，
-   命中的多半是正则/模板/注释被误提取，而非界面文案 */
-const CODE_JUNK = /[\{\}\(\)\[\]\=\;\<\>\`\|]|\b(function|const|var|let|return|document|window|Array|Object|JSON|console|catch|try|await|async|undefined|null|querySelector|getElementById)\b/;
+/* 代码痕迹过滤：半角花括号/等号/分号/尖括号/反引号/竖线及常见关键字，
+   命中的多半是正则/模板/注释被误提取，而非界面文案。
+   （半角括号 ()/[] 常见于文案（如"(16)"），不再视为代码痕迹） */
+const CODE_JUNK = /[\{\}\=\;\<\>\`\|]|\b(function|const|var|let|return|document|window|Array|Object|JSON|console|catch|try|await|async|undefined|null|querySelector|getElementById)\b/;
 
 function acceptable(key) {
   if (!key || key.length < 2 || key.length > MAX_LEN) return false;   // 排除单字危险键/超长
@@ -61,6 +64,27 @@ function extractAttrs(html) {
   return out;
 }
 
+/* ---------- 提取 JS 模板串静态文案 ----------
+ * 非贪婪匹配模板串 + 剔除 ${...} 插值 + 按源码行拆分 + 剥 HTML 标签：
+ * 今日推荐方法说明（每行一个 method-line）、权重标签、社区路线卡片模板等
+ * 跨行模板里的纯静态文案（如 <summary>📊 六维多源智能计算方法…</summary>）
+ * 在此被拆成独立键，切英文瞬间命中库。 */
+function extractTemplateStrings(code) {
+  const out = [];
+  const tre = /`([\s\S]*?)`/g;
+  let tm;
+  while ((tm = tre.exec(code))) {
+    const clean = tm[1].replace(/\$\{[^}]*\}/g, ' ');
+    for (const ln of clean.split('\n')) {
+      const t = normKey(ln.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
+      if (!t) continue;
+      if (/["']/.test(t)) continue;   // 剥标签后仍含引号 = 属性值残留/拼接碎片，丢弃
+      if (acceptable(t)) out.push(t);
+    }
+  }
+  return out;
+}
+
 /* ---------- 提取 JS 字符串字面量（引号/模板串，含中文） ---------- */
 function extractJsStrings(html) {
   const out = [];
@@ -71,8 +95,7 @@ function extractJsStrings(html) {
   for (const code of scripts) {
     const pats = [
       /"([^"\\\n]*(?:\\.[^"\\\n]*)*)"/g,   // 双引号（单行）
-      /'([^'\\\n]*(?:\\.[^'\\\n]*)*)'/g,   // 单引号（单行）
-      /`([^`\\\n]*(?:\\.[^`\\\n]*)*)`/g    // 模板串（单行、无插值）
+      /'([^'\\\n]*(?:\\.[^'\\\n]*)*)'/g    // 单引号（单行）
     ];
     for (const pat of pats) {
       let mm;
@@ -81,8 +104,47 @@ function extractJsStrings(html) {
         if (acceptable(t)) out.push(t);
       }
     }
+    out.push(...extractTemplateStrings(code));
   }
   return out;
+}
+
+/* ---------- 提取 server.js 中的城市/省份/节假日等中文数据键 ----------
+   级联下拉（省份/地级市）、datalist（城市）、节假日倒计时、天气城市等
+   都来自后端数据（PROVINCE_CITY_MAP / CITIES_DATA / CITY_COORDS / 节假日表），
+   这些地名必须预翻译进库，切英文瞬间才完整（运行时逐词替换也能命中） */
+function extractServerKeys(serverCode) {
+  const out = new Set();
+  const mapRe = /const\s+PROVINCE_CITY_MAP\s*=\s*\{([\s\S]*?)\n\};/;
+  const m = serverCode.match(mapRe);
+  if (m) {
+    const entries = m[1].match(/'[^']{2,12}':\s*\[[^\]]*\]/g) || [];
+    for (const e of entries) {
+      const em = e.match(/'([^']{2,12})':\s*\[([^\]]*)\]/);
+      if (!em) continue;
+      if (hasChinese(em[1])) out.add(em[1]);           // 省份名
+      const cities = em[2].match(/'([^']{2,12})'/g) || [];
+      for (const c of cities) {
+        const cn = c.slice(1, -1);
+        if (hasChinese(cn)) out.add(cn);               // 地级市名
+      }
+    }
+  }
+  /* 其余中文数据键：CITIES_DATA / CITY_COORDS / 节假日等对象键（纯中文、≤10 字） */
+  const keyRe = /'([^']{2,10})'\s*:/g;
+  let km;
+  while ((km = keyRe.exec(serverCode))) {
+    const name = km[1];
+    if (hasChinese(name) && /^[\u4e00-\u9fff·]+$/.test(name) && cjkCount(name) >= 2) out.add(name);
+  }
+  /* 节假日表（HOLIDAYS_2025_2027）的 name/desc/tip 字段值：节假日倒计时与介绍弹层文案 */
+  const valRe = /\b(?:name|desc|tip):'([^']+)'/g;
+  let vm;
+  while ((vm = valRe.exec(serverCode))) {
+    const v = normKey(vm[1]);
+    if (acceptable(v)) out.add(v);
+  }
+  return [...out];
 }
 
 /* ---------- 翻译（经本地 /api/translate，与运行时同一模型同一提示词） ---------- */
@@ -98,36 +160,64 @@ async function translateBatch(lang, keys) {
   return j.texts;
 }
 
-async function translateAll(lang, keys) {
-  const dict = {};
+async function translateAll(lang, keys, seed) {
+  const dict = Object.assign({}, seed || {});   // 继承旧库译文（同一模型同一提示词，直接复用）
+  let todo = keys.filter(k => !dict[k]);        // 仅翻译新增键
+  console.log(`  [${lang}] 继承旧库 ${Object.keys(dict).length} 条，新增待翻译 ${todo.length} 条`);
+  if (!todo.length) return dict;
   const start = Date.now();
-  const chunks = [];
-  for (let i = 0; i < keys.length; i += CH) chunks.push(keys.slice(i, i + CH));
-  for (let c = 0; c < chunks.length; c++) {
-    const chunk = chunks[c];
-    let texts;
-    let tries = 0;
-    for (;;) {
-      try { texts = await translateBatch(lang, chunk); break; }
-      catch (e) {
-        tries++;
-        if (tries >= 3) { console.error('  batch fail (give up):', e.message); texts = null; break; }
-        await new Promise(r => setTimeout(r, 3000 * tries));
+  const CONC = 2;      // 并发 2 路：并发过高易触发 DeepSeek 限流（HTTP 500）
+  /* 最多补 2 轮：失败的 chunk 键收集后重分块再翻，尽量补齐缺失键 */
+  for (let round = 0; round < 2 && todo.length; round++) {
+    if (round > 0) console.log(`  [${lang}] 补翻第 ${round + 1} 轮：${todo.length} 条`);
+    const chunks = [];
+    let cur = [], len = 0;
+    for (const k of todo) {
+      cur.push(k); len += k.length;
+      if (len >= CH_CHARS || cur.length >= CH_MAX) { chunks.push(cur); cur = []; len = 0; }
+    }
+    if (cur.length) chunks.push(cur);
+    const failed = [];
+    let idx = 0;
+    const runOne = async () => {
+      for (;;) {
+        const c = idx++;
+        if (c >= chunks.length) return;
+        const chunk = chunks[c];
+        let texts;
+        let tries = 0;
+        for (;;) {
+          try { texts = await translateBatch(lang, chunk); break; }
+          catch (e) {
+            tries++;
+            if (tries >= 3) { console.error('  batch fail (give up):', e.message); texts = null; break; }
+            await new Promise(r => setTimeout(r, 4000 * tries));
+          }
+        }
+        if (!texts) { failed.push(...chunk); continue; }
+        let okCount = 0;
+        for (let k = 0; k < chunk.length && k < texts.length; k++) {
+          const key = chunk[k];
+          const t = normKey(texts[k]);
+          /* 繁体允许译文=原文（繁简同形词如"北京"，译文合法）；英文仍要求有改动 */
+          const sameOk = lang === 'zh-TW' && t === key;
+          const sane = t && (sameOk || (t !== key && t.length <= (key.length * 6 + 120)));
+          if (!sane) continue;
+          if (lang === 'en' && hasChinese(t)) continue;   // 英文结果不允许残留中文
+          if (lang === 'zh-TW' && !hasChinese(t)) continue; // 繁体结果必须仍是中文
+          dict[key] = t;
+          okCount++;
+        }
+        if (okCount < chunk.length) {
+          for (let k = 0; k < chunk.length; k++) if (!dict[chunk[k]]) failed.push(chunk[k]);
+        }
+        console.log(`  [${lang}] chunk ${c + 1}/${chunks.length} (${chunk.length}条) ok=${okCount} 累计=${Object.keys(dict).length}  ${((Date.now() - start) / 1000).toFixed(0)}s`);
       }
-    }
-    if (!texts) continue;
-    let okCount = 0;
-    for (let k = 0; k < chunk.length && k < texts.length; k++) {
-      const key = chunk[k];
-      const t = normKey(texts[k]);
-      const sane = t && t !== key && t.length <= (key.length * 3 + 60);
-      if (!sane) continue;
-      if (lang === 'en' && hasChinese(t)) continue;   // 英文结果不允许残留中文
-      if (lang === 'zh-TW' && !hasChinese(t)) continue; // 繁体结果必须仍是中文
-      dict[key] = t;
-      okCount++;
-    }
-    console.log(`  [${lang}] chunk ${c + 1}/${chunks.length} (${chunk.length}条) ok=${okCount} 累计=${Object.keys(dict).length}  ${((Date.now() - start) / 1000).toFixed(0)}s`);
+    };
+    const workers = [];
+    for (let w = 0; w < Math.min(CONC, chunks.length); w++) workers.push(runOne());
+    await Promise.all(workers);
+    todo = failed;
   }
   return dict;
 }
@@ -141,6 +231,10 @@ async function main() {
   for (const t of extractHtmlText(html)) set.add(t);
   for (const t of extractAttrs(html)) set.add(t);
   for (const t of extractJsStrings(html)) set.add(t);
+  try {
+    const serverCode = fs.readFileSync(SERVER_SRC, 'utf8');
+    for (const t of extractServerKeys(serverCode)) set.add(t);
+  } catch (e) { /* server.js 缺失不影响（跳过数据键提取） */ }
 
   const keys = [...set].sort((a, b) => b.length - a.length);
   console.log('提取到中文文案（去重）:', keys.length);
@@ -152,11 +246,16 @@ async function main() {
   }
 
   const enKeys = keys.slice(0, MAX_KEYS);
+  /* 继承旧库译文（增量重建）：只翻译新增键，避免全量重翻耗时 */
+  let oldDB = null;
+  try { oldDB = JSON.parse(fs.readFileSync(OUT, 'utf8')); } catch (e) { /* 无旧库则全量 */ }
+  const enSeed = (oldDB && oldDB.en) || {};
+  const twSeed = (oldDB && oldDB['zh-TW']) || {};
   console.log('开始翻译 English (US) … 共', enKeys.length, '条');
-  const en = await translateAll('en', enKeys);
+  const en = await translateAll('en', enKeys, enSeed);
 
   console.log('开始翻译 繁體中文（中國香港） … 共', enKeys.length, '条');
-  const tw = await translateAll('zh-TW', enKeys);
+  const tw = await translateAll('zh-TW', enKeys, twSeed);
 
   const db = {
     _meta: {

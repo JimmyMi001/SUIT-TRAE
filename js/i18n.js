@@ -285,16 +285,27 @@
     '离线':'Offline','已缓存':'Cached','高德':'AMap','实时':'live','来源':'Source','数据源':'data source'
   };
   var EN_KEYS = null;
+  /* 逐词替换字典 = 内置 EN_DICT ∪ 预翻译库 DB.en 的键（加载后合并）。
+     这样"广东 (11)""— 省/直辖市 —"等带后缀/包装的文本可本地瞬间替换，
+     无需每次依赖 API 逐条翻译（DB.en 整句键长键优先，替换更精确） */
+  function buildENKeys() {
+    var set = {};
+    for (var k in EN_DICT) if (Object.prototype.hasOwnProperty.call(EN_DICT, k)) set[k] = 1;
+    if (DB.en) for (var k2 in DB.en) {
+      if (Object.prototype.hasOwnProperty.call(DB.en, k2) && DB.en[k2]) set[k2] = 1;
+    }
+    EN_KEYS = Object.keys(set).sort(function (a, b) { return b.length - a.length; });
+  }
   function toEN(text) {
     if (!text || !/[\u4e00-\u9fff]/.test(text)) return text;
-    if (!EN_KEYS) EN_KEYS = Object.keys(EN_DICT).sort(function (a, b) { return b.length - a.length; });
+    if (!EN_KEYS) buildENKeys();
     /* 完整命中的整句键（预翻译库 > 内置字典）直接使用，避免逐词替换 */
     var ek = normKey(text);
     if (DB.en && DB.en[ek]) return DB.en[ek];
     if (EN_DICT[ek]) return EN_DICT[ek];
     /* 长文本不做本地逐词替换：逐词替换长句/数据描述会产生"数据Source/公Total"
        式中英混排，远不如保持完整中文等待 API 整体翻译 */
-    if (text.length > 28) return text;
+    if (text.length > 40) return text;
     var out = text;
     /* 日期本地化：2026年8月1日 → 8/1/2026（美式习惯） */
     out = out.replace(/(\d{1,4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日?/g, function (m, y, mo, d) {
@@ -302,7 +313,7 @@
     });
     for (var i = 0; i < EN_KEYS.length; i++) {
       var k = EN_KEYS[i];
-      if (out.indexOf(k) >= 0) out = out.split(k).join(EN_DICT[k]);
+      if (out.indexOf(k) >= 0) out = out.split(k).join(EN_DICT[k] || DB.en[k]);
     }
     /* 逐词替换后仍残留中文（说明未完整覆盖）：返回原文，等待 API 整体翻译，
        避免把"Total 15 个授时源"这类部分翻译写进 DOM */
@@ -398,6 +409,7 @@
         if (!o || typeof o !== 'object') return;
         DB.en = o.en || null;
         DB['zh-TW'] = o['zh-TW'] || null;
+        buildENKeys();   // 库键并入逐词替换字典，城市/省份等本地瞬间翻译
         mergeDB();
       })
       .catch(function () { /* DB 不可用时退化为纯 API 实时翻译 */ });
@@ -429,7 +441,11 @@
   }
 
   function showBusy() {
-    if (busyEl) return;
+    if (busyEl) {   // 已存在：重置为"翻译中"文案（失败提示后进入新一轮时恢复）
+      busyEl.textContent = lang === 'en' ? 'Deepseek V4 Flash Translating...'
+        : (lang === 'zh-TW' ? 'Deepseek V4 Flash 翻譯中...' : 'Deepseek V4 Flash 翻译中...');
+      return;
+    }
     var host = document.querySelector('.nav__lang');
     if (!host) return;
     busyEl = document.createElement('div');
@@ -442,10 +458,14 @@
     if (busyEl) { try { busyEl.remove(); } catch (e) {} busyEl = null; }
   }
 
-  /* 翻译主循环：分块（每块 120 条）并发 5 路调用 /api/translate，
+  /* 翻译主循环：分块并发 5 路调用 /api/translate，
      translating 锁防重入；每批完成后立即应用译文并继续消化队列（自驱动），
-     切换语言（gen++）后自动停止。 */
+     切换语言（gen++）后自动停止。
+     分批策略：按字符数（每批 ≈2600 字符、上限 60 条）而非固定条数——单纯按条数分批时，
+     长文本（今日推荐说明/社区路线 summary）会撑爆 max_tokens → 截断 → 译文残留中文被拒
+     → 60s 重试死循环（表现为一直"翻译中"） */
   var translating = false;
+  var failStreak = 0;   // 连续失败批数：整批失败时明确显示"翻译失败"而非永远"翻译中"
   function translatePending() {
     if (lang === 'zh-CN' || translating || !pendingList.length) return;
     translating = true;
@@ -457,16 +477,32 @@
       pendingSet = null;
       showBusy();
 
-      /* 每批 30 条：单请求输出量小，flash 数秒内完成，避免大批量触发
-         max_tokens 截断 → 译文残留中文被拒 → 60s 重试死循环（表现为一直"翻译中"） */
-      var CH = 30, chunks = [];
-      for (var i = 0; i < list.length; i += CH) chunks.push(list.slice(i, i + CH));
+      /* 按字符数分批（每批 ≈1300 字符、上限 30 条）：单请求输出量适中，flash 10-20s 内完成。
+         单纯按条数/过大 batch 时，长文本（今日推荐说明/社区路线 summary）会让模型
+         响应数分钟甚至失败 → 重试死循环（表现为一直"翻译中"） */
+      var CH_CHARS = 1300, CH_MAX = 30, chunks = [], cur = [], len = 0;
+      for (var i = 0; i < list.length; i++) {
+        cur.push(list[i]); len += list[i].length;
+        if (len >= CH_CHARS || cur.length >= CH_MAX) { chunks.push(cur); cur = []; len = 0; }
+      }
+      if (cur.length) chunks.push(cur);
 
       var done = 0;
       function finishChunk() {
         done++;
         if (done >= chunks.length) {
           if (gen === myGen) { applyCached(); saveCache(); }
+          /* 连续整批失败（服务端超时/网络/DeepSeek 不可用）：明确提示"翻译失败"，
+             不再让 busy 永远"翻译中"；60s 重试保护会在下次清扫时自动再尝试 */
+          if (failStreak >= Math.max(2, chunks.length)) {
+            var msg = lang === 'en' ? 'Translation failed, retry later'
+              : (lang === 'zh-TW' ? '翻譯失敗，稍後重試' : '翻译失败，稍后重试');
+            if (busyEl) busyEl.textContent = msg;
+            translating = false;
+            setTimeout(hideBusy, 5000);
+            return;
+          }
+          failStreak = 0;
           loop(); // 继续处理新入队文本（同语言代次），直至队列清空
         }
       }
@@ -474,10 +510,11 @@
       function worker() {
         if (idx >= chunks.length) return;
         var chunk = chunks[idx++];
-        /* 前端超时兜底：服务器 callAI 45s + 网络抖动，30s 无响应即放弃本批并继续，
-           防止 translating 锁被永不返回的请求卡死（busy 一直"翻译中"） */
+        /* 前端超时兜底：服务器 callAI 90s + 网络抖动，45s 无响应即放弃本批并继续，
+           防止 translating 锁被永不返回的请求卡死（busy 一直"翻译中"）；
+           连续整批失败会在 finishChunk 中显示"翻译失败"而非无限等待 */
         var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        var timer = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 30000) : null;
+        var timer = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 45000) : null;
         fetch('/api/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -486,20 +523,34 @@
         }).then(function (r) { return r.json(); }).then(function (j) {
           if (timer) clearTimeout(timer);
           if (gen === myGen && j && j.ok && Array.isArray(j.texts)) {
+            failStreak = 0;
             for (var k = 0; k < chunk.length && k < j.texts.length; k++) {
               var zh = chunk[k], t = j.texts[k];
-              /* 空/未翻译保留本地兜底；英文目标要求结果中不再含中文（否则视为
-                 部分翻译不缓存，60s 后重试）；结果异常膨胀（>3x+60，模型跑题回复）
-                 也不缓存，防止污染 DOM */
-              var sane = t && t !== zh && t.length <= (zh.length * 3 + 60);
-              if (sane && (lang !== 'en' || !hasChinese(t))) {
-                /* 字典/预翻译库的固定文案优先级高于模型输出，保证 UI 与库内一致 */
-                cache[zh] = (lang === 'en' && (EN_DICT[zh] || (DB.en && DB.en[zh]))) ? (EN_DICT[zh] || DB.en[zh]) : t;
+              /* 空/未翻译保留本地兜底；结果异常膨胀（>3x+60，模型跑题回复）不缓存，
+                 防止污染 DOM；英文允许残留极少量中文（≤6 字或 ≤原文 1/5：
+                 城市名/专有名词模型可能保留中文，一律拒绝会导致永不缓存 → 死循环）；
+                 繁体允许译文=原文（繁简同形词如"北京"） */
+              var sameOk = lang === 'zh-TW' && t === zh;
+              var sane = t && (sameOk || (t !== zh && t.length <= (zh.length * 6 + 120)));
+              if (sane) {
+                var residual = (String(t).match(/[\u4e00-\u9fff]/g) || []).length;
+                var zhCnt = (String(zh).match(/[\u4e00-\u9fff]/g) || []).length;
+                var enOk = lang !== 'en' || residual <= 6 || residual * 5 <= zhCnt;
+                if (enOk) {
+                  /* 字典/预翻译库的固定文案优先级高于模型输出，保证 UI 与库内一致 */
+                  cache[zh] = (lang === 'en' && (EN_DICT[zh] || (DB.en && DB.en[zh]))) ? (EN_DICT[zh] || DB.en[zh]) : t;
+                }
               }
             }
+          } else {
+            failStreak++;
           }
           finishChunk();
-        }).catch(function () { if (timer) clearTimeout(timer); finishChunk(); });
+        }).catch(function () {
+          if (timer) clearTimeout(timer);
+          failStreak++;
+          finishChunk();
+        });
       }
       var n = Math.min(5, chunks.length);
       for (var c = 0; c < n; c++) worker();
@@ -589,7 +640,9 @@
     } else {
       var tt = translateText(zh);
       if (tt !== cur) node.nodeValue = tt;
-      if (lang !== 'zh-CN') queuePending(zh);
+      /* 仅当本地兜底后仍含中文才排队等 API（已翻全的不入队，
+         避免时钟/日期等文本反复触发无效请求 → busy 一直亮） */
+      if (lang !== 'zh-CN' && hasChinese(tt)) queuePending(zh);
     }
   }
 
@@ -607,7 +660,7 @@
       } else {
         var tt = translateText(zh);
         if (el.getAttribute(a) !== tt) el.setAttribute(a, tt);
-        if (lang !== 'zh-CN') queuePending(zh);
+        if (lang !== 'zh-CN' && hasChinese(tt)) queuePending(zh);
       }
     }
   }

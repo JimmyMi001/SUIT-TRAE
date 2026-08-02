@@ -495,24 +495,8 @@
   }
   html[lang="en"] .nav__time > .nav__time-holiday,
   html[lang="zh-TW"] .nav__time > .nav__time-holiday{flex-shrink:0}
-  /* 冗余元素隐藏：时区徽章（悬停时钟 title 可见）+ 天气数据源小字 */
-  html[lang="en"] .nav__time-tz,
-  html[lang="zh-TW"] .nav__time-tz,
-  html[lang="en"] .nav__time-weather .nw-src,
-  html[lang="zh-TW"] .nav__time-weather .nw-src{display:none !important}
-  /* 只在真正很窄的窗口才隐藏次要元素，桌面宽度一律完整显示 */
-  @media(max-width:920px){
-    html[lang="en"] .nav__time-date,
-    html[lang="zh-TW"] .nav__time-date{display:none !important}
-  }
-  @media(max-width:860px){
-    html[lang="en"] .nav__time-lunar,
-    html[lang="zh-TW"] .nav__time-lunar{display:none !important}
-  }
-  @media(max-width:800px){
-    html[lang="en"] .nav__time-weather,
-    html[lang="zh-TW"] .nav__time-weather{display:none !important}
-  }
+  /* 各语言一致完整显示：时区/日期/农历/节假日/天气一律不隐藏，
+     超宽时由 .nav__time 内部横向滚动承载（滚动条隐藏），信息永远完整可见 */
   /* 英文/繁体 Tab 文案更长：按内容宽度排布，不抢占时间栏宽度 */
   html[lang="en"] .nav__tabs,
   html[lang="zh-TW"] .nav__tabs{flex:0 0 auto;min-width:0;justify-content:flex-start;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
@@ -692,11 +676,8 @@
   .nav__time .nav__time-weather .nw-temp{color:var(--text);font-weight:600;font-family:var(--mono)}
   .nav__time .nav__time-weather .nw-temp.loading{color:var(--text-3)}
   .nav__time .nav__time-weather .nw-src{font-size:9px;color:var(--text-3);opacity:.75}
-  /* 较窄窗口下隐藏 UTC+8 徽章（信息量最低，悬停时钟即可见时区），为天气胶囊腾出空间；
-     用高特异性选择器覆盖 .nav__time > span 的 display:inline-flex */
-  @media(max-width:1280px){.nav__time > .nav__time-tz{display:none !important}}
-  /* 极端窄屏进一步隐藏农历（信息量较低，悬停日期可见农历），避免日期/农历文本互相叠压 */
-  @media(max-width:1150px){.nav__time > .nav__time-lunar{display:none !important}}
+  /* 时区/农历等信息一律完整显示（不再按窗口宽度隐藏），
+     超宽时 .nav__time 自身横向滚动承载 */
 
   .weather-pop{position:fixed;left:0;top:0;z-index:300;width:min(356px,94vw);display:none;
     pointer-events:none;transform-origin:top right;animation:holiday-pop-in .22s cubic-bezier(.4,0,.2,1)}
