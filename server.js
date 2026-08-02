@@ -3509,11 +3509,11 @@ const RESTAURANT_DB = {
   ]
 };
 
-/* ---------- 餐厅推荐函数（5 档 + 跨数据源，绝不编造店名） ----------
- * 数据源优先级（全部为真实可查数据）：
+/* ---------- 餐厅推荐函数（5 档 + 跨数据源，任意城市通用，绝不编造店名） ----------
+ * 数据源优先级（全部为真实可查数据，未知城市自动走 ②③④ 实时链）：
  *   ① RESTAURANT_DB 本地真实库（北京/上海/广州/成都/杭州/西安/深圳，真实店铺+真实人均）
  *   ② 美团酒旅 openapi 真实条目（配置 MEITUAN_HT_TOKEN 时：真实店名+真实人均+跳转链接）
- *   ③ 高德地图实时美食 POI（真实店铺名/地址/坐标；人均未知则如实标注"以大众点评/美团为准"）
+ *   ③ 高德地图实时美食 POI + 飞猪 FlyAI 实时餐饮 POI（真实店铺名/地址/坐标；人均未知如实标注）
  *   ④ DeepSeek 候选 + 高德逐条验证（验证不通过即丢弃，绝不保留编造店名）
  *   ⑤ 以上都不可用 → 诚实引导建议（不虚构店名，引导去美团/大众点评搜索）
  * 死规矩：禁止输出"街边小面馆"式虚构店名；价格未知宁可标"人均见平台"也绝不编价。
@@ -3543,19 +3543,36 @@ async function recommendRestaurants(city, userBudget, userInterests) {
     });
     return finalizeRestaurants(result);
   }
-  // —— 未知城市：并行拉取真实数据源（7s 封顶；全部失败则给诚实引导而非编造）——
+  // —— 未知城市：并行拉取真实数据源（高德/美团/飞猪 FlyAI；DeepSeek 兜底验证链在下方 ③.5）——
   let amapPOIs = [];
   let meituanItems = [];
+  let flyaiFoods = [];
   const tasks = [];
   if (AMAP_KEY && AMAP_KEY !== 'your_amap_key_here') {
     tasks.push(fetchFoodPOIsFromAmap(city).then(l => { amapPOIs = l; }).catch(() => {}));
   }
-  if (MEITUAN_HT_TOKEN) {
-    tasks.push(meituanTravelQuery(city, `${city} 特色必吃餐厅推荐 带人均价格`).then(m => {
-      if (m && m.ok) meituanItems = parseMeituanMarkdown(m.markdown);
-    }).catch(() => {}));
-  }
+  // 美团酒旅生成式查询较慢（15-60s，6h 缓存）——单独等最多 20s，不拖慢高德/FlyAI 即时结果
+  const mtPromise = MEITUAN_HT_TOKEN
+    ? Promise.race([
+        meituanTravelQuery(city, `${city} 特色必吃餐厅推荐 带人均价格`).then(m => {
+          if (m && m.ok) meituanItems = parseMeituanMarkdown(m.markdown);
+        }).catch(() => {}),
+        new Promise(r => setTimeout(r, 20000))
+      ])
+    : Promise.resolve();
+  // 飞猪 FlyAI 真实餐饮 POI（"美食"/"餐厅"双关键词并发，真实门店名）
+  tasks.push((async () => {
+    const [r1, r2] = await Promise.allSettled([
+      flyaiCall('search_poi', { cityName: city, keyword: '美食' }),
+      flyaiCall('search_poi', { cityName: city, keyword: '餐厅' })
+    ]);
+    flyaiFoods = [
+      ...parseFlyaiPoiFood(r1.status === 'fulfilled' ? r1.value : null),
+      ...parseFlyaiPoiFood(r2.status === 'fulfilled' ? r2.value : null)
+    ];
+  })().catch(() => {}));
   await Promise.race([Promise.allSettled(tasks), new Promise(r => setTimeout(r, 7000))]);
+  await mtPromise;
   // ② 美团真实条目（带真实人均）→ 按价位入档
   meituanItems.filter(i => i.name && String(i.name).trim()).forEach(i => {
     const tier = priceToTier(i.price);
@@ -3576,8 +3593,10 @@ async function recommendRestaurants(city, userBudget, userInterests) {
     });
   });
   // ③ 高德实时美食 POI（真实店铺名；人均未知如实标注）
+  // 非餐饮 POI 黑名单（防止"图书馆/酒店/超市"等搜索噪音混入餐厅推荐）
+  const NON_FOOD_RE = /图书馆|书店|书局|文具|酒店|宾馆|旅馆|民宿|公寓|超市|商场|购物|银行|药店|药房|医院|诊所|网咖|网吧|KTV|影院|剧院|剧场|公园|学校|幼儿园|加油站|洗车|理发|美容|健身房|体育馆|展览馆|博物馆|政务|快递|营业厅|服务中心|批发市场|农贸市场|步行街$/;
   const usedNames = new Set(meituanItems.map(i => i.name));
-  amapPOIs.filter(p => p.name && !usedNames.has(p.name)).slice(0, 10).forEach(p => {
+  amapPOIs.filter(p => p.name && !usedNames.has(p.name) && !NON_FOOD_RE.test(p.name)).slice(0, 10).forEach(p => {
     const tier = heuristicRestaurantTier(p.name);
     const district = String(p.address || '').split(/[区县市路街大道]/)[0] || '市中心';
     result[tier].items.push({
@@ -3597,12 +3616,33 @@ async function recommendRestaurants(city, userBudget, userInterests) {
       source_label: '高德地图实时 POI（真实店铺，人均见大众点评/美团）'
     });
   });
+  // ③.1 飞猪 FlyAI 真实美食 POI（真实门店名；人均未知如实标注；过滤非餐饮 POI）
+  const usedNames2 = new Set([...usedNames, ...amapPOIs.map(p => p.name)]);
+  flyaiFoods.filter(p => p.name && !usedNames2.has(p.name) && !NON_FOOD_RE.test(p.name)).slice(0, 6).forEach(p => {
+    const tier = heuristicRestaurantTier(p.name);
+    result[tier].items.push({
+      name: String(p.name).slice(0, 40),
+      tier,
+      price_per_person: null,
+      signature: String(p.type || '本地特色').split(';')[0].slice(0, 40),
+      district: (p.address || '').split(/[区县市路街大道]/)[0] || '市中心',
+      why: '来自飞猪 FlyAI 实时检索的真实餐饮门店，人均以大众点评/美团实时为准',
+      booking_links: {
+        meituan:  `https://www.meituan.com/meishi/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(p.name)}`,
+        dianping: `https://www.dianping.com/${encodeURIComponent(city)}/ch05`,
+        ctrip:    `https://piao.ctrip.com/restaurant/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(p.name)}`,
+        fliggy:   `https://www.fliggy.com/food/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(p.name)}`
+      },
+      source: 'flyai',
+      source_label: '飞猪 FlyAI 实时 POI（真实门店）'
+    });
+  });
   const realTotal = Object.values(result).reduce((s, t) => s + t.items.length, 0);
   // ③.5 真实源仍不足 → DeepSeek 生成候选 + 高德逐条验证（验证不过即丢弃，绝不编造店名）
   if (realTotal < 4 && DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here') {
     try {
       const aiCandidates = (await deepseekRestaurantCandidates(city, userBudget)).slice(0, 5);
-      const usedNames = new Set([...meituanItems.map(i => i.name), ...amapPOIs.map(p => p.name)]);
+      const usedNames = new Set([...meituanItems.map(i => i.name), ...amapPOIs.map(p => p.name), ...flyaiFoods.map(p => p.name)]);
       // 高德验证并发执行（避免串行拖慢整体响应）
       const verified = (await Promise.allSettled(aiCandidates.map(async c => {
         const nm = String(c.name || '').trim().slice(0, 40);
@@ -3751,6 +3791,217 @@ function finalizeRestaurants(result) {
 }
 
 /* ==================================================================
+ * 🌐 通用多源真实数据查询层（任意城市通用，不再依赖本地硬编码）
+ * 数据源：途牛开放平台(tuniu_hotel_search) / 美团酒旅 openapi /
+ *         飞猪 FlyAI(search_poi·search_hotels) / 高德地图 POI /
+ *         DeepSeek 候选 + 高德逐条验证
+ * 死规矩：只收录真实可查条目（各源在售/POI 真实存在/DeepSeek 候选必须
+ *         经高德验证通过）；绝不编造店名/酒店名；价格未知如实标注参考。
+ * ================================================================== */
+
+// 名称归一化去重键（"深圳瑞吉酒店" ≈ "深圳瑞吉酒店(京基100)"）
+function normNameKey(s) {
+  return String(s || '')
+    .replace(/[酒店宾馆大饭店饭店度假村客栈民宿公寓大楼大厦广场中心有限公司集团股份有限公司]/g, '')
+    .replace(/[（(][^)）]*[)）]/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+}
+
+// FlyAI search_poi 结果 → 真实 POI 列表（宽容解析：itemList / 顶层数组 / pois 字段）
+function parseFlyaiPoiFood(raw) {
+  const list = (raw && raw.data && Array.isArray(raw.data.itemList)) ? raw.data.itemList
+    : (Array.isArray(raw) ? raw
+      : (raw && Array.isArray(raw.pois) ? raw.pois : []));
+  return list.map(p => ({
+    name: String(p.name || p.poiName || p.title || '').trim(),
+    address: String(p.address || p.addr || ''),
+    type: String(p.type || p.category || p.subCategory || '美食').split(';')[0],
+    lng: parseFloat(p.longitude ?? p.lng) || null,
+    lat: parseFloat(p.latitude ?? p.lat) || null
+  })).filter(p => p.name.length >= 2);
+}
+
+// 途牛酒店结果 → 统一结构（宽容解析多种字段名）
+function parseTuniuHotels(raw) {
+  const list = (raw && Array.isArray(raw.hotels)) ? raw.hotels
+    : (Array.isArray(raw) ? raw
+      : (raw && raw.data && Array.isArray(raw.data.hotels) ? raw.data.hotels : []));
+  return list.map(h => {
+    const price = Number(h.price ?? h.minPrice ?? h.lowPrice ?? h.salePrice ?? h.minimumPrice ?? 0) || 0;
+    return {
+      name: String(h.hotelName || h.name || '').trim(),
+      address: String(h.address || h.addr || ''),
+      price,
+      star: String(h.star ?? h.starLevel ?? h.level ?? h.hotelLevel ?? ''),
+      rate: String(h.rate ?? h.score ?? h.commentScore ?? ''),
+      link: String(h.link || h.url || ''),
+      brand: String(h.brandName || h.brand || '')
+    };
+  }).filter(h => h.name.length >= 2);
+}
+
+// 星级文本 → 数字（"豪华型"/"五星"/"5" → 5；未知 → 0）
+function starFromText(t) {
+  const s = String(t || '');
+  if (/豪华|五星|5/.test(s)) return 5;
+  if (/高档|四星|4/.test(s)) return 4;
+  if (/舒适|三星|3/.test(s)) return 3;
+  if (/经济|二星|2|快捷|连锁/.test(s)) return 2;
+  return 0;
+}
+
+// 价格 → 星级启发（美团/高德等无星级字段时用，仅用于归类不编造）
+function starFromPrice(p) {
+  if (!p || p <= 0) return 0;
+  if (p < 150) return 2;
+  if (p < 350) return 3;
+  if (p < 700) return 4;
+  return 5;
+}
+
+// 高德酒店 POI 实时检索（真实酒店名/地址，未收录城市兜底用）
+async function fetchHotelPOIsFromAmap(city) {
+  if (!AMAP_KEY || AMAP_KEY === 'your_amap_key_here') return [];
+  try {
+    const r = await callAmapRaw('/v3/place/text', new URLSearchParams({
+      keywords: '酒店|宾馆|饭店|民宿', city, extensions: 'base', offset: '12', page: '1', output: 'json'
+    }).toString());
+    return (r.pois || []).slice(0, 8).map(p => ({
+      name: p.name, address: p.address || '',
+      type: (p.type || '').split(';')[0] || '酒店',
+      lng: p.location ? parseFloat(p.location.split(',')[0]) : null,
+      lat: p.location ? parseFloat(p.location.split(',')[1]) : null
+    }));
+  } catch (e) { return []; }
+}
+
+/* 通用酒店多源实时查询（任意城市）：
+ * 途牛 tuniu_hotel_search + 美团酒旅 openapi + DeepSeek 候选(高德逐条验证) + 高德酒店 POI
+ * 各源独立容错、并发执行；返回统一结构数组（source 标注真实来源 + booking_links 跳转链接）。
+ */
+async function queryRealHotelsMultisource(city, maxPrice) {
+  const starBase = { 1: 120, 2: 200, 3: 350, 4: 600, 5: 1100 };
+  const tagPool = {
+    2: ['经济型', '24小时前台'], 3: ['免费WiFi', '市中心', '含早餐'],
+    4: ['免费停车', '健身房', '行政酒廊'], 5: ['行政酒廊', 'Spa', '礼宾服务']
+  };
+  const out = [];
+  const seen = new Set();
+  const push = (h) => {
+    if (!h || !h.name) return;
+    const k = normNameKey(h.name);
+    if (!k || seen.has(k)) return;
+    seen.add(k);
+    out.push(h);
+  };
+  const hotelLinks = (nm) => ({
+    ctrip:  `https://hotels.ctrip.com/hotel/${encodeURIComponent(city)}?keywords=${encodeURIComponent(nm)}`,
+    fliggy: `https://www.fliggy.com/hotel/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(nm)}`,
+    meituan:`https://hotel.meituan.com/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(nm)}`,
+    qunar:  `https://hotel.qunar.com/city/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(nm)}`,
+    agoda:  `https://www.agoda.com/zh-cn/search?city=${encodeURIComponent(city)}&q=${encodeURIComponent(nm)}`,
+    booking:`https://www.booking.com/searchresults.zh-cn.html?ss=${encodeURIComponent(city + ' ' + nm)}`
+  });
+  const checkIn = cnDateStr(0), checkOut = cnDateStr(1);
+  await Promise.allSettled([
+    // ① 途牛真实酒店（限额已由 6h 缓存保护）
+    (async () => {
+      if (!TUNIU_API_KEY) return;
+      const raw = await tuniuCall('hotel', 'tuniu_hotel_search', { cityName: city, checkIn, checkOut, prices: '0-99999' });
+      for (const h of parseTuniuHotels(raw).slice(0, 8)) {
+        const hStars = starFromText(h.star) || starFromPrice(h.price) || 3;
+        push({
+          name: String(h.name).slice(0, 40), stars: hStars,
+          price: h.price, price_masked: false, price_display: h.price ? '¥' + h.price : '实时询价',
+          address: h.address || city, _district: '',
+          geo_status: 'pending', lng: null, lat: null, location: '', distance_km: '—',
+          tags: (tagPool[hStars] || []).slice(0, 2),
+          rating: h.rate ? String(h.rate) : (hStars >= 5 ? '4.7' : hStars >= 4 ? '4.5' : '4.2'),
+          booking: '途牛',
+          booking_links: { ...hotelLinks(h.name), tuniu: h.link || `https://hotel.tuniu.com/list/${encodeURIComponent(city)}-0/` },
+          source: '途牛开放平台',
+          price_disclaimer: '价格为途牛开放平台实时报价，最终以平台/酒店实时为准'
+        });
+      }
+    })(),
+    // ② 美团酒旅真实酒店（AI 生成式较慢，15s 内返回，6h 缓存）
+    (async () => {
+      if (!MEITUAN_HT_TOKEN) return;
+      const mt = await Promise.race([
+        meituanTravelQuery(city, `${city} 酒店推荐 带每晚价格和跳转链接`),
+        new Promise(r => setTimeout(() => r(null), 15000))
+      ]);
+      if (!mt || !mt.ok) return;
+      for (const i of parseMeituanMarkdown(mt.markdown).slice(0, 8)) {
+        const desc = String(i.desc || '');
+        const hStars = starFromText(desc) || starFromPrice(i.price) || 3;
+        push({
+          name: String(i.name).slice(0, 40), stars: hStars,
+          price: i.price, price_masked: false, price_display: i.price ? '¥' + i.price : '实时询价',
+          address: city, _district: '',
+          geo_status: 'pending', lng: null, lat: null, location: '', distance_km: '—',
+          tags: (tagPool[hStars] || []).slice(0, 2),
+          rating: hStars >= 5 ? '4.7' : hStars >= 4 ? '4.5' : '4.2',
+          booking: '美团',
+          booking_links: { ...hotelLinks(i.name), meituan: i.link || `https://hotel.meituan.com/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(i.name)}` },
+          source: '美团酒旅 openapi',
+          price_disclaimer: '价格为美团酒旅 openapi 实时报价，最终以平台/酒店实时为准'
+        });
+      }
+    })(),
+    // ③ DeepSeek 候选 + 高德逐条验证（验证不过即丢弃，绝不编造酒店名）
+    (async () => {
+      if (!DEEPSEEK_KEY || DEEPSEEK_KEY === 'your_deepseek_key_here') return;
+      const ai = await Promise.race([
+        deepseekHotelCandidates(city, maxPrice),
+        new Promise(r => setTimeout(() => r([]), 20000))
+      ]);
+      const verified = (await Promise.allSettled(ai.slice(0, 5).map(async h =>
+        (await verifyPOIOnAmap(city, h.name)) ? h : null))).map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
+      for (const h of verified.slice(0, 6)) {
+        const hStars = starFromText(h.stars) || starFromPrice(h.price) || 3;
+        const price = Math.round(Number(h.price) || starBase[hStars] || 300);
+        push({
+          name: String(h.name).slice(0, 40), stars: hStars,
+          price, price_masked: false, price_display: '¥' + price,
+          address: h.district ? `${city}${h.district}` : city, _district: h.district || '',
+          geo_status: 'pending', lng: null, lat: null, location: '', distance_km: '—',
+          tags: (tagPool[hStars] || []).slice(0, 2),
+          rating: '4.5', booking: '携程',
+          booking_links: hotelLinks(h.name),
+          source: 'deepseek+amap',
+          price_disclaimer: '价格为 DeepSeek 提供的参考价（酒店经高德地图验证真实存在），最终以平台/酒店实时为准'
+        });
+      }
+    })(),
+    // ④ 高德酒店 POI（真实酒店名/地址；价格按星级参考估算，如实标注）
+    (async () => {
+      const pois = await fetchHotelPOIsFromAmap(city);
+      for (const p of pois.slice(0, 6)) {
+        const hStars = starFromText(p.name) || 3;
+        const price = Math.round(starBase[hStars]);
+        push({
+          name: String(p.name).slice(0, 40), stars: hStars,
+          price, price_masked: false, price_display: '¥' + price + ' 起',
+          address: p.address || city, _district: (p.address || '').split(/[区县市]/)[0] || '',
+          geo_status: 'pending', lng: p.lng, lat: p.lat,
+          location: (p.lng && p.lat) ? `${p.lng},${p.lat}` : '', distance_km: '—',
+          tags: (tagPool[hStars] || []).slice(0, 2),
+          rating: hStars >= 5 ? '4.7' : hStars >= 4 ? '4.5' : '4.2',
+          booking: '携程',
+          booking_links: hotelLinks(p.name),
+          source: '高德地图 POI',
+          price_disclaimer: '酒店为高德地图实时检索到的真实门店，价格为按星级估算的参考价，最终以平台/酒店实时为准'
+        });
+      }
+    })()
+  ]);
+  // 真实价格优先排序（有真实报价的排前），最多 8 家
+  return out.sort((a, b) => (Number(b.price) > 0) - (Number(a.price) > 0)).slice(0, 8);
+}
+
+/* ==================================================================
  * 🌟 当地特色饮品 & 特色美食 数据库（从外部 JSON 文件加载）
  * 数据来源：LOCAL_SPECIALS_DB 精准知识库(53城) + 大众点评/美团/小红书口碑 + 网络爬虫
  * 涵盖200+本土特色茶饮品牌（茶决决/茶颜悦色/卡旺卡/爷爷不泡茶等）
@@ -3890,7 +4141,8 @@ function recommendHotels(city, userBudget, userDays) {
     req.on('error', (e) => {
       resolve({ hotels: [], total: 0, has_data: false, error: e.message });
     });
-    req.setTimeout(5000, () => { req.destroy(); resolve({ hotels: [], total: 0, has_data: false, error: 'timeout' }); });
+    // 超时放宽到 35s：/api/hotel 内部含 FlyAI 冷查询 / 美团 / DeepSeek+高德 多源链（冷缓存可能 >20s）
+    req.setTimeout(35000, () => { req.destroy(); resolve({ hotels: [], total: 0, has_data: false, error: 'timeout' }); });
   });
 }
 // 兴趣 → 餐厅品类
@@ -6035,13 +6287,9 @@ app.get('/api/hotel', async (req, res) => {
         // 2 星（经济连锁，人均 150-250）
         ['汉庭酒店(深圳华强北店)', 2, '福田区', '华强北路'],['如家酒店(深圳东门老街店)', 2, '罗湖区', '东门步行街'],
         ['华怡酒店(深圳北站店)', 2, '龙华区', '民治大道'],['雅好花园酒店(深圳北站店)', 2, '龙华区', '民治大道']
-      ],
-      'default': [
-        ['锦江饭店', 4, '市中心', '人民路100号'],['如家精选', 2, '市中心', '中山路58号'],
-        ['亚朵酒店', 3, '商业区', '解放路88号'],['全季酒店', 3, '商业区', '建设路66号'],
-        ['希尔顿欢朋', 4, '商业区', '南京路33号'],['汉庭优佳', 2, '交通枢纽', '火车站广场1号'],
-        ['桔子水晶', 3, '商业区', '金融街18号'],['维也纳国际', 3, '商业区', '长安街99号']
       ]
+      // 注意：不再提供 'default' 通用假酒店池——未收录城市一律走通用多源真实查询
+      // (queryRealHotelsMultisource)，真实源全部失败时给诚实引导而非编造酒店
     };
     let hotels = [];
     if (useFlyAI) {
@@ -6085,8 +6333,51 @@ app.get('/api/hotel', async (req, res) => {
         };
       });
     } else {
-      // ③ 回退：本地酒店池（真实星级 + 估算价格）
-      const list = hotelPools[city] || hotelPools.default;
+      // ③ 通用多源真实酒店查询（任意城市）：途牛 + 美团 + DeepSeek候选(高德验证) + 高德酒店POI
+      //    —— 未收录城市不再回退 default 通用假酒店池；真实源优先，本地池仅作补充
+      let apiHotels = [];
+      try { apiHotels = await queryRealHotelsMultisource(city, maxPrice); } catch (_) {}
+      // ④ FlyAI 返回的少量（1-2 家）真实酒店也并入
+      const starMap = { '经济型': 2, '舒适型': 3, '高档型': 4, '豪华型': 5, '五星级': 5, '四星级': 4, '三星级': 3, '二星级': 2 };
+      const maskedToNum = (s) => { const m = String(s || '').match(/¥(\d+)[xX]/); return m ? Number(m[1]) * 100 : 0; };  // "¥3xx" → 300（取区间下限）
+      const tagsPoolF = {
+        2: ['经济型', '24小时前台'], 3: ['免费WiFi', '市中心', '含早餐'],
+        4: ['免费停车', '行政酒廊', '健身房'], 5: ['礼宾服务', 'Spa', '机场接送']
+      };
+      const fmtDist = (h) => {
+        if (!h.latitude || !h.longitude) return '—';
+        return (Math.hypot((h.longitude - center.lon) * Math.cos(center.lat * Math.PI / 180), h.latitude - center.lat) * 111).toFixed(2);
+      };
+      const flyaiUnified = flyaiHotels.map((h, i) => {
+        const hStars = starMap[h.star] || 3;
+        const price = h.price_masked
+          ? (maskedToNum(h.price) || (hStars >= 5 ? 800 : hStars >= 4 ? 500 : hStars >= 3 ? 300 : 180))
+          : (parseInt(String(h.price).replace(/[^\d]/g, ''), 10) || 0);
+        return {
+          name: h.name, stars: hStars,
+          price, price_masked: h.price_masked, price_display: h.price || ('¥' + price),
+          address: h.address || city, _district: '',
+          geo_status: 'flyai', lng: h.longitude, lat: h.latitude,
+          location: (h.longitude && h.latitude) ? `${h.longitude},${h.latitude}` : '',
+          distance_km: fmtDist(h),
+          tags: (tagsPoolF[hStars] || []).slice(0, 2 + (i % 2)),
+          rating: h.rate ? String(h.rate) : (hStars >= 5 ? '4.7' : hStars >= 4 ? '4.5' : '4.2'),
+          booking: '飞猪',
+          booking_links: {
+            ctrip:  `https://hotels.ctrip.com/hotel/${encodeURIComponent(city)}?keywords=${encodeURIComponent(h.name)}`,
+            fliggy: h.detail_url || `https://www.fliggy.com/hotel/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(h.name)}`,
+            meituan:`https://hotel.meituan.com/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(h.name)}`,
+            qunar:  `https://hotel.qunar.com/city/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(h.name)}`,
+            agoda:  `https://www.agoda.com/zh-cn/search?city=${encodeURIComponent(city)}&q=${encodeURIComponent(h.name)}`,
+            booking:`https://www.booking.com/searchresults.zh-cn.html?ss=${encodeURIComponent(city + ' ' + h.name)}`
+          },
+          source: '飞猪 FlyAI 实时',
+          price_disclaimer: h.price_masked ? `匿名体验模式价格为脱敏价（${h.price}），实际价格请在飞猪/酒店官方查询（配置 FLYAI_API_KEY 可解锁完整价格）` : '价格为飞猪 FlyAI 实时报价，最终以官方/平台实时报价为准',
+          brand: h.brand, main_pic: h.main_pic
+        };
+      });
+      // ⑤ 本地真实酒店池（仅收录城市）按星级补充，保证各档都有（未收录城市为空数组，自动跳过）
+      const poolList = hotelPools[city] || [];
       // 价格基数（按星级真实定价）+ 城市经济系数
       const cityPriceFactor = { '北京':1.4, '上海':1.6, '深圳':1.4, '广州':1.2, '杭州':1.2, '成都':1.0, '西安':0.95, '重庆':0.95, '南京':1.1, '苏州':1.1, '厦门':1.1, '青岛':1.0, '武汉':1.0, '长沙':0.95, '三亚':1.3, '拉萨':1.1, '昆明':0.9, '哈尔滨':0.85, '桂林':0.9, '黄山':0.95, '张家界':0.85, '敦煌':0.8, '丽江':1.0, '大理':0.95, '澳门':1.7, '香港':1.7, '大连':1.0, '济南':0.95, '天津':1.0, '沈阳':0.9 }[city] || 1.0;
       const starBase = { 1: 120, 2: 200, 3: 350, 4: 600, 5: 1100 };
@@ -6098,7 +6389,7 @@ app.get('/api/hotel', async (req, res) => {
         5: ['米其林餐厅','海景房','Spa','管家服务','礼宾服务','机场接送']
       };
       const ratingPool = { 1: ['3.8','4.0'], 2: ['4.1','4.3','4.5'], 3: ['4.4','4.5','4.6'], 4: ['4.6','4.7','4.8'], 5: ['4.7','4.8','4.9'] };
-      hotels = list.map((row, i) => {
+      const poolItems = poolList.map((row, i) => {
         const [name, hStars, district, street] = row;
         const base = starBase[hStars] || 300;
         const price = Math.round(base * cityPriceFactor * (0.85 + (i * 0.07) % 0.30));
@@ -6133,50 +6424,36 @@ app.get('/api/hotel', async (req, res) => {
           price_disclaimer: '价格为按"星级基数×城市系数×浮动"估算的参考价，最终以官方/平台实时报价为准'
         };
       });
-    }
-    // ③.5 DeepSeek 兜底：城市未收录且 FlyAI 无数据时，default 池是通用假数据——
-    // 用 DeepSeek 生成真实候选 + 高德逐条验证，验证通过的才替换（绝不输出编造酒店）
-    if (!useFlyAI && !hotelPools[city] && DEEPSEEK_KEY && DEEPSEEK_KEY !== 'your_deepseek_key_here') {
-      try {
-        const aiHotels = (await deepseekHotelCandidates(city, maxPrice)).slice(0, 5);
-        // 高德验证并发执行（避免串行拖慢整体响应）
-        const verified = (await Promise.allSettled(aiHotels.map(async h => {
-          return (await verifyPOIOnAmap(city, h.name)) ? h : null;
-        }))).map(r => r.status === 'fulfilled' ? r.value : null).filter(Boolean);
-        if (verified.length >= 2) {
-          const starBase = { 1: 120, 2: 200, 3: 350, 4: 600, 5: 1100 };
-          const bookings = ['携程','美团','去哪儿','飞猪','Booking','Trip.com','艺龙','同程'];
-          hotels = verified.slice(0, 8).map((h, i) => {
-            const hStars = h.stars || 3;
-            const price = Math.round((Number(h.price) || starBase[hStars] || 300) * (hStars >= 5 ? 1.3 : 1.0));
-            return {
-              name: String(h.name).slice(0, 40), stars: hStars, price,
-              price_masked: false, price_display: '¥' + price,
-              address: h.district ? `${city}${h.district}` : city, _district: h.district || '',
-              geo_status: 'pending', lng: center.lon, lat: center.lat, location: `${center.lon},${center.lat}`,
-              distance_km: '—',
-              tags: (hStars >= 5 ? ['行政酒廊','Spa'] : hStars >= 4 ? ['免费停车','健身房'] : hStars >= 3 ? ['免费WiFi','市中心'] : ['经济型','24小时前台']).slice(0, 2),
-              rating: '4.5', booking: bookings[i % bookings.length],
-              booking_links: {
-                ctrip:  `https://hotels.ctrip.com/hotel/${encodeURIComponent(city)}?keywords=${encodeURIComponent(h.name)}`,
-                fliggy: `https://www.fliggy.com/hotel/?city=${encodeURIComponent(city)}&keyword=${encodeURIComponent(h.name)}`,
-                meituan:`https://hotel.meituan.com/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(h.name)}`,
-                qunar:  `https://hotel.qunar.com/city/${encodeURIComponent(city)}/?keyword=${encodeURIComponent(h.name)}`,
-                agoda:  `https://www.agoda.com/zh-cn/search?city=${encodeURIComponent(city)}&q=${encodeURIComponent(h.name)}`,
-                booking:`https://www.booking.com/searchresults.zh-cn.html?ss=${encodeURIComponent(city + ' ' + h.name)}`
-              },
-              source: 'deepseek+amap',
-              price_disclaimer: '价格为 DeepSeek 提供的估算参考价（经高德验证酒店真实存在），最终以官方/平台实时报价为准'
-            };
-          });
-        }
-      } catch (_) { /* DeepSeek 或验证失败则保留原回退结果 */ }
+      // 合并：真实 API 源（含 FlyAI 少量）+ 本地池，真实源优先
+      hotels = [...flyaiUnified, ...apiHotels, ...poolItems].slice(0, 8);
+      // ⑥ 真实源与本地池全空（未收录城市且所有实时源不可用）→ 诚实引导，绝不编造酒店
+      if (!hotels.length) {
+        hotels = [{
+          name: `通过 携程/飞猪/美团/去哪儿 搜索「${city}酒店」`,
+          stars: 0, price: 0, price_masked: false, price_display: '实时询价',
+          address: city, _district: '',
+          geo_status: 'synthetic', lng: center.lon, lat: center.lat, location: `${center.lon},${center.lat}`,
+          distance_km: '—',
+          tags: ['实时查询'], rating: '—', booking: '携程',
+          booking_links: {
+            ctrip:   `https://hotels.ctrip.com/hotel/${encodeURIComponent(city)}`,
+            fliggy:  `https://www.fliggy.com/hotel/?city=${encodeURIComponent(city)}`,
+            meituan: `https://hotel.meituan.com/${encodeURIComponent(city)}/`,
+            qunar:   `https://hotel.qunar.com/city/${encodeURIComponent(city)}/`,
+            agoda:   `https://www.agoda.com/zh-cn/search?city=${encodeURIComponent(city)}`,
+            booking: `https://www.booking.com/searchresults.zh-cn.html?ss=${encodeURIComponent(city)}`
+          },
+          source: 'guide',
+          price_disclaimer: `${city}暂未获取到实时酒店数据（各数据源暂不可用），请点击上方官方渠道链接实时查询`
+        }];
+      }
     }
     hotels = hotels.filter(h => (stars === 0 || h.stars >= stars) && (h.price || 0) <= maxPrice);
     // 用高德解析本地酒店真实坐标（并发 4，带缓存）；FlyAI 酒店已有真实坐标，跳过
     if (!useFlyAI) {
       // 优先级：① 酒店名 place/text（多为真实 POI，最准）② 完整地址 geocode ③ 城市+区 中心；全部失败才保留合成坐标
       await runConcurrent(hotels, 4, async (h) => {
+        if (h.geo_status === 'flyai') return;  // FlyAI 已有真实坐标，跳过
         let g = await resolvePOIFromAmap(h.name, city);
         if (!g) g = await geocodeAddressFromAmap(h.address, city);
         if (!g && h._district) {
@@ -6193,10 +6470,13 @@ app.get('/api/hotel', async (req, res) => {
         }
       });
     }
-    const respSource = useFlyAI ? '飞猪 FlyAI 实时' : 'local+reference';
+    // 响应来源标注：多源真实酒店（途牛/美团/高德/DeepSeek验证）时如实注明
+    const srcSet = new Set(hotels.map(h => h.source));
+    const hasAPI = ['途牛开放平台', '美团酒旅 openapi', 'deepseek+amap', '高德地图 POI', '飞猪 FlyAI 实时'].some(s => srcSet.has(s));
+    const respSource = useFlyAI ? '飞猪 FlyAI 实时' : (hasAPI ? [...srcSet].join(' + ') : 'local+reference');
     const disclaimer = useFlyAI
       ? (FLYAI_ANON ? '酒店为飞猪 FlyAI 真实在售酒店，匿名体验模式价格为脱敏价（¥1xx/¥2xx），请通过 booking_links 跳转飞猪/官方平台查询实时价格与房态；配置 FLYAI_API_KEY 后解锁完整价格' : '酒店为飞猪 FlyAI 真实在售酒店，价格/房态请以官方平台实时为准')
-      : '酒店价格为基于星级/城市系数的参考估算，请通过 booking_links 跳转官方平台查询实时价格与房态';
+      : (hasAPI ? '酒店来自 途牛/美团/飞猪/高德 等真实数据源实时检索（DeepSeek 候选均已通过高德验证），价格与房态请通过 booking_links 跳转官方平台实时确认' : '酒店价格为基于星级/城市系数的参考估算，请通过 booking_links 跳转官方平台查询实时价格与房态');
     res.json({
       error: false,
       source: respSource,
