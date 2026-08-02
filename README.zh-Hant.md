@@ -1409,6 +1409,7 @@ copies of the Software...
 - [Three.js](https://threejs.org/) - 3D 粒子背景
 - [Aceternity UI](https://ui.aceternity.com/) / [React Bits](https://reactbits.dev/) / [uiverse.io](https://uiverse.io/) / [Liquid Glass Form](https://github.com/raunofreiberg/inspira) - 設計靈感
 - [GitHub](https://github.com/) / [Vercel](https://vercel.com/) - 部署平台
+- [Sealos](https://sealos.io/) - 雲原生應用部署平台
 - [gitleaks](https://github.com/gitleaks/gitleaks) - 密鑰掃描
 - [2026"火山杯"Agent 創新大賽](https://www.volcengine.com/) - 比賽主辦方
 - [NVIDIA](https://www.nvidia.com/) - GPU 算力

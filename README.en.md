@@ -1426,6 +1426,7 @@ See [LICENSE](./LICENSE) file.
 - [Three.js](https://threejs.org/) - 3D particle background
 - [Aceternity UI](https://ui.aceternity.com/) / [React Bits](https://reactbits.dev/) / [uiverse.io](https://uiverse.io/) / [Liquid Glass Form](https://github.com/raunofreiberg/inspira) - Design inspiration
 - [GitHub](https://github.com/) / [Vercel](https://vercel.com/) - Deployment platforms
+- [Sealos](https://sealos.io/) - Cloud-native application deployment platform
 - [gitleaks](https://github.com/gitleaks/gitleaks) - Secret scanning
 - [2026 “Volcano Cup” Agent Innovation Competition](https://www.volcengine.com/) - Competition organizer
 - [NVIDIA](https://www.nvidia.com/) - GPU computing power
