@@ -399,11 +399,11 @@
     border-bottom:0;
     padding:0;
     box-shadow:none}
-  /* 顶部导航液态折射层 — 强化毛玻璃感 */
+  /* 顶部导航液态折射层 — 强化毛玻璃感（注意：sticky 元素上禁用 filter:url(#svg)，
+     会引发 Chromium 滚动时抖动/闪烁，只保留 backdrop-filter 磨砂） */
   .nav::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
     backdrop-filter:blur(20px) saturate(180%);
     -webkit-backdrop-filter:blur(20px) saturate(180%);
-    filter:url(#liquid-soft);-webkit-filter:url(#liquid-soft);
     background:rgba(15,17,22,.28)}
   /* 底边亮线: 区分顶部栏与下方页面, 1px 渐变过渡, 端点自然消散 */
   .nav::after{content:"";position:absolute;left:0;right:0;top:calc(100% - 1px);height:1px;z-index:1;
@@ -471,7 +471,7 @@
     transition:all .2s}
   .nav__time-lunar:hover{background:rgba(103,153,254,.12);text-shadow:0 0 16px rgba(103,153,254,.6)}
   .nav__time-holiday{color:var(--ok);font-size:12px;letter-spacing:.03em;cursor:pointer;
-    transition:color .2s, background .2s;position:relative;border-radius:99px;
+    transition:color .2s, background .2s;position:relative;border-radius:99px;margin-left:4px;
     white-space:nowrap;display:inline-flex;align-items:center;flex-shrink:0} /* 防 flex 挤压换行成两行 */
   .nav__time-holiday:hover{color:var(--accent);background:rgba(103,153,254,.08)}
   .nav__time-holiday::after{content:"ⓘ";font-size:10px;margin-left:4px;opacity:.55;vertical-align:1px}
@@ -848,18 +848,20 @@
   @keyframes float-glow{0%,100%{transform:translateX(-50%) translateY(0);opacity:1}
     50%{transform:translateX(-50%) translateY(-20px);opacity:.7}}
   .hero h1{font-family:var(--serif);font-size:clamp(48px,7vw,80px);font-weight:500;margin:0 0 24px;
-    color:var(--text);letter-spacing:-.01em;line-height:1.05;
-    background:linear-gradient(180deg,#fff 30%,rgba(255,255,255,.65) 100%);
+    color:var(--text);letter-spacing:-.01em;line-height:1.05}
+  /* 渐变只作用于文字（不包含 emoji）：把文字单独包一层 .hero__grad 承载 background-clip:text，
+     避免 Chromium 把彩色 emoji 在裁剪子树内额外渲染成黑白剪影（黑白图标同时出现） */
+  .hero h1 .hero__grad{background:linear-gradient(180deg,#fff 30%,rgba(255,255,255,.65) 100%);
     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .hero h1 em{font-style:italic;font-weight:500;
     background:var(--grad-aurora);-webkit-background-clip:text;background-clip:text;
     -webkit-text-fill-color:transparent;background-size:200% 200%;
     animation:aurora-shift 6s ease-in-out infinite}
-  /* h1 用了 background-clip:text 会把文本（含 emoji）一并透明化，
-     把图标单独包成 span 并强制不透明 + 投金色微光，保留渐变文字效果 */
   .hero h1 .hero__icon{
-    display:inline-block;
-    -webkit-text-fill-color:initial;color:var(--accent);
+    display:inline-block;color:var(--accent);
+    background:none;-webkit-background-clip:border-box;background-clip:border-box;
+    -webkit-text-fill-color:currentColor;
+    font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif;
     margin-right:6px;vertical-align:-2px;
     filter:drop-shadow(0 0 12px rgba(103,153,254,.45));
     animation:hero-icon-pulse 3.2s ease-in-out infinite;
@@ -1434,7 +1436,8 @@
   /* ========================================================= 智能规划表单
      Aceternity 风格：渐变顶部 + 玻璃背景 + 标签前面发光点 */
   .plan-form{position:relative;background:rgba(15,17,22,.5);border:1px solid var(--line);
-    border-radius:16px;padding:32px;margin-bottom:16px;backdrop-filter:blur(8px);overflow:hidden}
+    border-radius:16px;padding:32px;margin-bottom:16px;overflow:hidden}
+  /* 注：容器不设 backdrop-filter——Chromium 在带 backdrop-filter 的元素上选中文本会发虚（100% 缩放也复现） */
   .plan-form::before{content:none}
 
   /* ========================================================= 每日推荐目的地
@@ -1558,7 +1561,7 @@
   .plan-origin__field label::before{content:"";width:4px;height:4px;background:var(--accent);
     border-radius:50%;box-shadow:0 0 6px var(--accent)}
   .plan-origin__field input{padding:12px 16px;background:rgba(255,255,255,.055);color:var(--text);
-    border:1px solid var(--line);border-radius:10px;font-size:15px;backdrop-filter:blur(4px)}
+    border:1px solid var(--line);border-radius:10px;font-size:15px}
   .plan-origin__field input:focus{outline:none;border-color:var(--accent);
     box-shadow:0 0 0 3px rgba(103,153,254,.15),0 0 24px rgba(103,153,254,.10)}
   .plan-form__row{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px}
@@ -1793,7 +1796,7 @@
 
   /* 一句话入口 — 简洁暖金玻璃容器（与 .plan-form 风格统一） */
   .plan-quick{position:relative;background:rgba(15,17,22,.5);border:1px solid var(--line);
-    border-radius:16px;padding:22px 26px;margin-bottom:16px;backdrop-filter:blur(8px);overflow:hidden}
+    border-radius:16px;padding:22px 26px;margin-bottom:16px;overflow:hidden}
   .plan-quick::before{content:"";position:absolute;top:0;left:0;right:0;bottom:auto;height:2px;
     background:linear-gradient(90deg,#6799fe 0%,#4d6bfe 35%,#6ec1d4 70%,#6799fe 100%)}
   .plan-quick>*{position:relative;z-index:1}
@@ -2289,10 +2292,12 @@
      max-width 980px 居中悬浮、发丝边框、透明度不高、padding 左16 右6）--- */
   .nav{width:100%;transition:box-shadow .35s ease,background .35s ease,top .35s cubic-bezier(.4,0,.2,1),
     width .35s cubic-bezier(.4,0,.2,1),border-radius .35s cubic-bezier(.4,0,.2,1)}
+  .nav::before{border-radius:inherit}   /* 伪元素跟随胶囊圆角（不用 overflow:hidden，避免 sticky 合成层抖动） */
   .nav__row{transition:padding .35s ease}
   .nav__logo{transition:font-size .35s ease}
   .nav::after{transition:opacity .35s ease}
-  /* 向下滚动：页顶全宽 → 悬浮胶囊（视口 1004px 以下贴合两侧留 12px 边距，以上固定 980px 居中） */
+  /* 向下滚动：页顶全宽 → 悬浮胶囊（视口 1004px 以下贴合两侧留 12px 边距，以上固定 980px 居中）。
+     行垂直内边距保持 12px 不变 → 盒高度恒定，切换时不引起整页重排跳动 */
   body.nav-scrolled .nav{
     top:12px;
     width:min(980px, calc(100% - 24px));
@@ -2301,10 +2306,9 @@
     border-radius:18px;
     box-shadow:0 0 0 1px rgba(255,255,255,.08),
       inset 0 1px 0 rgba(255,255,255,.06),
-      0 18px 44px -18px rgba(0,0,0,.7);
-    overflow:hidden}
+      0 18px 44px -18px rgba(0,0,0,.7)}
   body.nav-scrolled .nav::after{opacity:0}          /* 胶囊模式去掉底边亮线 */
-  body.nav-scrolled .nav__row{gap:10px;padding:6px 6px 6px 16px}  /* 呼应 ds-header-bar 16/6 */
+  body.nav-scrolled .nav__row{gap:10px;padding:12px 6px 12px 16px}  /* 呼应 ds-header-bar 16/6 */
   body.nav-scrolled .nav__logo{font-size:18px}
   @media(max-width:900px){
     body.nav-scrolled .nav{top:8px;width:calc(100% - 12px);border-radius:16px}
@@ -2376,15 +2380,15 @@
     <div class="nav__logo">🌍 123就出发</div>
     <div class="nav__tabs" id="tabs"></div>
     <div class="nav__time" id="navTime">
-      <!-- 滚动区：时区/时钟/日期/农历/节假日（超宽时内部横向滚动，天气胶囊不在此区，永不被挤出） -->
+      <!-- 滚动区：时区/时钟/日期/农历（超宽时内部横向滚动；节假日/天气胶囊在滚动区之外，任何宽度都完整可见） -->
       <div class="nav__time-scroll" id="navTimeScroll">
       <span class="nav__time-tz" id="navTz" title="时区">UTC+8</span>
       <span class="nav__time-clock" id="navClock" title="鼠标悬停查看授时服务器">--:--:--</span>
       <span class="nav__time-date" id="navDate">加载中…</span>
       <span class="nav__time-lunar" id="navLunar" style="display:none">--</span>
+      </div>
       <div class="nav__time-holiday" id="navHoliday" style="display:none">
         <span class="nav__time-holiday-text">--</span>
-      </div>
       </div>
       <!-- 日期日历 Popover — 鼠标悬停"几月几日星期几"弹出月历，可选某天→自动填入 planDepartDays -->
       <div class="date-pop" id="datePop" role="tooltip" aria-hidden="true">
@@ -2536,7 +2540,7 @@
   <div class="container">
     <div class="hero">
       <div class="hero-eyebrow">AI <b>POI</b> × <b>AMAP</b> = TRAVEL&nbsp;OS</div>
-      <h1><span class="hero__icon">🎯</span> 一句话，<em>AI</em> 帮你搞定全行程</h1>
+      <h1><span class="hero__icon">🎯</span><span class="hero__grad">一句话，<em>AI</em> 帮你搞定全行程</span></h1>
       <p>选城市/天数/预算/爱好 → AI 联合高德POI + 美团 + 飞猪 + 途牛 + 12306 + DeepSeek 多源真实数据 → 思考链公开 + 完整地图路线（可缩放/拖动）+ 可继续对话修改</p>
     </div>
 
@@ -7137,7 +7141,8 @@ function bindWeatherPop(){
 })();
 </script>
 <script>
-/* 顶部导航 Dock：页顶时融入背景，向下滚动收缩为磨砂玻璃条（纯视觉，不影响任何功能） */
+/* 顶部导航 Dock：页顶时融入背景，向下滚动收缩为磨砂玻璃悬浮胶囊（纯视觉，不影响任何功能）
+   迟滞阈值：进入胶囊 scrollY>10，退回全宽需 scrollY<=2，避免在临界处来回跳 */
 (function(){
   var nav=document.querySelector('.nav');
   if(!nav)return;
@@ -7145,7 +7150,9 @@ function bindWeatherPop(){
   function update(){
     ticking=false;
     var y=window.scrollY||document.documentElement.scrollTop||0;
-    document.body.classList.toggle('nav-scrolled',y>10);
+    var on=document.body.classList.contains('nav-scrolled');
+    if(on && y<=2) document.body.classList.remove('nav-scrolled');
+    else if(!on && y>10) document.body.classList.add('nav-scrolled');
   }
   window.addEventListener('scroll',function(){
     if(!ticking){ticking=true;requestAnimationFrame(update);}
@@ -7176,29 +7183,44 @@ function bindWeatherPop(){
     '#s-community > .container > .com__search';
   var els=document.querySelectorAll(sel);
   if(!els.length)return;
+  var done=new WeakSet();
+  function reveal(el){
+    if(done.has(el)||el.classList.contains('in'))return;
+    done.add(el);
+    el.classList.add('in');
+    io.unobserve(el);
+    /* 入场完成后移除过渡延迟，避免影响该元素后续 hover 等动效 */
+    setTimeout(function(){if(el.style.transitionDelay)el.style.transitionDelay='0ms';},900);
+  }
   var i=0;
   var io=new IntersectionObserver(function(entries){
     entries.forEach(function(en){
-      if(en.isIntersecting){
-        var el=en.target;
-        el.classList.add('in');
-        io.unobserve(el);
-        /* 入场完成后移除过渡延迟，避免影响该元素后续 hover 等动效 */
-        setTimeout(function(){if(el.style.transitionDelay)el.style.transitionDelay='0ms';},900);
-      }
+      if(en.isIntersecting) reveal(en.target);
     });
-  },{rootMargin:'0px 0px -6% 0px',threshold:.06});
+  },{rootMargin:'0px 0px -4% 0px',threshold:.02});
   els.forEach(function(el){
     el.classList.add('rv');
-    el.style.transitionDelay=(Math.min(i,7)*60)+'ms';
+    el.style.transitionDelay=(Math.min(i,6)*60)+'ms';
     var r=el.getBoundingClientRect();
     if(r.bottom<0){ /* 刷新时保持滚动位置、已在视口上方：直接显示 */
-      el.classList.add('in');
-      setTimeout(function(){if(el.style.transitionDelay)el.style.transitionDelay='0ms';},900);
+      reveal(el);
     }
     else{io.observe(el);}
     i++;
   });
+  /* 兜底：个别情况 IO 漏触发时，已在视口内的元素延迟强制显示，保证不会“滑动下来看不见” */
+  function force(){
+    els.forEach(function(el){
+      if(el.classList.contains('in'))return;
+      var r=el.getBoundingClientRect();
+      if(r.top<(window.innerHeight||document.documentElement.clientHeight)&&r.bottom>0){
+        el.style.transitionDelay='0ms';
+        reveal(el);
+      }
+    });
+  }
+  setTimeout(force,1000);
+  window.addEventListener('load',force);
 })();
 </script>
 <script src="js/i18n.js"></script>
