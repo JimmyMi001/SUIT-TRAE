@@ -133,7 +133,7 @@
     background-size:auto,auto,auto,48px 48px,48px 48px;
     background-attachment:fixed,fixed,fixed,fixed,fixed;
     background-position:0 0,0 0,0 0,0 0,0 0;
-    position:relative;overflow-x:hidden}
+    position:relative;overflow-x:clip}
   /* 顶部扫描高光（UIverse 雷达） */
   body::before{content:"";position:fixed;top:-50%;left:0;right:0;height:200px;
     background:linear-gradient(180deg,rgba(103,153,254,.07) 0%,transparent 100%);
@@ -173,7 +173,7 @@
       url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z' fill='%23c8c4ba'/></svg>") no-repeat right 14px center / 10px 6px;
     padding-right:32px}
   ::selection{background:rgba(103,153,254,.30);color:#fff}
-  .container{max-width:1280px;margin:0 auto;padding:0 32px}
+  .container{max-width:1300px;margin:0 auto;padding:0 32px}
 
   /* 滚动条美化（Aceternity） */
   ::-webkit-scrollbar{width:10px;height:10px}
@@ -415,24 +415,25 @@
       rgba(255,255,255,.04) 92%,
       transparent 100%);
     box-shadow:0 1px 0 rgba(0,0,0,.35),0 8px 24px -6px rgba(0,0,0,.45)}
-  .nav__row{display:flex;align-items:center;gap:18px;flex-wrap:nowrap;padding:12px 0;
+  .nav__row{display:flex;align-items:center;gap:14px;flex-wrap:nowrap;padding:12px 24px;
     /* 行本身不滚动：时间栏 flex:1;min-width:0 自行内部横向滚动，logo/Tabs/语言按钮始终在行内同一水平线 */}
   .nav__row::-webkit-scrollbar{display:none}
   .nav__lang{flex-shrink:0}
-  .nav__logo{font-family:var(--serif);font-size:22px;font-weight:500;color:var(--text);
+  .nav__lang .lang-switch__btn{padding:3px 7px;font-size:11px}  /* 语言按钮紧凑，把宽度让给时间栏 */
+  .nav__logo{font-family:var(--serif);font-size:18px;font-weight:500;color:var(--text);
     letter-spacing:.02em;display:flex;align-items:center;gap:8px;white-space:nowrap;flex-shrink:0}
   .nav__logo::before{content:"";display:inline-block;width:9px;height:9px;
     background:var(--grad-aurora);border-radius:50%;
     box-shadow:var(--glow-amber);animation:pulse-soft 2.4s ease-in-out infinite}
   @keyframes pulse-soft{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(.85)}}
-  .nav__tabs{display:flex;gap:4px;flex:0 0 auto;flex-wrap:nowrap;white-space:nowrap}
-  .nav__tab{padding:6px 14px;color:var(--text-2);font-size:13.5px;font-weight:400;
+  .nav__tabs{display:flex;gap:2px;flex:0 0 auto;flex-wrap:nowrap;white-space:nowrap}
+  .nav__tab{padding:5px 10px;color:var(--text-2);font-size:13px;font-weight:400;
     border-radius:8px;position:relative;transition:all .25s cubic-bezier(.4,0,.2,1);white-space:nowrap}
   .nav__tab:hover{color:var(--text);background:rgba(255,255,255,.04)}
   .nav__tab.active{color:var(--text);background:rgba(103,153,254,.10);
     box-shadow:inset 0 0 0 1px rgba(103,153,254,.25),0 0 20px rgba(103,153,254,.10);font-weight:500}
-  .nav__status{font-size:12px;color:var(--text-2);font-family:var(--mono);
-    display:flex;align-items:center;gap:6px;padding:5px 10px;
+  .nav__status{font-size:10px;color:var(--text-2);font-family:var(--mono);
+    display:flex;align-items:center;gap:4px;padding:3px 7px;
     background:rgba(255,255,255,.03);
     border:0;border-radius:99px;
     box-shadow:
@@ -464,14 +465,17 @@
     flex:0 0 auto;overflow:visible} /* 永不收缩/省略，保证时间/农历/节假日完整可见 */
   .nav__time-scroll > span:first-child{padding-left:10px;border-left:0}
   .nav__time-scroll > span:hover{background:rgba(255,255,255,.04);border-radius:99px}
+  /* 时区徽章不再单独占位（UTC+8 信息在时钟悬停 title 中可见）：
+     时间栏内容多（时钟/日期/农历/节假日/天气），留出宽度保证全部完整可见 */
+  #navTz{display:none}
   .nav__time-clock{color:var(--text);font-weight:600;font-size:13px;letter-spacing:.04em}
   .nav__time-date{color:var(--text-2);font-size:12px}
   .nav__time-lunar{color:var(--accent);font-size:12px;letter-spacing:.03em;
     text-shadow:0 0 12px rgba(103,153,254,.4);padding:2px 6px;border-radius:99px;
     transition:all .2s}
   .nav__time-lunar:hover{background:rgba(103,153,254,.12);text-shadow:0 0 16px rgba(103,153,254,.6)}
-  .nav__time-holiday{color:var(--ok);font-size:12px;letter-spacing:.03em;cursor:pointer;
-    transition:color .2s, background .2s;position:relative;border-radius:99px;margin-left:4px;
+  .nav__time-holiday{color:var(--ok);font-size:11px;letter-spacing:.03em;cursor:pointer;
+    transition:color .2s, background .2s;position:relative;border-radius:99px;margin-left:2px;
     white-space:nowrap;display:inline-flex;align-items:center;flex-shrink:0} /* 防 flex 挤压换行成两行 */
   .nav__time-holiday:hover{color:var(--accent);background:rgba(103,153,254,.08)}
   .nav__time-holiday::after{content:"ⓘ";font-size:10px;margin-left:4px;opacity:.55;vertical-align:1px}
@@ -665,22 +669,22 @@
 
   /* ========================================================= 顶部栏天气胶囊 + 详情 Popover
      液态玻璃 + 毛玻璃，与整体深夜暖金设计统一；数据三源（高德/Open-Meteo/中国气象局） */
-  .nav__time .nav__time-weather{display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;
+  .nav__row .nav__time-weather{display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;
     background:rgba(103,153,254,.07);border:1px solid rgba(103,153,254,.18);
-    border-radius:99px;padding:3px 12px;margin-left:4px;flex-shrink:0;
+    border-radius:99px;padding:3px 8px;flex-shrink:0;
     backdrop-filter:blur(8px) saturate(150%);-webkit-backdrop-filter:blur(8px) saturate(150%);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.08),inset 0 0 0 1px rgba(255,255,255,.03);
     transition:all .2s;white-space:nowrap;letter-spacing:.02em}
-  .nav__time .nav__time-weather:hover{background:rgba(103,153,254,.16);border-color:var(--accent);
+  .nav__row .nav__time-weather:hover{background:rgba(103,153,254,.16);border-color:var(--accent);
     box-shadow:0 0 14px rgba(103,153,254,.28),inset 0 1px 0 rgba(255,255,255,.10)}
-  /* 天气胶囊位于滚动区之外：不依赖 position:sticky，任何宽度/语言下都钉在时间栏右缘，不会被挤出或裁掉 */
-  .nav__time .nav__time-weather{position:relative;margin-left:6px}
-  .nav__time .nav__time-weather .nw-ico{font-size:13px;line-height:1;filter:drop-shadow(0 0 6px rgba(103,153,254,.55))}
-  .nav__time .nav__time-weather .nw-city{color:var(--accent);font-weight:600;max-width:100px;flex-shrink:0;
+  /* 天气胶囊在导航行内（时间栏外）：不占时间栏宽度，时钟/日期/农历/节假日完整可见 */
+  .nav__row .nav__time-weather{position:relative}
+  .nav__row .nav__time-weather .nw-ico{font-size:13px;line-height:1;filter:drop-shadow(0 0 6px rgba(103,153,254,.55))}
+  .nav__row .nav__time-weather .nw-city{color:var(--accent);font-weight:600;max-width:78px;flex-shrink:0;
     overflow:hidden;text-overflow:ellipsis}
-  .nav__time .nav__time-weather .nw-temp{color:var(--text);font-weight:600;font-family:var(--mono)}
-  .nav__time .nav__time-weather .nw-temp.loading{color:var(--text-3)}
-  .nav__time .nav__time-weather .nw-src{font-size:9px;color:var(--text-3);opacity:.75}
+  .nav__row .nav__time-weather .nw-temp{color:var(--text);font-weight:600;font-family:var(--mono)}
+  .nav__row .nav__time-weather .nw-temp.loading{color:var(--text-3)}
+  .nav__row .nav__time-weather .nw-src{font-size:9px;color:var(--text-3);opacity:.75}
   /* 时区/农历等信息一律完整显示（不再按窗口宽度隐藏），
      超宽时 .nav__time 自身横向滚动承载 */
 
@@ -2052,7 +2056,7 @@
       border-radius:14px;line-height:1.5;row-gap:2px
     }
     .nav__time-scroll{flex-wrap:wrap;justify-content:center;overflow:visible}
-    .nav__time .nav__time-weather{position:static;margin-left:0}
+    .nav__row .nav__time-weather{position:static;margin-left:0}
     .nav__time-scroll > span{border-left:0;padding:2px 6px}
     .nav__time-tz,.nav__time-clock,.nav__time-date,.nav__time-lunar{font-size:11px}
     /* Hero */
@@ -2289,18 +2293,20 @@
      ========================================================= */
   /* --- 7. 顶部导航 Dock：页顶时融入背景，向下滚动整块区域收缩为磨砂玻璃悬浮胶囊，
      一直跟随顶部（复刻 DeepSeek Harness .ds-header-bar.is-scrolled：
-     max-width 980px 居中悬浮、发丝边框、透明度不高、padding 左16 右6）--- */
+     居中悬浮、发丝边框、透明度不高、padding 左16 右6。
+     宽度由 DeepSeek 的 980px 放宽到 1260px —— 顶部信息量比 DeepSeek 大（含完整时间栏：
+     时钟/日期/农历/节假日/天气），980px 会把它们挤出时间栏滚动区）--- */
   .nav{width:100%;transition:box-shadow .35s ease,background .35s ease,top .35s cubic-bezier(.4,0,.2,1),
     width .35s cubic-bezier(.4,0,.2,1),border-radius .35s cubic-bezier(.4,0,.2,1)}
   .nav::before{border-radius:inherit}   /* 伪元素跟随胶囊圆角（不用 overflow:hidden，避免 sticky 合成层抖动） */
   .nav__row{transition:padding .35s ease}
   .nav__logo{transition:font-size .35s ease}
   .nav::after{transition:opacity .35s ease}
-  /* 向下滚动：页顶全宽 → 悬浮胶囊（视口 1004px 以下贴合两侧留 12px 边距，以上固定 980px 居中）。
+  /* 向下滚动：页顶全宽 → 悬浮胶囊（视口 1284px 以下贴合两侧留 12px 边距，以上固定 1260px 居中）。
      行垂直内边距保持 12px 不变 → 盒高度恒定，切换时不引起整页重排跳动 */
   body.nav-scrolled .nav{
     top:12px;
-    width:min(980px, calc(100% - 24px));
+    width:min(1260px, calc(100% - 24px));
     margin:0 auto;
     background:rgba(15,17,22,.84);
     border-radius:18px;
@@ -2308,8 +2314,12 @@
       inset 0 1px 0 rgba(255,255,255,.06),
       0 18px 44px -18px rgba(0,0,0,.7)}
   body.nav-scrolled .nav::after{opacity:0}          /* 胶囊模式去掉底边亮线 */
-  body.nav-scrolled .nav__row{gap:10px;padding:12px 6px 12px 16px}  /* 呼应 ds-header-bar 16/6 */
-  body.nav-scrolled .nav__logo{font-size:18px}
+  body.nav-scrolled .nav__row{gap:8px;padding:12px 6px 12px 16px}  /* 呼应 ds-header-bar 16/6 */
+  body.nav-scrolled .nav__logo{font-size:17px;gap:6px}
+  /* 胶囊态节假日/天气胶囊更紧凑（字体略小），给时间栏滚动区腾宽度 */
+  body.nav-scrolled .nav__time-holiday{font-size:11px}
+  body.nav-scrolled .nav__time-weather{gap:4px;font-size:11px}
+  body.nav-scrolled .nav__time-weather .nw-city{max-width:72px}
   @media(max-width:900px){
     body.nav-scrolled .nav{top:8px;width:calc(100% - 12px);border-radius:16px}
   }
@@ -2506,29 +2516,31 @@
           </div>
         </div>
       </div>
-      <!-- 顶部栏天气胶囊：城市+天气+温度（IP 定位，可手动修改城市） -->
-      <span class="nav__time-weather" id="navWeather" title="悬停查看本地天气详情 · 点击修改城市">
-        <span class="nw-ico" id="navWeatherIco">📍</span>
-        <span class="nw-city" id="navWeatherCity">定位中…</span>
-        <span class="nw-temp" id="navWeatherTemp"></span>
-      </span>
-      <!-- 天气详情 Popover：最近几天预报/湿度/风速/活动建议/数据来源 -->
-      <div class="weather-pop" id="weatherPop" role="tooltip" aria-hidden="true">
-        <div class="weather-pop__box">
-          <div class="weather-pop__arrow"></div>
-          <div class="weather-pop__head">
-            <span class="weather-pop__icon">🌦</span>
-            <div>
-              <div class="weather-pop__title" id="weatherPopTitle">本地天气</div>
-              <div class="weather-pop__sub" id="weatherPopSub">数据加载中…</div>
-            </div>
-            <button class="weather-pop__close" id="weatherPopClose" aria-label="关闭">×</button>
+    </div>
+    <!-- 顶部栏天气胶囊：城市+天气+温度（IP 定位，可手动修改城市）。
+         放在时间栏外（行级元素）：时间栏内部已有 时钟/日期/农历/节假日，
+         天气胶囊若挤在时间栏内会把它们推出滚动区 → 移到行级，任何宽度/胶囊态都完整可见 -->
+    <span class="nav__time-weather" id="navWeather" title="悬停查看本地天气详情 · 点击修改城市">
+      <span class="nw-ico" id="navWeatherIco">📍</span>
+      <span class="nw-city" id="navWeatherCity">定位中…</span>
+      <span class="nw-temp" id="navWeatherTemp"></span>
+    </span>
+    <!-- 天气详情 Popover：最近几天预报/湿度/风速/活动建议/数据来源 -->
+    <div class="weather-pop" id="weatherPop" role="tooltip" aria-hidden="true">
+      <div class="weather-pop__box">
+        <div class="weather-pop__arrow"></div>
+        <div class="weather-pop__head">
+          <span class="weather-pop__icon">🌦</span>
+          <div>
+            <div class="weather-pop__title" id="weatherPopTitle">本地天气</div>
+            <div class="weather-pop__sub" id="weatherPopSub">数据加载中…</div>
           </div>
-          <div class="weather-pop__body" id="weatherPopBody">
-            <div class="weather-pop__loading">⏳ 正在拉取多源天气数据…</div>
-          </div>
-          <div class="weather-pop__foot" id="weatherPopFoot"></div>
+          <button class="weather-pop__close" id="weatherPopClose" aria-label="关闭">×</button>
         </div>
+        <div class="weather-pop__body" id="weatherPopBody">
+          <div class="weather-pop__loading">⏳ 正在拉取多源天气数据…</div>
+        </div>
+        <div class="weather-pop__foot" id="weatherPopFoot"></div>
       </div>
     </div>
     <div class="nav__status" id="status"><span class="dot" id="statusDot"></span><span id="statusText">连接中…</span></div>
