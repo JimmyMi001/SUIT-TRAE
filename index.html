@@ -444,7 +444,8 @@
     background:var(--err);box-shadow:0 0 8px var(--err);animation:pulse-soft 1.5s ease-in-out infinite}
   .nav__status .dot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok)}
 
-  /* 时间/农历/节假日 — 紧凑单行 + 4 层阴影（内容始终完整显示，超宽时胶囊内横向滚动） */
+  /* 时间/农历/节假日 — 紧凑单行 + 4 层阴影（内容始终完整显示，超宽时滚动区内横向滚动；
+     天气胶囊位于滚动区之外，任何宽度都钉在右缘，不会被挤出/裁掉） */
   .nav__time{font-size:12px;color:var(--text-2);font-family:var(--mono);
     display:flex;align-items:center;gap:0;flex-wrap:nowrap;flex:1;min-width:0;
     background:rgba(var(--gt),.04);
@@ -454,13 +455,15 @@
       inset 0 0 0 1px rgba(255,255,255,.04),
       inset 0 -8px 14px -4px rgba(0,0,0,.20);
     border-radius:99px;padding:3px 6px;
-    overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
-  .nav__time::-webkit-scrollbar{display:none}
-  .nav__time > span{padding:3px 8px;border-left:1px solid rgba(255,255,255,.06);
+    overflow:hidden}
+  .nav__time-scroll{display:flex;align-items:center;gap:0;flex:1 1 auto;min-width:0;
+    overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
+  .nav__time-scroll::-webkit-scrollbar{display:none}
+  .nav__time-scroll > span{padding:3px 8px;border-left:1px solid rgba(255,255,255,.06);
     display:inline-block;vertical-align:middle;transition:background .2s;white-space:nowrap;
     flex:0 0 auto;overflow:visible} /* 永不收缩/省略，保证时间/农历/节假日完整可见 */
-  .nav__time > span:first-child{padding-left:10px;border-left:0}
-  .nav__time > span:hover{background:rgba(255,255,255,.04);border-radius:99px}
+  .nav__time-scroll > span:first-child{padding-left:10px;border-left:0}
+  .nav__time-scroll > span:hover{background:rgba(255,255,255,.04);border-radius:99px}
   .nav__time-clock{color:var(--text);font-weight:600;font-size:13px;letter-spacing:.04em}
   .nav__time-date{color:var(--text-2);font-size:12px}
   .nav__time-lunar{color:var(--accent);font-size:12px;letter-spacing:.03em;
@@ -488,13 +491,13 @@
     flex:1 1 auto;max-width:none;order:0;justify-content:flex-start;
     flex-wrap:nowrap;border-radius:14px;line-height:1.35
   }
-  /* 文本型胶囊：完整显示，不裁切不收缩；天气/节假日胶囊保留 inline-flex 布局 */
-  html[lang="en"] .nav__time > span:not(.nav__time-weather),
-  html[lang="zh-Hant"] .nav__time > span:not(.nav__time-weather){
+  /* 文本型胶囊：完整显示，不裁切不收缩；天气胶囊在滚动区外，不受影响 */
+  html[lang="en"] .nav__time-scroll > span,
+  html[lang="zh-Hant"] .nav__time-scroll > span{
     display:inline-block;overflow:visible;white-space:nowrap;flex:0 0 auto;min-width:0
   }
-  html[lang="en"] .nav__time > .nav__time-holiday,
-  html[lang="zh-Hant"] .nav__time > .nav__time-holiday{flex-shrink:0}
+  html[lang="en"] .nav__time-scroll > .nav__time-holiday,
+  html[lang="zh-Hant"] .nav__time-scroll > .nav__time-holiday{flex-shrink:0}
   /* 各语言一致完整显示：时区/日期/农历/节假日/天气一律不隐藏，
      超宽时由 .nav__time 内部横向滚动承载（滚动条隐藏），信息永远完整可见 */
   /* 英文/繁体 Tab 文案更长：按内容宽度排布，不抢占时间栏宽度 */
@@ -670,8 +673,8 @@
     transition:all .2s;white-space:nowrap;letter-spacing:.02em}
   .nav__time .nav__time-weather:hover{background:rgba(103,153,254,.16);border-color:var(--accent);
     box-shadow:0 0 14px rgba(103,153,254,.28),inset 0 1px 0 rgba(255,255,255,.10)}
-  /* 时间栏横向溢出时，天气胶囊钉在右缘始终可见（不随内容被挤出视口） */
-  .nav__time .nav__time-weather{position:sticky;right:0;z-index:5}
+  /* 天气胶囊位于滚动区之外：不依赖 position:sticky，任何宽度/语言下都钉在时间栏右缘，不会被挤出或裁掉 */
+  .nav__time .nav__time-weather{position:relative;margin-left:6px}
   .nav__time .nav__time-weather .nw-ico{font-size:13px;line-height:1;filter:drop-shadow(0 0 6px rgba(103,153,254,.55))}
   .nav__time .nav__time-weather .nw-city{color:var(--accent);font-weight:600;max-width:100px;flex-shrink:0;
     overflow:hidden;text-overflow:ellipsis}
@@ -2045,8 +2048,9 @@
       flex-wrap:wrap;justify-content:center;
       border-radius:14px;line-height:1.5;row-gap:2px
     }
-    .nav__time .nav__time-weather{position:static}
-    .nav__time > span{border-left:0;padding:2px 6px}
+    .nav__time-scroll{flex-wrap:wrap;justify-content:center;overflow:visible}
+    .nav__time .nav__time-weather{position:static;margin-left:0}
+    .nav__time-scroll > span{border-left:0;padding:2px 6px}
     .nav__time-tz,.nav__time-clock,.nav__time-date,.nav__time-lunar{font-size:11px}
     /* Hero */
     .hero{padding:48px 0 32px;overflow:hidden}
@@ -2260,30 +2264,7 @@
     .nav__tab.active:hover{transform:translateY(-3px) scale(1.16)}
   }
 
-  /* --- 3. DeepSeek 蓝鲸吉祥物：漂浮 + 尾巴摆动 + 气泡，JS 负责鼠标跟随视差 --- */
-  .hero-whale{position:absolute;right:6%;bottom:4px;z-index:0;pointer-events:none;
-    width:min(300px,32vw);will-change:transform}
-  .hero-whale .whale-inner{position:relative;animation:whaleBob 5.2s ease-in-out infinite}
-  .hero-whale svg{display:block;width:100%;height:auto;overflow:visible;
-    filter:drop-shadow(0 14px 34px rgba(77,107,254,.38))}
-  .whale-tail{transform-origin:30px 84px;animation:tailWag 3.4s ease-in-out infinite}
-  .whale-fin{transform-origin:150px 36px;animation:finWave 3.4s ease-in-out infinite}
-  @keyframes whaleBob{0%,100%{transform:translateY(0) rotate(-1.2deg)}50%{transform:translateY(-13px) rotate(1.5deg)}}
-  @keyframes tailWag{0%,100%{transform:rotate(0)}50%{transform:rotate(-16deg)}}
-  @keyframes finWave{0%,100%{transform:rotate(0)}50%{transform:rotate(9deg)}}
-  .whale-bub{position:absolute;border-radius:50%;
-    background:radial-gradient(circle at 32% 32%,rgba(255,255,255,.95),rgba(103,153,254,.3) 72%,transparent);
-    animation:bubRise 3.8s linear infinite;opacity:0}
-  .whale-bub.b1{width:9px;height:9px;right:15%;top:40%;animation-delay:0s}
-  .whale-bub.b2{width:6px;height:6px;right:21%;top:36%;animation-delay:1.2s}
-  .whale-bub.b3{width:4px;height:4px;right:11%;top:44%;animation-delay:2.1s}
-  @keyframes bubRise{0%{transform:translate(0,0) scale(.6);opacity:0}
-    18%{opacity:.9}
-    100%{transform:translate(-38px,-60px) scale(1.2);opacity:0}}
-  @media(max-width:900px){.hero-whale{width:150px;right:3%;bottom:6px;opacity:.72}}
-  @media(max-width:560px){.hero-whale{display:none}}
-
-  /* --- 4. 主按钮：蓝渐变流光扫过（背景位移实现，不裁外发光，DeepSeek 风格）--- */
+  /* --- 3. 主按钮：蓝渐变流光扫过（背景位移实现，不裁外发光，DeepSeek 风格）--- */
   .btn--pri{background:linear-gradient(100deg,#6799fe 0%,#8ab3ff 42%,#c6d8ff 50%,#8ab3ff 58%,#6799fe 100%);
     background-size:220% 100%;animation:btnSheen 3.4s ease-in-out infinite}
   @keyframes btnSheen{0%,58%{background-position:0% 0}90%,100%{background-position:100% 0}}
@@ -2299,6 +2280,29 @@
 
   /* --- 6. Hero 标题：DeepSeek 紧字距 --- */
   .hero h1{letter-spacing:-.02em}
+
+  /* =========================================================
+     滚动交互（纯视觉，不动任何功能）
+     ========================================================= */
+  /* --- 7. 顶部导航 Dock：页顶时融入背景，向下滚动收缩为磨砂玻璃条 --- */
+  .nav{transition:box-shadow .35s ease}
+  .nav__row{transition:padding .35s ease}
+  .nav__logo{transition:font-size .35s ease}
+  body.nav-scrolled .nav{background:rgba(10,11,14,.68);
+    box-shadow:0 14px 34px -16px rgba(0,0,0,.6)}
+  body.nav-scrolled .nav__row{padding:5px 0}
+  body.nav-scrolled .nav__logo{font-size:18px}
+
+  /* --- 8. 刷新页面：首屏渐变上升 --- */
+  .hero .hero-eyebrow,.hero h1,.hero p{animation:rise-in .7s cubic-bezier(.22,.61,.36,1) both}
+  .hero h1{animation-delay:.1s}
+  .hero p{animation-delay:.2s}
+  @keyframes rise-in{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+
+  /* --- 9. 滚动渐显：进入视口时渐变出现（JS 用 IntersectionObserver 添加 .in）--- */
+  .rv{opacity:0;transform:translateY(26px);
+    transition:opacity .7s cubic-bezier(.22,.61,.36,1),transform .7s cubic-bezier(.22,.61,.36,1)}
+  .rv.in{opacity:1;transform:none}
 </style>
 </head>
 <body>
@@ -2355,12 +2359,15 @@
     <div class="nav__logo">🌍 123就出发</div>
     <div class="nav__tabs" id="tabs"></div>
     <div class="nav__time" id="navTime">
+      <!-- 滚动区：时区/时钟/日期/农历/节假日（超宽时内部横向滚动，天气胶囊不在此区，永不被挤出） -->
+      <div class="nav__time-scroll" id="navTimeScroll">
       <span class="nav__time-tz" id="navTz" title="时区">UTC+8</span>
       <span class="nav__time-clock" id="navClock" title="鼠标悬停查看授时服务器">--:--:--</span>
       <span class="nav__time-date" id="navDate">加载中…</span>
       <span class="nav__time-lunar" id="navLunar" style="display:none">--</span>
       <div class="nav__time-holiday" id="navHoliday" style="display:none">
         <span class="nav__time-holiday-text">--</span>
+      </div>
       </div>
       <!-- 日期日历 Popover — 鼠标悬停"几月几日星期几"弹出月历，可选某天→自动填入 planDepartDays -->
       <div class="date-pop" id="datePop" role="tooltip" aria-hidden="true">
@@ -2511,31 +2518,6 @@
 <section class="section active" id="s-home">
   <div class="container">
     <div class="hero">
-      <!-- DeepSeek 蓝鲸吉祥物：鼠标跟随视差 + 漂浮/尾巴/气泡动画 -->
-      <div class="hero-whale" id="heroWhale" aria-hidden="true">
-        <div class="whale-inner">
-          <span class="whale-bub b1"></span><span class="whale-bub b2"></span><span class="whale-bub b3"></span>
-          <svg viewBox="0 0 240 120" role="presentation">
-            <defs>
-              <linearGradient id="whaleGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="#8ab3ff"/><stop offset="1" stop-color="#4d6bfe"/>
-              </linearGradient>
-            </defs>
-            <g class="whale-tail">
-              <path d="M28 78 L4 62 C10 74 14 82 16 88 L2 100 C14 95 26 93 36 93 Z" fill="url(#whaleGrad)"/>
-            </g>
-            <path d="M24 84 C28 56 72 34 124 34 C172 34 210 52 220 80 C224 92 220 102 208 102 C178 102 128 100 84 100 C52 100 28 94 24 84 Z" fill="url(#whaleGrad)"/>
-            <path d="M40 92 C62 101 112 103 152 100 C128 99 90 98 58 97 Z" fill="rgba(255,255,255,.10)"/>
-            <g class="whale-fin">
-              <path d="M150 36 C153 22 164 12 176 8 C170 18 168 27 170 37 Z" fill="url(#whaleGrad)"/>
-            </g>
-            <path d="M150 78 C142 88 140 98 146 104 C150 96 154 88 156 80 Z" fill="url(#whaleGrad)" opacity=".85"/>
-            <circle cx="186" cy="56" r="5" fill="#fff"/>
-            <circle cx="188" cy="55" r="2.4" fill="#0a0a0a"/>
-            <path d="M218 74 C224 78 226 82 224 86" stroke="rgba(255,255,255,.55)" stroke-width="2" fill="none" stroke-linecap="round"/>
-          </svg>
-        </div>
-      </div>
       <div class="hero-eyebrow">AI <b>POI</b> × <b>AMAP</b> = TRAVEL&nbsp;OS</div>
       <h1><span class="hero__icon">🎯</span> 一句话，<em>AI</em> 帮你搞定全行程</h1>
       <p>选城市/天数/预算/爱好 → AI 联合高德POI + 美团 + 飞猪 + 途牛 + 12306 + DeepSeek 多源真实数据 → 思考链公开 + 完整地图路线（可缩放/拖动）+ 可继续对话修改</p>
@@ -7138,24 +7120,68 @@ function bindWeatherPop(){
 })();
 </script>
 <script>
-/* DeepSeek 蓝鲸互动：鼠标跟随视差（纯装饰，不影响任何功能）
-   - 触屏设备 / 减弱动效偏好：自动跳过，保持默认静态漂浮动画 */
+/* 顶部导航 Dock：页顶时融入背景，向下滚动收缩为磨砂玻璃条（纯视觉，不影响任何功能） */
 (function(){
-  var w=document.getElementById('heroWhale');
-  if(!w||!window.matchMedia||!window.matchMedia('(hover: hover)').matches)return;
-  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
-  var tx=0,ty=0,cx=0,cy=0,raf=null;
-  document.addEventListener('mousemove',function(e){
-    tx=(e.clientX/window.innerWidth-.5)*2;
-    ty=(e.clientY/window.innerHeight-.5)*2;
-    if(!raf)raf=requestAnimationFrame(step);
-  },{passive:true});
-  function step(){
-    cx+=(tx-cx)*.06;cy+=(ty-cy)*.06;
-    w.style.transform='translate3d('+(cx*18).toFixed(1)+'px,'+(cy*12).toFixed(1)+'px,0)';
-    if(Math.abs(tx-cx)>.002||Math.abs(ty-cy)>.002){raf=requestAnimationFrame(step);}
-    else{raf=null;w.style.transform='translate3d(0,0,0)'}
+  var nav=document.querySelector('.nav');
+  if(!nav)return;
+  var ticking=false;
+  function update(){
+    ticking=false;
+    var y=window.scrollY||document.documentElement.scrollTop||0;
+    document.body.classList.toggle('nav-scrolled',y>10);
   }
+  window.addEventListener('scroll',function(){
+    if(!ticking){ticking=true;requestAnimationFrame(update);}
+  },{passive:true});
+  update();
+})();
+</script>
+<script>
+/* 滚动渐显：首屏元素加载时渐变上升，滚入视口时渐变出现（纯视觉，不影响任何功能）
+   - 触屏 / 减弱动效偏好：自动跳过，内容保持原样立即可见 */
+(function(){
+  if(!('IntersectionObserver' in window))return;
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  var sel='#s-home > .container > .daily-reco,'+
+    '#s-home > .container > .plan-origin,'+
+    '#s-home > .container > .plan-form,'+
+    '#s-home > .container > .plan-quick,'+
+    '#s-companion > .container > h2,'+
+    '#s-companion > .container > .sub,'+
+    '#s-companion > .container > .comp__city,'+
+    '#s-companion > .container > .comp__address,'+
+    '#s-companion > .container > .comp__quick,'+
+    '#s-companion > .container > .comp__tools,'+
+    '#s-companion > .container > .comp__input,'+
+    '#s-companion > .container > .comp__chat,'+
+    '#s-community > .container > h2,'+
+    '#s-community > .container > .sub,'+
+    '#s-community > .container > .com__search';
+  var els=document.querySelectorAll(sel);
+  if(!els.length)return;
+  var i=0;
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(en.isIntersecting){
+        var el=en.target;
+        el.classList.add('in');
+        io.unobserve(el);
+        /* 入场完成后移除过渡延迟，避免影响该元素后续 hover 等动效 */
+        setTimeout(function(){if(el.style.transitionDelay)el.style.transitionDelay='0ms';},900);
+      }
+    });
+  },{rootMargin:'0px 0px -6% 0px',threshold:.06});
+  els.forEach(function(el){
+    el.classList.add('rv');
+    el.style.transitionDelay=(Math.min(i,7)*60)+'ms';
+    var r=el.getBoundingClientRect();
+    if(r.bottom<0){ /* 刷新时保持滚动位置、已在视口上方：直接显示 */
+      el.classList.add('in');
+      setTimeout(function(){if(el.style.transitionDelay)el.style.transitionDelay='0ms';},900);
+    }
+    else{io.observe(el);}
+    i++;
+  });
 })();
 </script>
 <script src="js/i18n.js"></script>
