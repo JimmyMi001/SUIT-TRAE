@@ -2284,14 +2284,31 @@
   /* =========================================================
      滚动交互（纯视觉，不动任何功能）
      ========================================================= */
-  /* --- 7. 顶部导航 Dock：页顶时融入背景，向下滚动收缩为磨砂玻璃条 --- */
-  .nav{transition:box-shadow .35s ease}
+  /* --- 7. 顶部导航 Dock：页顶时融入背景，向下滚动整块区域收缩为磨砂玻璃悬浮胶囊，
+     一直跟随顶部（复刻 DeepSeek Harness .ds-header-bar.is-scrolled：
+     max-width 980px 居中悬浮、发丝边框、透明度不高、padding 左16 右6）--- */
+  .nav{width:100%;transition:box-shadow .35s ease,background .35s ease,top .35s cubic-bezier(.4,0,.2,1),
+    width .35s cubic-bezier(.4,0,.2,1),border-radius .35s cubic-bezier(.4,0,.2,1)}
   .nav__row{transition:padding .35s ease}
   .nav__logo{transition:font-size .35s ease}
-  body.nav-scrolled .nav{background:rgba(10,11,14,.68);
-    box-shadow:0 14px 34px -16px rgba(0,0,0,.6)}
-  body.nav-scrolled .nav__row{padding:5px 0}
+  .nav::after{transition:opacity .35s ease}
+  /* 向下滚动：页顶全宽 → 悬浮胶囊（视口 1004px 以下贴合两侧留 12px 边距，以上固定 980px 居中） */
+  body.nav-scrolled .nav{
+    top:12px;
+    width:min(980px, calc(100% - 24px));
+    margin:0 auto;
+    background:rgba(15,17,22,.84);
+    border-radius:18px;
+    box-shadow:0 0 0 1px rgba(255,255,255,.08),
+      inset 0 1px 0 rgba(255,255,255,.06),
+      0 18px 44px -18px rgba(0,0,0,.7);
+    overflow:hidden}
+  body.nav-scrolled .nav::after{opacity:0}          /* 胶囊模式去掉底边亮线 */
+  body.nav-scrolled .nav__row{gap:10px;padding:6px 6px 6px 16px}  /* 呼应 ds-header-bar 16/6 */
   body.nav-scrolled .nav__logo{font-size:18px}
+  @media(max-width:900px){
+    body.nav-scrolled .nav{top:8px;width:calc(100% - 12px);border-radius:16px}
+  }
 
   /* --- 8. 刷新页面：首屏渐变上升 --- */
   .hero .hero-eyebrow,.hero h1,.hero p{animation:rise-in .7s cubic-bezier(.22,.61,.36,1) both}
