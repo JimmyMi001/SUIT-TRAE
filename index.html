@@ -152,6 +152,7 @@
     color:var(--text);
     background:rgba(22,25,34,.30);
     border:0;border-radius:10px;padding:11px 14px;width:100%;
+    color-scheme:dark;   /* 原生弹层跟随深色主题：select 下拉 / datalist 联想 / 数字微调钮不再白底 */
     transition:background .2s,box-shadow .2s;
     backdrop-filter:blur(3px) saturate(140%);
     -webkit-backdrop-filter:blur(3px) saturate(140%);
@@ -172,6 +173,9 @@
     background:rgba(22,25,34,.30)
       url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z' fill='%23c8c4ba'/></svg>") no-repeat right 14px center / 10px 6px;
     padding-right:32px}
+  /* 原生下拉选项列表深色化（Chrome/Firefox 均生效）：避免默认“白底黑字”与主题割裂 */
+  select option{background:#161922;color:#e5e5e5;font-family:inherit}
+  select option:checked{background:rgba(103,153,254,.32);color:#fff}
   ::selection{background:rgba(103,153,254,.30);color:#fff}
   .container{max-width:1300px;margin:0 auto;padding:0 32px}
 
