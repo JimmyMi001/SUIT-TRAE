@@ -473,25 +473,24 @@
     body.nav-time-fits .nav__time-scroll{flex:0 1 auto}
   }
   .nav__time-scroll::-webkit-scrollbar{display:none}
-  .nav__time-scroll > span{padding:3px 8px;border-left:1px solid rgba(255,255,255,.06);
+  .nav__time-scroll > span{padding:3px 5px;border-left:1px solid rgba(255,255,255,.06);
     display:inline-block;vertical-align:middle;transition:background .2s;white-space:nowrap;
     flex:0 0 auto;overflow:visible} /* 永不收缩/省略，保证时间/农历/节假日完整可见 */
-  .nav__time-scroll > span:first-child{padding-left:10px;border-left:0}
+  .nav__time-scroll > span:first-child{padding-left:5px;border-left:0}
   .nav__time-scroll > span:hover{background:rgba(255,255,255,.04);border-radius:99px}
-  /* 时区徽章不再单独占位（UTC+8 信息在时钟悬停 title 中可见）：
-     时间栏内容多（时钟/日期/农历/节假日/天气），留出宽度保证全部完整可见 */
-  #navTz{display:none}
-  .nav__time-clock{color:var(--text);font-weight:600;font-size:13px;letter-spacing:.04em}
-  .nav__time-date{color:var(--text-2);font-size:12px}
-  .nav__time-lunar{color:var(--accent);font-size:12px;letter-spacing:.03em;
-    text-shadow:0 0 12px rgba(103,153,254,.4);padding:2px 6px;border-radius:99px;
+  /* 时区徽章（UTC+8）恢复显示：时间栏宽度由 body.nav-time-fits 动态适配，
+     放不下时自动切回滚动模式，徽章不会被挤出 */
+  .nav__time-clock{color:var(--text);font-weight:600;font-size:13px;letter-spacing:.02em}
+  .nav__time-date{color:var(--text-2);font-size:11px}
+  .nav__time-lunar{color:var(--accent);font-size:12px;letter-spacing:.02em;
+    text-shadow:0 0 12px rgba(103,153,254,.4);padding:1px 3px;border-radius:99px;
     transition:all .2s}
   .nav__time-lunar:hover{background:rgba(103,153,254,.12);text-shadow:0 0 16px rgba(103,153,254,.6)}
   .nav__time-holiday{color:var(--ok);font-size:11px;letter-spacing:.03em;cursor:pointer;
-    transition:color .2s, background .2s;position:relative;border-radius:99px;margin-left:2px;
+    transition:color .2s, background .2s;position:relative;border-radius:99px;margin-left:0;
     white-space:nowrap;display:inline-flex;align-items:center;flex-shrink:0} /* 防 flex 挤压换行成两行 */
   .nav__time-holiday:hover{color:var(--accent);background:rgba(103,153,254,.08)}
-  .nav__time-holiday::after{content:"ⓘ";font-size:10px;margin-left:4px;opacity:.55;vertical-align:1px}
+  .nav__time-holiday::after{content:"ⓘ";font-size:10px;margin-left:3px;opacity:.55;vertical-align:1px}
   .nav__time-holiday:hover::after{opacity:1;color:var(--accent)}
 
   /* ========================================================= 多语言长文本兼容
@@ -587,8 +586,8 @@
   }
 
   /* ========================================================= 时区徽章（UTC+8） */
-  .nav__time-tz{font-size:10px;color:var(--ok);letter-spacing:.06em;background:rgba(16,185,129,.10);
-    border:1px solid rgba(16,185,129,.25);padding:2px 8px;border-radius:99px;font-weight:600;line-height:1.4}
+  .nav__time-tz{font-size:9px;color:var(--ok);letter-spacing:.03em;background:rgba(16,185,129,.12);
+    padding:1px 2px;border-radius:99px;font-weight:600;line-height:1.5}  /* 紧凑徽章：为时间栏留宽度（去边框、小字号） */
 
   /* ========================================================= NTP 授时服务器 Popover */
   .ntp-pop{position:fixed;left:0;top:0;z-index:300;width:min(420px,92vw);display:none;pointer-events:none;
