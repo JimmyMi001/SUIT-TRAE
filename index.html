@@ -2318,6 +2318,7 @@
   .nav__row{transition:padding .45s cubic-bezier(.22,.61,.36,1)}
   .nav__logo{transition:font-size .45s cubic-bezier(.22,.61,.36,1)}
   .nav::after{transition:opacity .45s ease}
+  .nav__time{transition:background .45s cubic-bezier(.22,.61,.36,1),box-shadow .45s cubic-bezier(.22,.61,.36,1)}
   /* 向下滚动：页顶全宽 → 悬浮胶囊（视口 1284px 以下贴合两侧留 12px 边距，以上固定 1260px 居中）。
      居中由 .nav-wrap 的 flex justify-content:center 实时完成：宽度过渡全程平滑居中，
      不会出现 margin:0 auto 的“向右上弹射”（margin 无法过渡）或 transform 导致的弹窗错乱。
@@ -2326,7 +2327,7 @@
   body.nav-scrolled .nav{
     width:min(1260px, calc(100% - 24px));
     background:transparent;   /* 背景交给 ::before 磨砂层，保证光线穿透 */
-    border-radius:18px;
+    border-radius:999px;      /* 圆形倒角：整条胶囊两端全圆（高度约 52px，远小于 999px → 真胶囊形） */
     box-shadow:0 0 0 1px rgba(255,255,255,.08),
       inset 0 1px 0 rgba(255,255,255,.10),
       0 18px 44px -18px rgba(0,0,0,.7)}
@@ -2349,9 +2350,12 @@
   body.nav-scrolled .nav__time-holiday{font-size:11px}
   body.nav-scrolled .nav__time-weather{gap:4px;font-size:11px}
   body.nav-scrolled .nav__time-weather .nw-city{max-width:72px}
+  /* 悬浮态时间栏去掉自身衬底胶囊（透明背景+去内阴影）：fits 右对齐模式下滚动区只占内容宽度，
+     衬底胶囊左侧会露出空白条（UTC+8 前的空白）；整个 nav 已是玻璃胶囊，内嵌衬底属冗余 */
+  body.nav-scrolled .nav__time{background:transparent;box-shadow:none}
   @media(max-width:900px){
     body.nav-scrolled .nav-wrap{top:8px}
-    body.nav-scrolled .nav{width:calc(100% - 12px);border-radius:16px}
+    body.nav-scrolled .nav{width:calc(100% - 12px);border-radius:999px}
   }
 
   /* --- 8. 刷新页面：首屏渐变上升 --- */
