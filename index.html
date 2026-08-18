@@ -465,6 +465,13 @@
     overflow:hidden}
   .nav__time-scroll{display:flex;align-items:center;gap:0;flex:1 1 auto;min-width:0;
     overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
+  /* 时间栏内容完整放得下时（body.nav-time-fits，JS 检测 scrollWidth<=clientWidth 动态添加）：
+     滚动区不再撑满（宽度=内容宽度）、内容整体右对齐 → 农历与节假日胶囊紧贴，消除宽屏空白；
+     内容放不下时维持默认“撑满+左对齐+内部滚动”，节假日胶囊钉在右缘完整可见 */
+  @media(min-width:901px){
+    body.nav-time-fits .nav__time{justify-content:flex-end}
+    body.nav-time-fits .nav__time-scroll{flex:0 1 auto}
+  }
   .nav__time-scroll::-webkit-scrollbar{display:none}
   .nav__time-scroll > span{padding:3px 8px;border-left:1px solid rgba(255,255,255,.06);
     display:inline-block;vertical-align:middle;transition:background .2s;white-space:nowrap;
@@ -498,7 +505,7 @@
      内容再长也通过胶囊内横向滚动完整可见，不裁切不省略 */
   html[lang="en"] .nav__time,
   html[lang="zh-Hant"] .nav__time{
-    flex:1 1 auto;max-width:none;order:0;justify-content:flex-start;
+    flex:1 1 auto;max-width:none;order:0;justify-content:flex-start;  /* 右对齐统一由 body.nav-time-fits 规则接管 */
     flex-wrap:nowrap;border-radius:14px;line-height:1.35
   }
   /* 文本型胶囊：完整显示，不裁切不收缩；天气胶囊在滚动区外，不受影响 */
@@ -7185,16 +7192,30 @@ function bindWeatherPop(){
   var nav=document.querySelector('.nav');
   if(!nav)return;
   var ticking=false;
+  /* 时间栏内容 fit 检测：内容完整放得下 → body.nav-time-fits（滚动区按内容宽度、整体右对齐，
+     农历↔节假日紧贴消除空白）；放不下 → 维持“撑满+内部滚动”。滚动/缩放/内容变化时复查 */
+  var scrollEl=document.getElementById('navTimeScroll');
+  function checkFit(){
+    if(!scrollEl||!scrollEl.isConnected)return;
+    var fit=scrollEl.scrollWidth<=scrollEl.clientWidth+1;
+    document.body.classList.toggle('nav-time-fits',fit);
+  }
   function update(){
     ticking=false;
     var y=window.scrollY||document.documentElement.scrollTop||0;
     var on=document.body.classList.contains('nav-scrolled');
     if(on && y<=2) document.body.classList.remove('nav-scrolled');
     else if(!on && y>10) document.body.classList.add('nav-scrolled');
+    checkFit();
   }
   window.addEventListener('scroll',function(){
     if(!ticking){ticking=true;requestAnimationFrame(update);}
   },{passive:true});
+  window.addEventListener('resize',function(){
+    if(!ticking){ticking=true;requestAnimationFrame(update);}
+  });
+  /* 时钟/农历/节假日/天气为异步渲染，宽度会变化：每秒复查一次（开销极小，常驻保证任何时刻准确） */
+  setInterval(checkFit,1000);
   update();
 })();
 </script>
