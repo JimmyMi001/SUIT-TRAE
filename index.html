@@ -390,7 +390,13 @@
 
   /* ========================================================= Nav
      真实液态玻璃: 上半部实色+毛玻璃可辨, 底边渐变亮线区分, 无硬切线 */
-  .nav{position:sticky;top:0;z-index:50;
+  /* 滚动悬浮容器：sticky 跟随视口顶部，flex 水平居中。
+     居中交给 flex（justify-content:center）：胶囊宽度变化时实时平滑居中，
+     替代 margin:0 auto（margin 无法过渡 → 回顶弹射）与 transform（transform 会让内部
+     position:fixed 的天气/节假日弹窗相对 .nav 定位而错乱） */
+  .nav-wrap{position:sticky;top:0;z-index:50;display:flex;justify-content:center;
+    transition:top .45s cubic-bezier(.22,.61,.36,1)}
+  .nav{width:100%;
     background:linear-gradient(180deg,
       rgba(10,10,10,.72) 0%,
       rgba(10,10,10,.62) 55%,
@@ -2296,23 +2302,40 @@
      居中悬浮、发丝边框、透明度不高、padding 左16 右6。
      宽度由 DeepSeek 的 980px 放宽到 1260px —— 顶部信息量比 DeepSeek 大（含完整时间栏：
      时钟/日期/农历/节假日/天气），980px 会把它们挤出时间栏滚动区）--- */
-  .nav{width:100%;transition:box-shadow .35s ease,background .35s ease,top .35s cubic-bezier(.4,0,.2,1),
-    width .35s cubic-bezier(.4,0,.2,1),border-radius .35s cubic-bezier(.4,0,.2,1)}
-  .nav::before{border-radius:inherit}   /* 伪元素跟随胶囊圆角（不用 overflow:hidden，避免 sticky 合成层抖动） */
-  .nav__row{transition:padding .35s ease}
-  .nav__logo{transition:font-size .35s ease}
-  .nav::after{transition:opacity .35s ease}
+  .nav{width:100%;
+    transition:box-shadow .45s cubic-bezier(.22,.61,.36,1),
+      background .45s cubic-bezier(.22,.61,.36,1),
+      width .45s cubic-bezier(.22,.61,.36,1),
+      border-radius .45s cubic-bezier(.22,.61,.36,1)}
+  .nav::before{border-radius:inherit;   /* 伪元素跟随胶囊圆角（不用 overflow:hidden，避免 sticky 合成层抖动） */
+    transition:background .45s cubic-bezier(.22,.61,.36,1),backdrop-filter .45s ease,box-shadow .45s ease}
+  .nav__row{transition:padding .45s cubic-bezier(.22,.61,.36,1)}
+  .nav__logo{transition:font-size .45s cubic-bezier(.22,.61,.36,1)}
+  .nav::after{transition:opacity .45s ease}
   /* 向下滚动：页顶全宽 → 悬浮胶囊（视口 1284px 以下贴合两侧留 12px 边距，以上固定 1260px 居中）。
+     居中由 .nav-wrap 的 flex justify-content:center 实时完成：宽度过渡全程平滑居中，
+     不会出现 margin:0 auto 的“向右上弹射”（margin 无法过渡）或 transform 导致的弹窗错乱。
      行垂直内边距保持 12px 不变 → 盒高度恒定，切换时不引起整页重排跳动 */
+  body.nav-scrolled .nav-wrap{top:12px}
   body.nav-scrolled .nav{
-    top:12px;
     width:min(1260px, calc(100% - 24px));
-    margin:0 auto;
-    background:rgba(15,17,22,.84);
+    background:transparent;   /* 背景交给 ::before 磨砂层，保证光线穿透 */
     border-radius:18px;
     box-shadow:0 0 0 1px rgba(255,255,255,.08),
-      inset 0 1px 0 rgba(255,255,255,.06),
+      inset 0 1px 0 rgba(255,255,255,.10),
       0 18px 44px -18px rgba(0,0,0,.7)}
+  /* 胶囊态液态玻璃：更透（背景不透明度 .55，让 backdrop-filter 模糊透出页面内容，真实磨砂感）
+     + 更强磨砂（blur 28px）+ 顶部高光渐变（光线穿透）+ 玻璃折射内阴影 */
+  body.nav-scrolled .nav::before{
+    background:linear-gradient(180deg,
+        rgba(255,255,255,.12) 0%,
+        rgba(255,255,255,.05) 20%,
+        rgba(255,255,255,0) 52%,
+        rgba(103,153,254,.05) 100%),
+      rgba(15,17,22,.55);
+    backdrop-filter:blur(28px) saturate(190%) brightness(1.08);
+    -webkit-backdrop-filter:blur(28px) saturate(190%) brightness(1.08);
+    box-shadow:inset 0 -18px 32px -18px rgba(0,0,0,.45)}
   body.nav-scrolled .nav::after{opacity:0}          /* 胶囊模式去掉底边亮线 */
   body.nav-scrolled .nav__row{gap:8px;padding:12px 6px 12px 16px}  /* 呼应 ds-header-bar 16/6 */
   body.nav-scrolled .nav__logo{font-size:17px;gap:6px}
@@ -2321,7 +2344,8 @@
   body.nav-scrolled .nav__time-weather{gap:4px;font-size:11px}
   body.nav-scrolled .nav__time-weather .nw-city{max-width:72px}
   @media(max-width:900px){
-    body.nav-scrolled .nav{top:8px;width:calc(100% - 12px);border-radius:16px}
+    body.nav-scrolled .nav-wrap{top:8px}
+    body.nav-scrolled .nav{width:calc(100% - 12px);border-radius:16px}
   }
 
   /* --- 8. 刷新页面：首屏渐变上升 --- */
@@ -2385,6 +2409,7 @@
   </defs>
 </svg>
 
+<div class="nav-wrap">
 <nav class="nav">
   <div class="container nav__row">
     <div class="nav__logo">🌍 123就出发</div>
@@ -2546,6 +2571,7 @@
     <div class="nav__status" id="status"><span class="dot" id="statusDot"></span><span id="statusText">连接中…</span></div>
   </div>
 </nav>
+</div>
 
 <!-- 一站式智能规划：选择+对话+行程+地图+验证 -->
 <section class="section active" id="s-home">
